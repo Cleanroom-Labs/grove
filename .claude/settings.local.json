@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/andfranklin/Projects/cleanroom-labs/grove push)",
+      "Bash(pytest:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(git -C /Users/andfranklin/Projects/cleanroom-labs/grove log --oneline -5)",
+      "Bash(git -C /Users/andfranklin/Projects/cleanroom-labs/grove add src/grove/filelock.py src/grove/check.py src/grove/config.py src/grove/push.py src/grove/repo_utils.py src/grove/sync.py src/grove/topology.py src/grove/worktree_merge.py tests/test_filelock.py tests/test_check.py tests/test_config.py tests/test_repo_utils.py tests/test_topology.py tests/test_worktree_merge.py)",
+      "Bash(git -C /Users/andfranklin/Projects/cleanroom-labs/grove commit -m \"$\\(cat <<''EOF''\nrefactor: add file locking, consolidate git helpers, improve test coverage\n\nAddresses concurrent safety, code duplication, and test coverage gaps\nidentified during code review:\n\n- Add grove.filelock with fcntl-based locking and atomic JSON writes\n- Consolidate git dir resolution \\(get_git_common_dir/get_git_worktree_dir\\)\n  into repo_utils.py, removing duplicates from worktree_merge.py/topology.py\n- Move 5 merge git helpers to RepoInfo methods \\(has_local_branch, is_ancestor,\n  count_divergent_commits, get_unmerged_files, has_merge_head\\)\n- Extract get_sync_group_exclude_paths\\(\\) to DRY up 4 identical patterns\n- Fix sync.py resolve_target_commit\\(\\) to use run_git instead of raw subprocess\n- Add 41 new tests covering corruption handling, concurrent access, conflict\n  continue/abort paths, and branch check discovery \\(210 -> 251 tests\\)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C /Users/andfranklin/Projects/cleanroom-labs/grove status)",
+      "Bash(git -C /Users/andfranklin/Projects/cleanroom-labs/grove status .claude/)",
+      "Bash(git -C /Users/andfranklin/Projects/cleanroom-labs/grove log --oneline -3)"
+    ]
+  }
+}
