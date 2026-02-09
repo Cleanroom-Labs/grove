@@ -1,19 +1,23 @@
 """
 grove/sync.py
-Synchronize submodule sync groups across all locations with validation
-and push support.
+Synchronize submodule sync groups across all locations.
+
+Local-first by default: discovers all submodule instances, finds the most
+advanced one (the "tip"), and syncs the rest to match.  Use ``--remote``
+to resolve the target from the remote instead.
 
 Usage (via entry point):
-    grove sync                        # Sync all groups to latest
+    grove sync                        # Sync all groups (local-first)
     grove sync common                 # Sync just "common" group
     grove sync common abc1234         # Sync "common" to specific commit
+    grove sync --remote               # Resolve target from remote
     grove sync --dry-run              # Preview changes
     grove sync --no-push              # Commit only, skip pushing
     grove sync --force                # Skip remote sync validation
 
 This module:
-1. Resolves the target submodule commit (from CLI or standalone repo)
-2. Discovers all matching submodule locations for each sync group
+1. Discovers all matching submodule locations for each sync group
+2. Resolves the target commit (local tip, explicit SHA, or remote)
 3. Validates parent repos are in sync with remotes (prevents divergence)
 4. Updates submodules to target commit
 5. Commits changes bottom-up through the hierarchy
@@ -58,15 +62,28 @@ class SyncSubmodule:
         result = self.git("rev-parse", "HEAD", check=False)
         return result.stdout.strip() if result.returncode == 0 else None
 
-    def update_to_commit(self, commit: str, dry_run: bool = False) -> bool:
-        """Update submodule to target commit."""
+    def update_to_commit(
+        self,
+        commit: str,
+        dry_run: bool = False,
+        source_path: Path | None = None,
+    ) -> bool:
+        """Update submodule to target commit.
+
+        Args:
+            commit: Target commit SHA.
+            dry_run: Preview only.
+            source_path: Path to a local repo that has the commit.
+                When set, fetches from that path instead of all remotes.
+        """
         if dry_run:
             return True
 
-        # Fetch all remotes to ensure we have the commit
-        self.git("fetch", "--all", "--quiet", check=False)
+        if source_path:
+            self.git("fetch", str(source_path), check=False)
+        else:
+            self.git("fetch", "--all", "--quiet", check=False)
 
-        # Checkout the target commit (puts it in detached HEAD, which is correct for submodules)
         result = self.git("checkout", commit, "--quiet", check=False)
         return result.returncode == 0
 
@@ -219,6 +236,65 @@ def resolve_target_commit(
     )
 
 
+def resolve_local_tip(
+    submodules: list[SyncSubmodule],
+    repo_root: Path,
+) -> tuple[str, Path, str] | None:
+    """Find the most advanced commit among local submodule instances.
+
+    Returns ``(commit_sha, source_path, description)`` when a single tip
+    exists, or ``None`` when commits have diverged (no linear ordering).
+    """
+    commits: dict[str, SyncSubmodule] = {}
+    for sub in submodules:
+        if sub.current_commit and sub.current_commit not in commits:
+            commits[sub.current_commit] = sub
+
+    if not commits:
+        return None
+
+    if len(commits) == 1:
+        sha, sub = next(iter(commits.items()))
+        rel = str(sub.path.relative_to(repo_root))
+        return (sha, sub.path, f"local tip from {rel}")
+
+    # Find the tip: the commit that is a descendant of all others.
+    items = list(commits.items())
+    tip_sha, tip_sub = items[0]
+
+    for sha, sub in items[1:]:
+        # Is current tip an ancestor of sha?  Then sha is more advanced.
+        result = run_git(
+            sub.path, "merge-base", "--is-ancestor", tip_sha, sha, check=False,
+        )
+        if result.returncode == 0:
+            tip_sha, tip_sub = sha, sub
+            continue
+
+        # Is sha an ancestor of current tip?  Then tip stays.
+        result = run_git(
+            tip_sub.path, "merge-base", "--is-ancestor", sha, tip_sha, check=False,
+        )
+        if result.returncode == 0:
+            continue
+
+        # Diverged — no linear ordering.
+        return None
+
+    # Verify tip is actually a descendant of every commit (handles non-transitive edge cases).
+    for sha in commits:
+        if sha == tip_sha:
+            continue
+        result = run_git(
+            tip_sub.path, "merge-base", "--is-ancestor", sha, tip_sha, check=False,
+        )
+        if result.returncode != 0:
+            return None
+
+    rel = str(tip_sub.path.relative_to(repo_root))
+    return (tip_sha, tip_sub.path, f"local tip from {rel}")
+
+
 def commit_submodule_changes(
     parent_repo: RepoInfo,
     submodule_paths: list[str],
@@ -306,32 +382,13 @@ def _sync_group(
     dry_run: bool,
     no_push: bool,
     force: bool,
+    remote: bool = False,
 ) -> int:
     """Sync a single sync group. Returns 0 on success, 1 on failure."""
     print(Colors.blue(f"=== Syncing group: {group.name} ==="))
     print()
 
-    # Phase 0: Push ahead submodules
-    print(Colors.blue("Checking for ahead submodules..."))
-    submodules_early = discover_sync_submodules(repo_root, group.url_match)
-    if push_ahead_submodules(submodules_early, dry_run):
-        print()
-
-    # Phase 1: Resolve target commit
-    print(Colors.blue("Resolving target commit..."))
-    try:
-        remote_url = resolve_remote_url(repo_root, group.url_match)
-        target_commit, commit_source = resolve_target_commit(
-            commit_arg, group.standalone_repo, remote_url=remote_url,
-        )
-    except ValueError as e:
-        print(Colors.red(f"Error: {e}"))
-        return 1
-
-    print(f"Target: {Colors.green(target_commit[:7])} ({commit_source})")
-    print()
-
-    # Phase 2: Discover submodules
+    # Phase 1: Discover submodules
     print(Colors.blue(f"Discovering {group.name} submodule locations..."))
     all_submodules = discover_sync_submodules(repo_root, group.url_match)
 
@@ -345,6 +402,50 @@ def _sync_group(
         if str(s.path.relative_to(repo_root)) not in allow_drift
     ]
 
+    # Phase 2: Resolve target commit
+    source_path: Path | None = None
+
+    if commit_arg:
+        # Explicit CLI SHA — use as-is
+        print(Colors.blue("Resolving target commit..."))
+        try:
+            target_commit, commit_source = resolve_target_commit(
+                commit_arg, None,
+            )
+        except ValueError as e:
+            print(Colors.red(f"Error: {e}"))
+            return 1
+    elif remote:
+        # --remote: push ahead submodules, then resolve from remote
+        print(Colors.blue("Checking for ahead submodules..."))
+        if push_ahead_submodules(submodules, dry_run):
+            print()
+
+        print(Colors.blue("Resolving target commit from remote..."))
+        try:
+            remote_url = resolve_remote_url(repo_root, group.url_match)
+            target_commit, commit_source = resolve_target_commit(
+                None, group.standalone_repo, remote_url=remote_url,
+            )
+        except ValueError as e:
+            print(Colors.red(f"Error: {e}"))
+            return 1
+    else:
+        # Default: local-first resolution
+        print(Colors.blue("Resolving target commit from local instances..."))
+        tip = resolve_local_tip(submodules, repo_root)
+        if tip is None:
+            print(Colors.red(
+                "Error: local submodule instances have diverged (no single tip).\n"
+                "Use --remote to resolve from the remote, or specify a commit SHA."
+            ))
+            return 1
+        target_commit, source_path, commit_source = tip
+
+    print(f"Target: {Colors.green(target_commit[:7])} ({commit_source})")
+    print()
+
+    # Display submodule status
     print(f"Found {Colors.green(str(len(all_submodules)))} submodule locations:")
     for submodule in all_submodules:
         rel_path = str(submodule.path.relative_to(repo_root))
@@ -413,7 +514,7 @@ def _sync_group(
             print(f"  {Colors.yellow('Would update')} {rel_path}")
             updated_submodules.append(submodule)
         else:
-            if submodule.update_to_commit(target_commit):
+            if submodule.update_to_commit(target_commit, source_path=source_path):
                 print(f"  {Colors.green('Updated')} {rel_path}")
                 updated_submodules.append(submodule)
             else:
@@ -545,14 +646,15 @@ def run(args=None) -> int:
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
-  %(prog)s                          # Sync all groups to latest
+  %(prog)s                          # Sync all groups (local-first)
   %(prog)s common                   # Sync just "common" group
   %(prog)s common abc1234           # Sync "common" to specific commit
+  %(prog)s --remote                 # Resolve target from remote
   %(prog)s --dry-run                # Preview what would happen
   %(prog)s --no-push                # Commit only, skip pushing
 
-The script validates parent repos are in sync with remotes before making
-changes, to prevent repository divergence. Use --force to skip this check.
+By default, the target commit is resolved from the most advanced local
+submodule instance.  Use --remote to resolve from the remote instead.
 """,
         )
         parser.add_argument(
@@ -563,7 +665,7 @@ changes, to prevent repository divergence. Use --force to skip this check.
         parser.add_argument(
             "commit",
             nargs="?",
-            help="Target commit SHA (defaults to latest main from standalone repo)",
+            help="Target commit SHA (defaults to most advanced local instance)",
         )
         parser.add_argument(
             "--dry-run",
@@ -574,6 +676,11 @@ changes, to prevent repository divergence. Use --force to skip this check.
             "--no-push",
             action="store_true",
             help="Commit only, skip pushing (push is default)",
+        )
+        parser.add_argument(
+            "--remote",
+            action="store_true",
+            help="Resolve target from remote instead of local instances",
         )
         parser.add_argument(
             "--force",
@@ -622,6 +729,7 @@ changes, to prevent repository divergence. Use --force to skip this check.
             dry_run=args.dry_run,
             no_push=args.no_push,
             force=args.force,
+            remote=args.remote,
         )
         if result != 0:
             exit_code = result
