@@ -9,10 +9,13 @@ Synchronize submodule sync groups with a preview, confirmation, and verification
 
 `$ARGUMENTS` may contain `[group] [commit]`. Both are optional.
 
+By default, sync resolves the target from the most advanced **local** submodule instance (local-first). Use `--remote` to resolve from the remote instead.
+
 Example usages:
-- `/grove-sync` -- sync all groups to latest
+- `/grove-sync` -- sync all groups to most advanced local instance
 - `/grove-sync common` -- sync just the "common" group
 - `/grove-sync common abc1234` -- sync "common" to a specific commit
+- `/grove-sync --remote` -- sync all groups to remote HEAD
 
 ## Workflow
 
@@ -37,10 +40,12 @@ If all submodules are already at target, report "Nothing to sync" and stop.
 ### Step 2: Confirm with user
 
 Show key facts and ask to confirm:
+- Target commit source (local tip vs remote vs explicit SHA)
 - Number of submodules to update
 - Number of commits to make
 - Number of repos to push
 - Mention `--no-push` as an option if they want to commit locally only
+- Mention `--remote` if they want to sync from the remote instead of the local tip
 
 ### Step 3: Execute sync
 
@@ -57,6 +62,7 @@ Report final status. If issues remain, explain and suggest remediation.
 ## Error Handling
 
 - **Unknown sync group**: list available groups from `.grove.toml`
+- **Diverged local instances**: submodule instances have diverged (no single tip). Suggest `--remote` to resolve from remote, or provide a specific commit SHA
 - **Validation failures**: suggest `git pull` or `grove sync --force`
 - **Push failures**: suggest `grove push` as follow-up
-- **Network errors**: suggest providing a specific commit SHA
+- **Network errors** (with `--remote`): suggest dropping `--remote` to use local-first, or providing a specific commit SHA
