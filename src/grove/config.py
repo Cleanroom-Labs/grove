@@ -113,3 +113,18 @@ def load_config(repo_root: Path) -> GroveConfig:
     )
 
     return GroveConfig(sync_groups=sync_groups, merge=merge)
+
+
+def get_sync_group_exclude_paths(repo_root: Path, config: GroveConfig) -> set[Path]:
+    """Collect sync-group submodule paths to exclude from repo discovery.
+
+    Avoids the 3-line pattern duplicated across push, merge, and check.
+    Uses a lazy import to prevent a circular dependency with ``grove.sync``.
+    """
+    from grove.sync import discover_sync_submodules
+
+    paths: set[Path] = set()
+    for group in config.sync_groups.values():
+        for sub in discover_sync_submodules(repo_root, group.url_match):
+            paths.add(sub.path)
+    return paths

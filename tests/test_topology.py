@@ -211,6 +211,52 @@ class TestDiffSnapshots:
 # TopologyCache
 # ---------------------------------------------------------------------------
 
+class TestTopologyCacheCorruption:
+    """Edge cases: corrupt or unexpected cache files."""
+
+    def test_load_truncated_json(self, tmp_path: Path):
+        cache_path = tmp_path / "topo.json"
+        cache_path.write_text('{"snapshots": [{"root_commit": "abc"')
+        cache = TopologyCache(cache_path)
+        import json
+        import pytest
+        with pytest.raises(json.JSONDecodeError):
+            cache.load()
+
+    def test_load_missing_snapshots_key(self, tmp_path: Path):
+        cache_path = tmp_path / "topo.json"
+        cache_path.write_text('{"other": true}')
+        cache = TopologyCache(cache_path)
+        cache.load()
+        assert cache.snapshots == []
+
+    def test_load_empty_file(self, tmp_path: Path):
+        cache_path = tmp_path / "topo.json"
+        cache_path.write_text("")
+        cache = TopologyCache(cache_path)
+        import json
+        import pytest
+        with pytest.raises(json.JSONDecodeError):
+            cache.load()
+
+    def test_load_malformed_entry(self, tmp_path: Path):
+        """An entry missing required fields should raise."""
+        import json
+        import pytest
+        cache_path = tmp_path / "topo.json"
+        cache_path.write_text(json.dumps({
+            "snapshots": [{
+                "root_commit": "abc",
+                "timestamp": "2026-01-01T00:00:00",
+                "topology_hash": "xyz",
+                "entries": [{"rel_path": "sub"}],  # missing other required fields
+            }]
+        }))
+        cache = TopologyCache(cache_path)
+        with pytest.raises(TypeError):
+            cache.load()
+
+
 class TestTopologyCache:
     def test_load_empty(self, tmp_path: Path):
         cache = TopologyCache(tmp_path / "topo.json")

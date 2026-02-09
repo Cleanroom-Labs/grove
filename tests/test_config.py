@@ -9,6 +9,7 @@ from grove.config import (
     MergeConfig,
     GroveConfig,
     SyncGroup,
+    get_sync_group_exclude_paths,
     load_config,
 )
 
@@ -234,3 +235,19 @@ class TestMergeConfig:
         config = load_config(tmp_path)
         assert "common" in config.sync_groups
         assert config.merge.test_command == "pytest"
+
+
+class TestGetSyncGroupExcludePaths:
+    def test_returns_sync_submodule_paths(self, tmp_submodule_tree: Path):
+        """Should return paths of submodules matching sync-group url-match."""
+        config = load_config(tmp_submodule_tree)
+        paths = get_sync_group_exclude_paths(tmp_submodule_tree, config)
+        # The tree has a "common" sync group matching grandchild_origin
+        common_path = tmp_submodule_tree / "technical-docs" / "common"
+        assert common_path in paths
+
+    def test_empty_when_no_sync_groups(self, tmp_git_repo: Path):
+        """Should return empty set when no sync groups are configured."""
+        config = load_config(tmp_git_repo)
+        paths = get_sync_group_exclude_paths(tmp_git_repo, config)
+        assert paths == set()

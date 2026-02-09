@@ -167,6 +167,59 @@ class TestPredictConflicts:
 # Unit tests: state management
 # ---------------------------------------------------------------------------
 
+class TestMergeStateCorruption:
+    """Edge cases: corrupt or unexpected state files."""
+
+    def test_load_truncated_json(self, tmp_path: Path):
+        state_path = tmp_path / "merge.json"
+        state_path.write_text('{"branch": "feat", "repos": [')
+        with pytest.raises(json.JSONDecodeError):
+            MergeState.load(state_path)
+
+    def test_load_missing_repos_key(self, tmp_path: Path):
+        state_path = tmp_path / "merge.json"
+        state_path.write_text(json.dumps({
+            "branch": "feat", "no_ff": False, "no_test": False,
+            "started_at": "2026-01-01T00:00:00",
+        }))
+        with pytest.raises(KeyError):
+            MergeState.load(state_path)
+
+    def test_load_empty_file(self, tmp_path: Path):
+        state_path = tmp_path / "merge.json"
+        state_path.write_text("")
+        with pytest.raises(json.JSONDecodeError):
+            MergeState.load(state_path)
+
+    def test_extra_fields_in_repos_raises(self, tmp_path: Path):
+        """Extra keys in repo entries cause TypeError (forward-compat gap)."""
+        state_path = tmp_path / "merge.json"
+        state_path.write_text(json.dumps({
+            "branch": "feat", "no_ff": False, "no_test": False,
+            "started_at": "2026-01-01T00:00:00",
+            "repos": [{"rel_path": ".", "status": "pending",
+                        "pre_merge_head": None, "post_merge_head": None,
+                        "reason": None, "extra_key": "ignored"}],
+        }))
+        with pytest.raises(TypeError, match="unexpected keyword argument"):
+            MergeState.load(state_path)
+
+    def test_extra_top_level_fields_ignored(self, tmp_path: Path):
+        """Extra top-level keys in the JSON should not break loading."""
+        state_path = tmp_path / "merge.json"
+        state_path.write_text(json.dumps({
+            "branch": "feat", "no_ff": False, "no_test": False,
+            "started_at": "2026-01-01T00:00:00",
+            "repos": [{"rel_path": ".", "status": "pending",
+                        "pre_merge_head": None, "post_merge_head": None,
+                        "reason": None}],
+            "future_field": True,
+        }))
+        state = MergeState.load(state_path)
+        assert state.branch == "feat"
+        assert len(state.repos) == 1
+
+
 class TestMergeState:
     def test_save_and_load(self, tmp_path: Path):
         state_path = tmp_path / "merge.json"
@@ -538,3 +591,128 @@ class TestStructuralCheck:
 
         output = capsys.readouterr().out
         assert "Warning: submodule structure differs" not in output
+
+
+# ---------------------------------------------------------------------------
+# Integration tests: continue with conflict resolution
+# ---------------------------------------------------------------------------
+
+class TestContinueConflictResolution:
+    def test_continue_after_conflict_resolution(self, tmp_git_repo: Path):
+        """Create a conflict, resolve it, then --continue should succeed."""
+        # Create a branch with conflicting changes
+        _git(tmp_git_repo, "checkout", "-b", "conflict-branch")
+        (tmp_git_repo / "README.md").write_text("conflict branch content\n")
+        _git(tmp_git_repo, "add", "README.md")
+        _git(tmp_git_repo, "commit", "-m", "conflict branch commit")
+        _git(tmp_git_repo, "checkout", "-")
+
+        # Create conflicting change on main
+        (tmp_git_repo / "README.md").write_text("main branch content\n")
+        _git(tmp_git_repo, "add", "README.md")
+        _git(tmp_git_repo, "commit", "-m", "main conflicting commit")
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=tmp_git_repo):
+            result = start_merge("conflict-branch", no_test=True)
+
+        assert result == 1
+        state = MergeState.load(_get_state_path(tmp_git_repo))
+        paused = [e for e in state.repos if e.status == "paused"]
+        assert len(paused) == 1
+        assert paused[0].reason == "conflict"
+
+        # Resolve the conflict
+        (tmp_git_repo / "README.md").write_text("resolved content\n")
+        _git(tmp_git_repo, "add", "README.md")
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=tmp_git_repo):
+            result = continue_merge()
+
+        assert result == 0
+        assert not _get_state_path(tmp_git_repo).exists()
+
+    def test_continue_with_unresolved_conflicts(self, tmp_git_repo: Path, capsys):
+        """Continuing with unresolved conflicts should return 1."""
+        _git(tmp_git_repo, "checkout", "-b", "conflict-branch")
+        (tmp_git_repo / "README.md").write_text("conflict branch content\n")
+        _git(tmp_git_repo, "add", "README.md")
+        _git(tmp_git_repo, "commit", "-m", "conflict branch commit")
+        _git(tmp_git_repo, "checkout", "-")
+
+        (tmp_git_repo / "README.md").write_text("main branch content\n")
+        _git(tmp_git_repo, "add", "README.md")
+        _git(tmp_git_repo, "commit", "-m", "main conflicting commit")
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=tmp_git_repo):
+            start_merge("conflict-branch", no_test=True)
+
+        # Don't resolve — just try to continue
+        with patch("grove.worktree_merge.find_repo_root", return_value=tmp_git_repo):
+            result = continue_merge()
+
+        assert result == 1
+        output = capsys.readouterr().out
+        assert "Unresolved" in output or "conflict" in output.lower()
+
+        # Clean up
+        with patch("grove.worktree_merge.find_repo_root", return_value=tmp_git_repo):
+            abort_merge()
+
+
+class TestAbortConflict:
+    def test_abort_during_conflict(self, tmp_git_repo: Path):
+        """Aborting during a conflict should restore the repo."""
+        _git(tmp_git_repo, "checkout", "-b", "conflict-branch")
+        (tmp_git_repo / "README.md").write_text("conflict branch content\n")
+        _git(tmp_git_repo, "add", "README.md")
+        _git(tmp_git_repo, "commit", "-m", "conflict branch commit")
+        _git(tmp_git_repo, "checkout", "-")
+
+        (tmp_git_repo / "README.md").write_text("main branch content\n")
+        _git(tmp_git_repo, "add", "README.md")
+        _git(tmp_git_repo, "commit", "-m", "main conflicting commit")
+
+        main_sha = _git(tmp_git_repo, "rev-parse", "HEAD").stdout.strip()
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=tmp_git_repo):
+            start_merge("conflict-branch", no_test=True)
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=tmp_git_repo):
+            result = abort_merge()
+
+        assert result == 0
+        assert not _get_state_path(tmp_git_repo).exists()
+
+        # HEAD should be back to the pre-merge main commit
+        current_sha = _git(tmp_git_repo, "rev-parse", "HEAD").stdout.strip()
+        assert current_sha == main_sha
+
+    def test_abort_after_partial_merge(self, tmp_submodule_tree_with_branches: Path):
+        """When first repo merges but second pauses, abort should roll both back."""
+        root = tmp_submodule_tree_with_branches
+
+        # Make the root repo conflict to pause there, while submodules merge clean
+        _git(root, "checkout", "my-feature")
+        (root / "README.md").write_text("feature-branch README\n")
+        _git(root, "add", "README.md")
+        _git(root, "commit", "-m", "feature conflict on root README")
+        _git(root, "checkout", "-")
+
+        (root / "README.md").write_text("main-branch README\n")
+        _git(root, "add", "README.md")
+        _git(root, "commit", "-m", "main conflict on root README")
+
+        # Record pre-merge SHAs for child
+        child = root / "technical-docs"
+        child_pre = _git(child, "rev-parse", "HEAD").stdout.strip()
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=root):
+            result = start_merge("my-feature", no_test=True)
+        assert result == 1  # paused on conflict
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=root):
+            abort_merge()
+
+        # Child should be restored
+        child_post = _git(child, "rev-parse", "HEAD").stdout.strip()
+        assert child_post == child_pre

@@ -4,7 +4,12 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
-from grove.check import check_repo_state, check_sync_groups, get_tag_or_branch
+from grove.check import (
+    _discover_branch_check_repos,
+    check_repo_state,
+    check_sync_groups,
+    get_tag_or_branch,
+)
 from grove.config import CONFIG_FILENAME, SyncGroup
 from grove.repo_utils import RepoInfo
 from grove.sync import SyncSubmodule
@@ -154,3 +159,31 @@ class TestCheckRun:
 
         captured = capsys.readouterr()
         assert "detached" in captured.out.lower()
+
+
+# ---------------------------------------------------------------------------
+# _discover_branch_check_repos
+# ---------------------------------------------------------------------------
+
+class TestDiscoverBranchCheckRepos:
+    def test_finds_submodules(self, tmp_submodule_tree: Path):
+        """Should find non-excluded submodules."""
+        repos = _discover_branch_check_repos(tmp_submodule_tree, exclude_paths=set())
+        names = {name for name, _ in repos}
+        assert "technical-docs" in names
+
+    def test_excludes_sync_group_paths(self, tmp_submodule_tree: Path):
+        """Sync-group submodule paths should be excluded."""
+        common_path = tmp_submodule_tree / "technical-docs" / "common"
+        repos = _discover_branch_check_repos(
+            tmp_submodule_tree, exclude_paths={common_path}
+        )
+        paths = {r.path for _, r in repos}
+        assert common_path not in paths
+        # technical-docs should still be included
+        assert tmp_submodule_tree / "technical-docs" in paths
+
+    def test_empty_when_no_submodules(self, tmp_git_repo: Path):
+        """A repo without .gitmodules should return empty list."""
+        repos = _discover_branch_check_repos(tmp_git_repo, exclude_paths=set())
+        assert repos == []

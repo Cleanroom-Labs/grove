@@ -9,6 +9,8 @@ from grove.repo_utils import (
     RepoStatus,
     discover_repos,
     find_repo_root,
+    get_git_common_dir,
+    get_git_worktree_dir,
     topological_sort_repos,
 )
 
@@ -282,3 +284,93 @@ class TestFindRepoRoot:
         """Should find the repo root even without .grove.toml."""
         result = find_repo_root(start=tmp_git_repo)
         assert result == tmp_git_repo
+
+
+# ---------------------------------------------------------------------------
+# Git dir resolution
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# RepoInfo merge-related methods (Phase 3)
+# ---------------------------------------------------------------------------
+
+class TestHasLocalBranch:
+    def test_existing_branch(self, tmp_submodule_tree_with_branches: Path):
+        repo = RepoInfo(
+            path=tmp_submodule_tree_with_branches,
+            repo_root=tmp_submodule_tree_with_branches,
+        )
+        assert repo.has_local_branch("my-feature") is True
+
+    def test_nonexistent_branch(self, tmp_git_repo: Path):
+        repo = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
+        assert repo.has_local_branch("nonexistent") is False
+
+
+class TestIsAncestor:
+    def test_head_is_ancestor_of_itself(self, tmp_git_repo: Path):
+        repo = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
+        assert repo.is_ancestor("HEAD") is True
+
+    def test_branch_not_ancestor_when_diverged(self, tmp_submodule_tree_with_branches: Path):
+        repo = RepoInfo(
+            path=tmp_submodule_tree_with_branches,
+            repo_root=tmp_submodule_tree_with_branches,
+        )
+        # my-feature has a commit that main doesn't, so it's not an ancestor of HEAD (main)
+        assert repo.is_ancestor("my-feature") is False
+
+
+class TestCountDivergentCommits:
+    def test_diverged_branches(self, tmp_submodule_tree_with_branches: Path):
+        repo = RepoInfo(
+            path=tmp_submodule_tree_with_branches,
+            repo_root=tmp_submodule_tree_with_branches,
+        )
+        _, behind = repo.count_divergent_commits("my-feature")
+        # main is 0 ahead of feature; feature has 1 commit beyond the merge-base
+        assert behind >= 1
+
+    def test_same_branch(self, tmp_git_repo: Path):
+        repo = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
+        ahead, behind = repo.count_divergent_commits("HEAD")
+        assert ahead == 0
+        assert behind == 0
+
+
+class TestGetUnmergedFiles:
+    def test_no_conflicts(self, tmp_git_repo: Path):
+        repo = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
+        assert repo.get_unmerged_files() == []
+
+
+class TestHasMergeHead:
+    def test_no_merge_in_progress(self, tmp_git_repo: Path):
+        repo = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
+        assert repo.has_merge_head() is False
+
+
+# ---------------------------------------------------------------------------
+# Git dir resolution
+# ---------------------------------------------------------------------------
+
+class TestGetGitCommonDir:
+    def test_returns_git_dir(self, tmp_git_repo: Path):
+        result = get_git_common_dir(tmp_git_repo)
+        assert result.name == ".git"
+        assert result.is_dir()
+
+    def test_returns_absolute_path(self, tmp_git_repo: Path):
+        result = get_git_common_dir(tmp_git_repo)
+        assert result.is_absolute()
+
+
+class TestGetGitWorktreeDir:
+    def test_returns_git_dir(self, tmp_git_repo: Path):
+        result = get_git_worktree_dir(tmp_git_repo)
+        assert result.name == ".git"
+        assert result.is_dir()
+
+    def test_returns_absolute_path(self, tmp_git_repo: Path):
+        result = get_git_worktree_dir(tmp_git_repo)
+        assert result.is_absolute()

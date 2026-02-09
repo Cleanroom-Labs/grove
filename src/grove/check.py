@@ -15,7 +15,7 @@ import argparse
 from collections import Counter
 from pathlib import Path
 
-from grove.config import load_config
+from grove.config import get_sync_group_exclude_paths, load_config
 from grove.repo_utils import Colors, RepoInfo, find_repo_root, parse_gitmodules
 from grove.sync import discover_sync_submodules
 
@@ -173,10 +173,7 @@ def run(args=None) -> int:
 
     # Collect sync-group submodule paths to exclude from branch checks
     # (sync-group submodules are expected to be on detached HEAD)
-    sync_submodule_paths: set[Path] = set()
-    for group in config.sync_groups.values():
-        for sub in discover_sync_submodules(repo_root, group.url_match):
-            sync_submodule_paths.add(sub.path)
+    sync_submodule_paths = get_sync_group_exclude_paths(repo_root, config)
 
     # Section 1: Check project submodules are on branches
     print(Colors.blue("Checking submodule branches..."))

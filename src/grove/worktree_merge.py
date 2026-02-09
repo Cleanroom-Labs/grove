@@ -15,19 +15,22 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from grove.config import MergeConfig, load_config
+from grove.filelock import atomic_write_json, locked_open
+
+from grove.config import MergeConfig, get_sync_group_exclude_paths, load_config
 from grove.repo_utils import (
     Colors,
     RepoInfo,
     discover_repos,
     find_repo_root,
+    get_git_common_dir,
+    get_git_worktree_dir,
     parse_gitmodules,
     run_git,
     set_parent_relationships,
     topological_sort_repos,
 )
-from grove.sync import discover_sync_submodules
-from grove.topology import TopologyCache, diff_snapshots
+from grove.topology import TopologyCache
 
 
 # ---------------------------------------------------------------------------
@@ -61,12 +64,12 @@ class MergeState:
             "started_at": self.started_at,
             "repos": [asdict(r) for r in self.repos],
         }
-        state_path.parent.mkdir(parents=True, exist_ok=True)
-        state_path.write_text(json.dumps(data, indent=2) + "\n")
+        atomic_write_json(state_path, json.dumps(data, indent=2) + "\n")
 
     @classmethod
     def load(cls, state_path: Path) -> MergeState:
-        data = json.loads(state_path.read_text())
+        with locked_open(state_path, "r", shared=True) as f:
+            data = json.loads(f.read())
         repos = [RepoMergeEntry(**r) for r in data["repos"]]
         return cls(
             branch=data["branch"],
@@ -86,52 +89,22 @@ class MergeState:
 # Path helpers
 # ---------------------------------------------------------------------------
 
-def _get_git_worktree_dir(repo_root: Path) -> Path:
-    """Resolve the per-worktree .git directory.
-
-    In a linked worktree this returns ``.git/worktrees/<name>``;
-    in the main worktree it returns ``.git``.
-    """
-    result = run_git(repo_root, "rev-parse", "--absolute-git-dir", check=False)
-    if result.returncode == 0:
-        return Path(result.stdout.strip())
-    return repo_root / ".git"
-
-
-def _get_git_common_dir(repo_root: Path) -> Path:
-    """Resolve the shared .git directory (same across all worktrees).
-
-    Returns the main ``.git`` directory regardless of which worktree
-    the command is run from.  Shared data (topology cache, merge journal)
-    should live here.
-    """
-    result = run_git(repo_root, "rev-parse", "--git-common-dir", check=False)
-    if result.returncode == 0:
-        path = Path(result.stdout.strip())
-        # --git-common-dir may return a relative path; resolve it.
-        if not path.is_absolute():
-            path = (repo_root / path).resolve()
-        return path
-    return repo_root / ".git"
-
-
 def _get_state_path(repo_root: Path) -> Path:
     """Per-worktree merge state file."""
-    return _get_git_worktree_dir(repo_root) / "grove" / "merge-state.json"
+    return get_git_worktree_dir(repo_root) / "grove" / "merge-state.json"
 
 
 def _get_journal_path(repo_root: Path) -> Path:
     """Shared merge journal with monthly rotation."""
     now = datetime.now(timezone.utc)
     filename = f"merge-journal-{now.strftime('%Y-%m')}.log"
-    return _get_git_common_dir(repo_root) / "grove" / filename
+    return get_git_common_dir(repo_root) / "grove" / filename
 
 
 def _log(journal_path: Path, message: str) -> None:
     """Append a timestamped entry to the merge journal."""
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-    journal_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(journal_path, "a") as f:
+    with locked_open(journal_path, "a") as f:
         f.write(f"[{ts}] {message}\n")
 
 
@@ -140,45 +113,28 @@ def _log(journal_path: Path, message: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _has_branch(repo: RepoInfo, branch: str) -> bool:
-    """Check if a local branch exists in the repo."""
-    result = repo.git("rev-parse", "--verify", f"refs/heads/{branch}", check=False)
-    return result.returncode == 0
+    """Shim — delegates to ``repo.has_local_branch``."""
+    return repo.has_local_branch(branch)
 
 
 def _is_ancestor(repo: RepoInfo, branch: str) -> bool:
-    """Check if the branch is already an ancestor of HEAD (already merged)."""
-    result = repo.git("merge-base", "--is-ancestor", branch, "HEAD", check=False)
-    return result.returncode == 0
+    """Shim — delegates to ``repo.is_ancestor``."""
+    return repo.is_ancestor(branch)
 
 
 def _count_divergent_commits(repo: RepoInfo, branch: str) -> tuple[int, int]:
-    """Count commits (ahead, behind) between HEAD and branch.
-
-    Returns (commits_on_HEAD_not_on_branch, commits_on_branch_not_on_HEAD).
-    """
-    result = repo.git(
-        "rev-list", "--count", "--left-right", f"HEAD...{branch}", check=False
-    )
-    if result.returncode != 0:
-        return (0, 0)
-    parts = result.stdout.strip().split()
-    if len(parts) == 2:
-        return (int(parts[0]), int(parts[1]))
-    return (0, 0)
+    """Shim — delegates to ``repo.count_divergent_commits``."""
+    return repo.count_divergent_commits(branch)
 
 
 def _get_unmerged_files(repo: RepoInfo) -> list[str]:
-    """List files with unresolved merge conflicts."""
-    result = repo.git("diff", "--name-only", "--diff-filter=U", check=False)
-    if result.returncode != 0:
-        return []
-    return [f for f in result.stdout.strip().split("\n") if f]
+    """Shim — delegates to ``repo.get_unmerged_files``."""
+    return repo.get_unmerged_files()
 
 
 def _has_merge_head(repo: RepoInfo) -> bool:
-    """Check if a merge is in progress (MERGE_HEAD exists)."""
-    result = repo.git("rev-parse", "--verify", "MERGE_HEAD", check=False)
-    return result.returncode == 0
+    """Shim — delegates to ``repo.has_merge_head``."""
+    return repo.has_merge_head()
 
 
 # ---------------------------------------------------------------------------
@@ -198,9 +154,9 @@ def _predict_conflicts(repo: RepoInfo, branch: str) -> tuple[bool, list[str]]:
     clean = result.returncode == 0
     conflicting = []
     if not clean:
-        conflicting = _get_unmerged_files(repo)
+        conflicting = repo.get_unmerged_files()
     # Abort the simulated merge
-    if _has_merge_head(repo):
+    if repo.has_merge_head():
         repo.git("merge", "--abort", check=False)
     elif clean:
         # Clean merge was staged but not committed — reset
@@ -221,7 +177,7 @@ def _auto_resolve_submodule_conflicts(
     stage the current (just-merged) version. Returns True if all
     conflicts are resolved.
     """
-    unmerged = _get_unmerged_files(repo)
+    unmerged = repo.get_unmerged_files()
     if not unmerged:
         return True
 
@@ -244,9 +200,9 @@ def _auto_resolve_submodule_conflicts(
                 continue
         all_resolved = False
 
-    if all_resolved and not _get_unmerged_files(repo):
+    if all_resolved and not repo.get_unmerged_files():
         return True
-    return not bool(_get_unmerged_files(repo))
+    return not bool(repo.get_unmerged_files())
 
 
 # ---------------------------------------------------------------------------
@@ -380,7 +336,7 @@ def _execute_merge_for_repo(
                  f"MERGE {entry.rel_path}: clean merge (submodule pointers auto-resolved)")
         else:
             # Unresolvable conflicts
-            conflicting = _get_unmerged_files(repo)
+            conflicting = repo.get_unmerged_files()
             _log(journal_path,
                  f"MERGE {entry.rel_path}: CONFLICT ({', '.join(conflicting)})")
             entry.status = "paused"
@@ -455,10 +411,7 @@ def start_merge(
     # Phase 1 — Discovery
     print(Colors.blue("Discovering repositories..."))
     config = load_config(repo_root)
-    exclude_paths: set[Path] = set()
-    for group in config.sync_groups.values():
-        for sub in discover_sync_submodules(repo_root, group.url_match):
-            exclude_paths.add(sub.path)
+    exclude_paths = get_sync_group_exclude_paths(repo_root, config)
 
     repos = discover_repos(repo_root, exclude_paths=exclude_paths or None)
     set_parent_relationships(repos)
@@ -509,14 +462,14 @@ def start_merge(
             continue
 
         # Check if branch exists
-        if not _has_branch(repo, branch):
+        if not repo.has_local_branch(branch):
             entry = RepoMergeEntry(rel_path=rel, status="skipped", reason="branch-not-found")
             entries.append(entry)
             print(f"  {Colors.yellow('·')} {rel}: skipped (branch '{branch}' not found)")
             continue
 
         # Check if already merged
-        if _is_ancestor(repo, branch):
+        if repo.is_ancestor(branch):
             entry = RepoMergeEntry(rel_path=rel, status="skipped", reason="already-merged")
             entries.append(entry)
             print(f"  {Colors.yellow('·')} {rel}: skipped (already up-to-date)")
@@ -525,7 +478,7 @@ def start_merge(
         entry = RepoMergeEntry(rel_path=rel)
         entries.append(entry)
         needs_merge_repos.append((repo, entry))
-        ahead, behind = _count_divergent_commits(repo, branch)
+        _, behind = repo.count_divergent_commits(branch)
         print(f"  {Colors.green('→')} {rel}: needs merge ({behind} commits from {branch})")
 
     if has_errors:
@@ -630,7 +583,7 @@ def continue_merge() -> int:
 
     if paused_entry.reason == "conflict":
         # Verify conflicts are resolved
-        unmerged = _get_unmerged_files(repo)
+        unmerged = repo.get_unmerged_files()
         if unmerged:
             print(Colors.red(f"Unresolved conflicts in {paused_entry.rel_path}:"))
             for f in unmerged:
@@ -640,7 +593,7 @@ def continue_merge() -> int:
             return 1
 
         # If merge was in progress, commit it
-        if _has_merge_head(repo):
+        if repo.has_merge_head():
             repo.git("commit", "--no-edit", check=False)
 
         # Run tests
@@ -688,10 +641,7 @@ def continue_merge() -> int:
 
     # Continue with remaining pending repos
     # Re-discover repos to get RepoInfo objects
-    exclude_paths: set[Path] = set()
-    for group in config.sync_groups.values():
-        for sub in discover_sync_submodules(repo_root, group.url_match):
-            exclude_paths.add(sub.path)
+    exclude_paths = get_sync_group_exclude_paths(repo_root, config)
     all_repos = discover_repos(repo_root, exclude_paths=exclude_paths or None)
     path_to_repo = {r.path: r for r in all_repos}
 
@@ -746,7 +696,7 @@ def abort_merge() -> int:
             else:
                 rp = repo_root / entry.rel_path
             repo = RepoInfo(path=rp, repo_root=repo_root)
-            if _has_merge_head(repo):
+            if repo.has_merge_head():
                 repo.git("merge", "--abort", check=False)
             # Reset to pre-merge state if we have it
             if entry.pre_merge_head:

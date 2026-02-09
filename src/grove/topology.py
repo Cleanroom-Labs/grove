@@ -15,6 +15,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from grove.filelock import atomic_write_json, locked_open
+
 
 DEFAULT_MAX_SNAPSHOTS = 500
 
@@ -252,16 +254,8 @@ class TopologyCache:
 
         Uses ``--git-common-dir`` so the cache is shared across worktrees.
         """
-        from grove.repo_utils import run_git
-        result = run_git(repo_root, "rev-parse", "--git-common-dir", check=False)
-        if result.returncode == 0:
-            git_dir = Path(result.stdout.strip())
-            # --git-common-dir may return a relative path; resolve it.
-            if not git_dir.is_absolute():
-                git_dir = (repo_root / git_dir).resolve()
-        else:
-            git_dir = repo_root / ".git"
-        return cls(git_dir / "grove" / "topology.json")
+        from grove.repo_utils import get_git_common_dir
+        return cls(get_git_common_dir(repo_root) / "grove" / "topology.json")
 
     def load(self) -> None:
         """Load snapshots from disk."""
@@ -269,7 +263,8 @@ class TopologyCache:
             self.snapshots = []
             return
 
-        data = json.loads(self.cache_path.read_text())
+        with locked_open(self.cache_path, "r", shared=True) as f:
+            data = json.loads(f.read())
         self.snapshots = []
         for snap_data in data.get("snapshots", []):
             entries = [
@@ -296,8 +291,7 @@ class TopologyCache:
                 for s in self.snapshots
             ]
         }
-        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-        self.cache_path.write_text(json.dumps(data, indent=2) + "\n")
+        atomic_write_json(self.cache_path, json.dumps(data, indent=2) + "\n")
 
     def record(self, root_commit: str, repos, repo_root: Path) -> None:
         """Record a topology snapshot from discovered repos.

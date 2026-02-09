@@ -79,6 +79,34 @@ def run_git(path: Path, *args: str, check: bool = True, capture: bool = True) ->
     return subprocess.run(cmd, capture_output=capture, text=True, check=check)
 
 
+def get_git_common_dir(repo_root: Path) -> Path:
+    """Resolve the shared .git directory (same across all worktrees).
+
+    Returns the main ``.git`` directory regardless of which worktree
+    the command is run from.  Shared data (topology cache, merge journal)
+    should live here.
+    """
+    result = run_git(repo_root, "rev-parse", "--git-common-dir", check=False)
+    if result.returncode == 0:
+        path = Path(result.stdout.strip())
+        if not path.is_absolute():
+            path = (repo_root / path).resolve()
+        return path
+    return repo_root / ".git"
+
+
+def get_git_worktree_dir(repo_root: Path) -> Path:
+    """Resolve the per-worktree .git directory.
+
+    In a linked worktree this returns ``.git/worktrees/<name>``;
+    in the main worktree it returns ``.git``.
+    """
+    result = run_git(repo_root, "rev-parse", "--absolute-git-dir", check=False)
+    if result.returncode == 0:
+        return Path(result.stdout.strip())
+    return repo_root / ".git"
+
+
 def parse_gitmodules(
     gitmodules_path: Path,
     url_match: str | None = None,
@@ -377,6 +405,43 @@ class RepoInfo:
         if result.returncode != 0:
             return None
         return result.stdout.strip()
+
+    def has_local_branch(self, branch: str) -> bool:
+        """Check if a local branch exists."""
+        result = self.git("rev-parse", "--verify", f"refs/heads/{branch}", check=False)
+        return result.returncode == 0
+
+    def is_ancestor(self, branch: str) -> bool:
+        """Check if *branch* is already an ancestor of HEAD (already merged)."""
+        result = self.git("merge-base", "--is-ancestor", branch, "HEAD", check=False)
+        return result.returncode == 0
+
+    def count_divergent_commits(self, branch: str) -> tuple[int, int]:
+        """Count commits (ahead, behind) between HEAD and *branch*.
+
+        Returns (commits_on_HEAD_not_on_branch, commits_on_branch_not_on_HEAD).
+        """
+        result = self.git(
+            "rev-list", "--count", "--left-right", f"HEAD...{branch}", check=False
+        )
+        if result.returncode != 0:
+            return (0, 0)
+        parts = result.stdout.strip().split()
+        if len(parts) == 2:
+            return (int(parts[0]), int(parts[1]))
+        return (0, 0)
+
+    def get_unmerged_files(self) -> list[str]:
+        """List files with unresolved merge conflicts."""
+        result = self.git("diff", "--name-only", "--diff-filter=U", check=False)
+        if result.returncode != 0:
+            return []
+        return [f for f in result.stdout.strip().split("\n") if f]
+
+    def has_merge_head(self) -> bool:
+        """Check if a merge is in progress (MERGE_HEAD exists)."""
+        result = self.git("rev-parse", "--verify", "MERGE_HEAD", check=False)
+        return result.returncode == 0
 
     @property
     def name(self) -> str:

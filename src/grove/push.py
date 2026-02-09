@@ -9,10 +9,9 @@ Usage (via entry point):
 """
 
 import argparse
-from pathlib import Path
 
 from grove.check import check_sync_groups
-from grove.config import load_config
+from grove.config import get_sync_group_exclude_paths, load_config
 from grove.repo_utils import (
     Colors,
     RepoStatus,
@@ -21,7 +20,6 @@ from grove.repo_utils import (
     print_status_table,
     topological_sort_repos,
 )
-from grove.sync import discover_sync_submodules
 
 
 def run(args=None) -> int:
@@ -66,10 +64,7 @@ The script validates that each repo:
     print()
 
     config = load_config(repo_root)
-    exclude_paths: set[Path] = set()
-    for group in config.sync_groups.values():
-        for sub in discover_sync_submodules(repo_root, group.url_match):
-            exclude_paths.add(sub.path)
+    exclude_paths = get_sync_group_exclude_paths(repo_root, config)
 
     repos = discover_repos(repo_root, exclude_paths=exclude_paths or None)
     print(f"Found {Colors.green(str(len(repos)))} repositories")

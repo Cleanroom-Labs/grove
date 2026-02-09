@@ -177,31 +177,16 @@ def resolve_target_commit(
                 "Please specify a commit SHA explicitly."
             )
 
-        result = subprocess.run(
-            ["git", "-C", str(standalone_repo), "remote", "get-url", "origin"],
-            capture_output=True,
-            text=True,
-        )
+        result = run_git(standalone_repo, "remote", "get-url", "origin", check=False)
 
         if result.returncode == 0:
-            subprocess.run(
-                ["git", "-C", str(standalone_repo), "fetch", "origin", "main", "--quiet"],
-                capture_output=True,
-            )
-            result = subprocess.run(
-                ["git", "-C", str(standalone_repo), "rev-parse", "origin/main"],
-                capture_output=True,
-                text=True,
-            )
+            run_git(standalone_repo, "fetch", "origin", "main", "--quiet", check=False)
+            result = run_git(standalone_repo, "rev-parse", "origin/main", check=False)
             if result.returncode == 0:
                 return (result.stdout.strip(), f"origin/main from {standalone_repo}")
 
         # Fallback to local main
-        result = subprocess.run(
-            ["git", "-C", str(standalone_repo), "rev-parse", "main"],
-            capture_output=True,
-            text=True,
-        )
+        result = run_git(standalone_repo, "rev-parse", "main", check=False)
         if result.returncode == 0:
             return (result.stdout.strip(), f"main from {standalone_repo}")
 
