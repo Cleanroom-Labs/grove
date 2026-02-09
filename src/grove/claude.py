@@ -23,6 +23,11 @@ def _find_project_root():
     return Path(result.stdout.strip())
 
 
+def _skill_name(filename):
+    """Derive skill directory name from source filename: 'grove-ship.md' → 'grove-ship'."""
+    return filename.removesuffix(".md")
+
+
 def _get_skill_files():
     """Return a dict of {filename: Traversable} for shipped skill files."""
     skills_pkg = resources.files("grove.claude_skills")
@@ -71,9 +76,10 @@ def _check_skills(skills, target_dir):
 
     all_current = True
     for name, source in sorted(skills.items()):
-        installed = target_dir / name
+        skill = _skill_name(name)
+        installed = target_dir / skill / "SKILL.md"
         if not installed.exists():
-            print(f"  {Colors.yellow('missing')}   {name}")
+            print(f"  {Colors.yellow('missing')}   {skill}")
             all_current = False
         else:
             with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as tmp:
@@ -81,9 +87,9 @@ def _check_skills(skills, target_dir):
                 tmp_path = tmp.name
             try:
                 if filecmp.cmp(tmp_path, str(installed), shallow=False):
-                    print(f"  {Colors.green('current')}   {name}")
+                    print(f"  {Colors.green('current')}   {skill}")
                 else:
-                    print(f"  {Colors.yellow('outdated')}  {name}")
+                    print(f"  {Colors.yellow('outdated')}  {skill}")
                     all_current = False
             finally:
                 Path(tmp_path).unlink()
@@ -96,16 +102,27 @@ def _check_skills(skills, target_dir):
 
 
 def _install_skills(skills, target_dir):
-    """Copy skill files to the target directory."""
+    """Copy skill files to the target directory as <name>/SKILL.md."""
     target_dir.mkdir(parents=True, exist_ok=True)
 
     installed = 0
     updated = 0
     unchanged = 0
+    migrated = 0
 
     for name, source in sorted(skills.items()):
-        dest = target_dir / name
+        skill = _skill_name(name)
+        skill_dir = target_dir / skill
+        dest = skill_dir / "SKILL.md"
         content = source.read_text()
+
+        # Clean up old flat-file format if present
+        old_flat = target_dir / name
+        if old_flat.is_file():
+            old_flat.unlink()
+            migrated += 1
+
+        skill_dir.mkdir(parents=True, exist_ok=True)
 
         if dest.exists():
             if dest.read_text() == content:
@@ -124,6 +141,8 @@ def _install_skills(skills, target_dir):
         parts.append(f"{updated} updated")
     if unchanged:
         parts.append(f"{unchanged} unchanged")
+    if migrated:
+        parts.append(f"{migrated} migrated")
 
     print(f"Skills: {', '.join(parts)}")
     print(f"Location: {target_dir}")
