@@ -220,6 +220,33 @@ Test command resolution order (highest priority first):
 - `1` — Paused (conflict or test failure), or error
 - `2` — Usage error
 
+### `grove completion`
+
+Generate shell completion scripts for tab-completing grove commands, subcommands, and flags. Completions are generated from the actual parser, so they always reflect the installed version.
+
+```bash
+# Generate and save the completion script (re-run after upgrading grove)
+grove completion bash > ~/.grove-completion.bash
+grove completion zsh > ~/.grove-completion.zsh
+grove completion fish > ~/.config/fish/completions/grove.fish
+```
+
+Then source the script from your shell profile:
+
+**Bash** — add to `~/.bashrc`:
+
+```bash
+source ~/.grove-completion.bash
+```
+
+**Zsh** — add to `~/.zshrc`:
+
+```bash
+source ~/.grove-completion.zsh
+```
+
+**Fish** — no extra step needed. Fish automatically sources files in `~/.config/fish/completions/`.
+
 ## Development
 
 ### Running Tests
@@ -240,6 +267,7 @@ grove/
 │   └── grove/
 │       ├── __init__.py
 │       ├── cli.py              # Main CLI entry point
+│       ├── completion.py       # Shell completion generation
 │       ├── config.py           # .grove.toml loader
 │       ├── repo_utils.py       # Shared git utilities
 │       ├── check.py            # check subcommand

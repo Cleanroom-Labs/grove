@@ -10,7 +10,20 @@ import sys
 from grove.repo_utils import Colors
 
 
-def main(argv=None):
+def _get_subparser(parser, name):
+    """Retrieve a named subparser from a parser."""
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return action.choices.get(name)
+    return None
+
+
+def build_parser():
+    """Construct the grove argument parser.
+
+    Separated from main() so other modules (e.g. completion) can
+    introspect the parser without side effects.
+    """
     parser = argparse.ArgumentParser(
         prog="grove",
         description="Git submodule management tools.",
@@ -96,12 +109,12 @@ examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 examples:
-  grove sync                       Sync all groups to latest
+  grove sync                       Sync all groups (local-first)
   grove sync common                Sync just "common" group
   grove sync common abc1234        Sync "common" to specific commit
+  grove sync --remote              Resolve target from remote
   grove sync --dry-run             Preview what would happen
   grove sync --no-push             Commit only, skip pushing
-  grove sync --force               Skip remote sync validation
 """,
     )
     sync_parser.add_argument(
@@ -112,7 +125,12 @@ examples:
     sync_parser.add_argument(
         "commit",
         nargs="?",
-        help="Target commit SHA (defaults to latest main from standalone repo)",
+        help="Target commit SHA (defaults to most advanced local instance)",
+    )
+    sync_parser.add_argument(
+        "--remote",
+        action="store_true",
+        help="Resolve target from remote instead of local instances",
     )
     sync_parser.add_argument(
         "--dry-run",
@@ -290,6 +308,31 @@ examples:
         help="Check if installed skills match shipped versions",
     )
 
+    # --- grove completion ---
+    completion_parser = subparsers.add_parser(
+        "completion",
+        help="Output shell completion script",
+        description="Generate a shell completion script for bash, zsh, or fish.\n\n"
+        "To activate in your current shell:\n"
+        "  eval \"$(grove completion bash)\"\n\n"
+        "To persist, add to your shell profile:\n"
+        "  # ~/.bashrc or ~/.zshrc\n"
+        "  eval \"$(grove completion bash)\"\n\n"
+        "  # ~/.config/fish/config.fish\n"
+        "  grove completion fish | source\n",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    completion_parser.add_argument(
+        "shell",
+        choices=["bash", "zsh", "fish"],
+        help="Shell to generate completion for",
+    )
+
+    return parser
+
+
+def main(argv=None):
+    parser = build_parser()
     args = parser.parse_args(argv)
 
     # Handle --no-color and NO_COLOR env var
@@ -322,7 +365,7 @@ examples:
 
     if args.command == "worktree":
         if not args.worktree_command:
-            worktree_parser.print_help()
+            _get_subparser(parser, "worktree").print_help()
             return 2
         if args.worktree_command == "merge":
             from grove.worktree_merge import run
@@ -332,11 +375,15 @@ examples:
 
     if args.command == "claude":
         if not args.claude_command:
-            claude_parser.print_help()
+            _get_subparser(parser, "claude").print_help()
             return 2
         if args.claude_command == "install":
             from grove.claude import run_install
             return run_install(args)
+
+    if args.command == "completion":
+        from grove.completion import run
+        return run(args)
 
     parser.print_help()
     return 2
