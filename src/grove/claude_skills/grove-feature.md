@@ -55,3 +55,10 @@ Summarize:
 - Number of submodules initialized
 - Remind: remove later with `grove worktree remove <path>`
 - Remind: merge back with `grove worktree merge <branch-name>` from the main worktree when done
+
+## Customization
+
+After installing with `grove claude install`, adjust the flags in the commands above to match your project. For example:
+
+- Add `--copy-venv` if the project uses a Python virtual environment for development.
+- Add `--local-remotes` to keep submodule pushes local during multi-worktree workflows.
