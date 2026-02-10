@@ -1,15 +1,15 @@
 ---
-name: grove-feature
+name: grove-add
 description: Create a feature branch worktree with submodule initialization
 ---
 
-# grove-feature: Feature Branch Setup
+# grove-add: Worktree Branch Setup
 
 Create a new worktree for a feature branch with full submodule initialization.
 
 `$ARGUMENTS` should contain `<branch-name> <path>`. If only a branch name is provided, default the path to `../<branch-name>-wt`. If no arguments are provided, ask the user for the branch name.
 
-Example usage: `/grove-feature my-feature ../my-feature-wt`
+Example usage: `/grove-add my-feature ../my-feature-wt`
 
 ## Workflow
 
