@@ -228,30 +228,35 @@ Test command resolution order (highest priority first):
 
 ### `grove completion`
 
-Generate shell completion scripts for tab-completing grove commands, subcommands, and flags. Completions are generated from the actual parser, so they always reflect the installed version.
+Tab-completion for grove commands, subcommands, and flags.
+
+**Quick setup (recommended):**
 
 ```bash
-# Generate and save the completion script (re-run after upgrading grove)
-grove completion bash > ~/.grove-completion.bash
-grove completion zsh > ~/.grove-completion.zsh
-grove completion fish > ~/.config/fish/completions/grove.fish
+grove completion install
 ```
 
-Then source the script from your shell profile:
+This auto-detects your shell from `$SHELL` and configures completions:
 
-**Bash** — add to `~/.bashrc`:
+- **Bash/Zsh** — writes the completion script directly into your profile (`~/.bashrc`, `~/.bash_profile`, or `~/.zshrc`), wrapped in sentinel markers for safe re-runs. Re-run after upgrading grove to refresh.
+- **Fish** — writes the completion script to `~/.config/fish/completions/grove.fish`.
 
 ```bash
-source ~/.grove-completion.bash
+grove completion install --shell zsh   # override auto-detection
+grove completion install --check       # check if completions are installed
+grove completion install --dry-run     # preview changes without modifying files
+grove completion install --force       # re-write even if already installed
 ```
 
-**Zsh** — add to `~/.zshrc`:
+**Manual setup** — generate a script and source it yourself:
 
 ```bash
-source ~/.grove-completion.zsh
+grove completion bash    # print bash completion script
+grove completion zsh     # print zsh completion script
+grove completion fish    # print fish completion script
 ```
 
-**Fish** — no extra step needed. Fish automatically sources files in `~/.config/fish/completions/`.
+Completions are generated from the actual parser, so they always reflect the installed version.
 
 ## Development
 
