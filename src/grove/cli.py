@@ -211,6 +211,11 @@ examples:
         action="store_true",
         help="Skip copying local git config from the main worktree",
     )
+    worktree_add_parser.add_argument(
+        "--copy-venv",
+        action="store_true",
+        help="Copy Python venv from the main worktree (auto-detects location, fixes paths)",
+    )
 
     worktree_remove_parser = worktree_subparsers.add_parser(
         "remove",

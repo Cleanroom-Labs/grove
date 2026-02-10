@@ -7,6 +7,8 @@ docs/submodule-workflow.md) to Python so it works from any shell.
 """
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 
 from grove.repo_utils import Colors, find_repo_root, parse_gitmodules, run_git
@@ -34,6 +36,111 @@ def _copy_local_config(source: Path, target: Path) -> None:
         if any(key.startswith(prefix) for prefix in _CONFIG_EXCLUDE_PREFIXES):
             continue
         run_git(target, "config", key, value, check=False)
+
+
+def _detect_venv(root: Path) -> Path | None:
+    """Find a Python venv inside *root*, checking common locations.
+
+    Search order: .direnv/python-* (direnv layout python), .venv/, venv/.
+    Returns the venv directory or None.
+    """
+    # direnv layout python: .direnv/python-X.Y.Z/
+    direnv_candidates = sorted(root.glob(".direnv/python-*"), reverse=True)
+    for candidate in direnv_candidates:
+        if (candidate / "pyvenv.cfg").exists():
+            return candidate
+
+    # .venv/ — could be a venv directly or contain a named subdirectory
+    dot_venv = root / ".venv"
+    if dot_venv.is_dir():
+        if (dot_venv / "pyvenv.cfg").exists():
+            return dot_venv
+        # Named venv: .venv/<name>/pyvenv.cfg
+        for child in dot_venv.iterdir():
+            if child.is_dir() and (child / "pyvenv.cfg").exists():
+                return child
+
+    # venv/
+    venv_dir = root / "venv"
+    if venv_dir.is_dir() and (venv_dir / "pyvenv.cfg").exists():
+        return venv_dir
+
+    return None
+
+
+def _fixup_venv_paths(venv_dir: Path, old_prefix: str, new_prefix: str) -> None:
+    """Replace *old_prefix* with *new_prefix* in venv text files that contain hardcoded paths."""
+    targets: list[Path] = []
+
+    # Config and activate scripts
+    targets.append(venv_dir / "pyvenv.cfg")
+    for name in ("activate", "activate.csh", "activate.fish"):
+        targets.append(venv_dir / "bin" / name)
+
+    # Entry-point scripts in bin/ with shebangs referencing old_prefix
+    bin_dir = venv_dir / "bin"
+    if bin_dir.is_dir():
+        for entry in bin_dir.iterdir():
+            if entry.is_dir() or entry.is_symlink() or entry in targets:
+                continue
+            try:
+                first_line = entry.read_bytes()[:256]
+                if old_prefix.encode() in first_line:
+                    targets.append(entry)
+            except OSError:
+                continue
+
+    # Editable-install .pth files
+    targets.extend(venv_dir.glob("lib/python*/site-packages/__editable__*.pth"))
+
+    # direct_url.json in .dist-info dirs
+    targets.extend(venv_dir.glob("lib/python*/site-packages/*.dist-info/direct_url.json"))
+
+    for path in targets:
+        if not path.exists():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if old_prefix not in text:
+            continue
+        path.write_text(text.replace(old_prefix, new_prefix), encoding="utf-8")
+
+
+def _copy_venv(source_root: Path, target_root: Path) -> bool:
+    """Copy a detected Python venv from *source_root* to *target_root* and fix paths.
+
+    Returns True if a venv was found and copied, False otherwise.
+    """
+    venv_dir = _detect_venv(source_root)
+    if venv_dir is None:
+        return False
+
+    venv_rel = venv_dir.relative_to(source_root)
+    target_venv = target_root / venv_rel
+
+    # Ensure parent directories exist (e.g. .venv/ for .venv/myproject/)
+    target_venv.parent.mkdir(parents=True, exist_ok=True)
+
+    shutil.copytree(venv_dir, target_venv, symlinks=True)
+    _fixup_venv_paths(target_venv, str(source_root), str(target_root))
+    return True
+
+
+def _run_direnv_allow(worktree_path: Path) -> None:
+    """Run ``direnv allow`` in *worktree_path* if .envrc exists and direnv is available."""
+    if not (worktree_path / ".envrc").exists():
+        return
+    if shutil.which("direnv") is None:
+        return
+
+    print(f"{Colors.blue('Running direnv allow')} in worktree...")
+    subprocess.run(
+        ["direnv", "allow"],
+        cwd=worktree_path,
+        capture_output=True,
+    )
 
 
 def _init_submodules(worktree_path: Path, ref_worktree: Path, *, copy_config: bool = True) -> bool:
@@ -125,6 +232,13 @@ def add_worktree(args) -> int:
         print(f"{Colors.blue('Copying local git config')} to worktree...")
         _copy_local_config(repo_root, worktree_path)
 
+    if getattr(args, "copy_venv", False):
+        print(f"{Colors.blue('Copying Python venv')} from main worktree...")
+        if _copy_venv(repo_root, worktree_path):
+            print(f"  {Colors.green('Venv copied and paths updated')}")
+        else:
+            print(f"  {Colors.yellow('Warning')}: no Python venv found in {repo_root}")
+
     print(f"{Colors.blue('Initializing submodules')} (using main worktree as reference)...")
 
     if not _init_submodules(worktree_path, repo_root, copy_config=copy_config):
@@ -133,6 +247,8 @@ def add_worktree(args) -> int:
         print(f"  Branch: {branch}")
         print("  You may need to initialize submodules manually.")
         return 1
+
+    _run_direnv_allow(worktree_path)
 
     print(f"\n{Colors.green('Worktree created successfully')}")
     print(f"  Path:   {worktree_path}")
