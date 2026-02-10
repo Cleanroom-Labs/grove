@@ -6,6 +6,7 @@ Generate shell completion scripts by introspecting the argparse parser.
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +193,7 @@ def _generate_zsh(structure: dict) -> str:
     lines.append("    esac")
     lines.append("}")
     lines.append("")
-    lines.append('_grove "$@"')
+    lines.append("compdef _grove grove")
     lines.append("")
     return "\n".join(lines)
 
@@ -263,6 +264,234 @@ def run(args) -> int:
 
     parser = build_parser()
     structure = extract_structure(parser)
-    script = _GENERATORS[args.shell](structure)
+    script = _GENERATORS[args.completion_command](structure)
     print(script)
     return 0
+
+
+# ---------------------------------------------------------------------------
+# Completion install — sentinel markers
+# ---------------------------------------------------------------------------
+
+_SENTINEL_BEGIN = "# >>> grove completion >>>"
+_SENTINEL_END = "# <<< grove completion <<<"
+
+
+# ---------------------------------------------------------------------------
+# Shell / profile detection
+# ---------------------------------------------------------------------------
+
+def _detect_shell() -> str | None:
+    """Detect the current shell from $SHELL."""
+    import os
+
+    shell_path = os.environ.get("SHELL", "")
+    basename = Path(shell_path).name if shell_path else ""
+    if basename in ("bash", "zsh", "fish"):
+        return basename
+    return None
+
+
+def _get_profile_path(shell: str) -> Path | None:
+    """Return the profile file path for the given shell, or None for fish."""
+    home = Path.home()
+    if shell == "bash":
+        bashrc = home / ".bashrc"
+        bash_profile = home / ".bash_profile"
+        if bashrc.exists():
+            return bashrc
+        if bash_profile.exists():
+            return bash_profile
+        return bashrc  # default when neither exists
+    if shell == "zsh":
+        return home / ".zshrc"
+    return None  # fish uses a completions file, not a profile line
+
+
+def _get_fish_completions_path() -> Path:
+    """Return the fish completions file path."""
+    return Path.home() / ".config" / "fish" / "completions" / "grove.fish"
+
+
+# ---------------------------------------------------------------------------
+# Profile file manipulation
+# ---------------------------------------------------------------------------
+
+def _build_profile_block(script: str) -> str:
+    """Wrap a completion script in sentinel markers for profile injection."""
+    return (
+        f"{_SENTINEL_BEGIN}\n"
+        f"{script}\n"
+        f"{_SENTINEL_END}\n"
+    )
+
+
+def _has_grove_block(content: str) -> bool:
+    """Check if the grove sentinel markers are present in file content."""
+    return _SENTINEL_BEGIN in content and _SENTINEL_END in content
+
+
+def _inject_block(content: str, block: str) -> str:
+    """Append the grove block to file content with a blank-line separator."""
+    if content and not content.endswith("\n"):
+        content += "\n"
+    if content and not content.endswith("\n\n"):
+        content += "\n"
+    return content + block
+
+
+def _replace_block(content: str, block: str) -> str:
+    """Replace an existing grove sentinel block in file content."""
+    import re
+
+    pattern = (
+        re.escape(_SENTINEL_BEGIN) + r".*?" + re.escape(_SENTINEL_END) + r"\n?"
+    )
+    return re.sub(pattern, block, content, flags=re.DOTALL)
+
+
+# ---------------------------------------------------------------------------
+# Install logic
+# ---------------------------------------------------------------------------
+
+def _install_bash_zsh(shell: str, *, dry_run: bool, force: bool) -> int:
+    """Install completions for bash or zsh by writing the script into the profile."""
+    from grove.cli import build_parser
+    from grove.repo_utils import Colors
+
+    profile_path = _get_profile_path(shell)
+    assert profile_path is not None  # fish is handled by _install_fish
+
+    parser = build_parser()
+    structure = extract_structure(parser)
+    script = _GENERATORS[shell](structure)
+    block = _build_profile_block(script)
+
+    if profile_path.exists():
+        content = profile_path.read_text()
+        if _has_grove_block(content):
+            new_content = _replace_block(content, block)
+            if new_content == content and not force:
+                print(f"Grove completions already installed in {profile_path}")
+                return 0
+            if dry_run:
+                if new_content == content:
+                    print(f"Would re-write grove completions in {profile_path} (--force)")
+                else:
+                    print(f"Would update grove completions in {profile_path}")
+                return 0
+            profile_path.write_text(new_content)
+            print(f"Updated grove completions in {Colors.blue(str(profile_path))}")
+        else:
+            new_content = _inject_block(content, block)
+            if dry_run:
+                print(f"Would add grove completions to {profile_path}")
+                return 0
+            profile_path.write_text(new_content)
+            print(f"Added grove completions to {Colors.blue(str(profile_path))}")
+    else:
+        if dry_run:
+            print(f"Would create {profile_path} with grove completions")
+            return 0
+        profile_path.write_text(block)
+        print(f"Created {Colors.blue(str(profile_path))} with grove completions")
+
+    print()
+    print("To activate now, run:")
+    print(f"  source {profile_path}")
+    print()
+    print("Or restart your shell.")
+    return 0
+
+
+def _install_fish(*, dry_run: bool, force: bool) -> int:
+    """Install completions for fish by writing the completions file."""
+    from grove.cli import build_parser
+    from grove.repo_utils import Colors
+
+    fish_path = _get_fish_completions_path()
+
+    parser = build_parser()
+    structure = extract_structure(parser)
+    script = _generate_fish(structure)
+
+    existing = fish_path.read_text() if fish_path.exists() else None
+    if existing == script and not force:
+        print(f"Grove completions already installed at {fish_path}")
+        return 0
+
+    if dry_run:
+        if existing is None:
+            print(f"Would install grove completions to {fish_path}")
+        elif existing == script:
+            print(f"Would re-write grove completions at {fish_path} (--force)")
+        else:
+            print(f"Would update grove completions at {fish_path}")
+        return 0
+
+    fish_path.parent.mkdir(parents=True, exist_ok=True)
+    fish_path.write_text(script)
+    action = "Updated" if existing is not None else "Installed"
+    print(f"{action} grove completions at {Colors.blue(str(fish_path))}")
+    print()
+    print("Completions will be loaded automatically in new fish sessions.")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Check logic
+# ---------------------------------------------------------------------------
+
+def _check_installed(shell: str) -> int:
+    """Check if completions are installed for the given shell."""
+    from grove.repo_utils import Colors
+
+    if shell == "fish":
+        fish_path = _get_fish_completions_path()
+        if fish_path.exists():
+            print(f"  {Colors.green('installed')}  fish  ({fish_path})")
+        else:
+            print(f"  {Colors.yellow('missing')}    fish  ({fish_path})")
+            print(f"\nRun {Colors.blue('grove completion install')} to install.")
+        return 0
+
+    profile_path = _get_profile_path(shell)
+    assert profile_path is not None  # fish is handled above
+    if profile_path.exists() and _has_grove_block(profile_path.read_text()):
+        print(f"  {Colors.green('installed')}  {shell}  ({profile_path})")
+    else:
+        print(f"  {Colors.yellow('missing')}    {shell}  ({profile_path})")
+        print(f"\nRun {Colors.blue('grove completion install')} to install.")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Entry point for install subcommand
+# ---------------------------------------------------------------------------
+
+def run_install(args) -> int:
+    """Install shell completions or check installation status."""
+    from grove.repo_utils import Colors
+
+    shell = args.shell or _detect_shell()
+    if shell is None:
+        print(Colors.red("Error: could not detect shell from $SHELL."))
+        print("Specify explicitly with --shell:")
+        print("  grove completion install --shell bash")
+        print("  grove completion install --shell zsh")
+        print("  grove completion install --shell fish")
+        return 1
+
+    if args.check:
+        return _check_installed(shell)
+
+    dry_run = args.dry_run
+    force = args.force
+
+    if shell in ("bash", "zsh"):
+        return _install_bash_zsh(shell, dry_run=dry_run, force=force)
+    if shell == "fish":
+        return _install_fish(dry_run=dry_run, force=force)
+
+    print(Colors.red(f"Error: unsupported shell '{shell}'."))
+    return 1

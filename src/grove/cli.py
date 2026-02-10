@@ -318,27 +318,63 @@ examples:
     # --- grove completion ---
     completion_parser = subparsers.add_parser(
         "completion",
-        help="Output shell completion script",
+        help="Generate or install shell completion scripts",
         description="Generate a shell completion script for bash, zsh, or fish.\n\n"
-        "To activate in your current shell:\n"
-        "  eval \"$(grove completion bash)\"\n\n"
-        "To persist, add to your shell profile:\n"
-        "  # ~/.bashrc or ~/.zshrc\n"
-        "  eval \"$(grove completion bash)\"\n\n"
-        "  # ~/.config/fish/config.fish\n"
-        "  grove completion fish | source\n",
+        "To generate a script:\n"
+        "  grove completion bash\n"
+        "  grove completion zsh\n"
+        "  grove completion fish\n\n"
+        "To install automatically:\n"
+        "  grove completion install\n"
+        "  grove completion install --shell zsh\n"
+        "  grove completion install --check\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    completion_parser.add_argument(
-        "shell",
+    completion_subparsers = completion_parser.add_subparsers(
+        dest="completion_command",
+    )
+
+    for shell_name in ("bash", "zsh", "fish"):
+        completion_subparsers.add_parser(
+            shell_name,
+            help=f"Generate {shell_name} completion script",
+        )
+
+    completion_install_parser = completion_subparsers.add_parser(
+        "install",
+        help="Install shell completions into your shell profile",
+        description="Auto-detect your shell and install tab-completion.\n\n"
+        "For bash/zsh: adds an eval line to your profile.\n"
+        "For fish: writes a completions file to "
+        "~/.config/fish/completions/grove.fish.",
+    )
+    completion_install_parser.add_argument(
+        "--shell",
         choices=["bash", "zsh", "fish"],
-        help="Shell to generate completion for",
+        default=None,
+        help="Shell to install for (default: auto-detect from $SHELL)",
+    )
+    completion_install_parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Check if completions are already installed",
+    )
+    completion_install_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview changes without modifying any files",
+    )
+    completion_install_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-write the completion block even if already installed",
     )
 
     # Store references for help printing (avoids argparse private API)
     parser.grove_subparsers = {
         "worktree": worktree_parser,
         "claude": claude_parser,
+        "completion": completion_parser,
     }
 
     return parser
@@ -395,6 +431,12 @@ def main(argv=None):
             return run_install(args)
 
     if args.command == "completion":
+        if not args.completion_command:
+            parser.grove_subparsers["completion"].print_help()
+            return 2
+        if args.completion_command == "install":
+            from grove.completion import run_install
+            return run_install(args)
         from grove.completion import run
         return run(args)
 
