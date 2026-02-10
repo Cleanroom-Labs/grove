@@ -177,3 +177,64 @@ def tmp_submodule_tree_with_branches(tmp_submodule_tree: Path) -> Path:
     _git(parent, "checkout", "main")
 
     return parent
+
+
+@pytest.fixture()
+def tmp_submodule_tree_with_sync_branches(tmp_submodule_tree: Path) -> Path:
+    """Extend tmp_submodule_tree with feature branches that include
+    sync-group submodule pointer changes.
+
+    On the ``my-feature`` branch:
+
+    - common has a content change (feature.txt)
+    - technical-docs has a content change AND an updated common pointer
+    - parent has a content change
+
+    This simulates the real-world scenario where a feature branch updates
+    a sync-group submodule, requiring sync propagation during merge.
+
+    Returns the *parent* (root) repository path.
+    """
+    parent = tmp_submodule_tree
+    grandchild = parent / "technical-docs" / "common"
+    child = parent / "technical-docs"
+
+    # Submodules are in detached HEAD after init. Put them on named branches.
+    for sub in [grandchild, child]:
+        result = subprocess.run(
+            ["git", "-C", str(sub), "checkout", "main"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            _git(sub, "checkout", "-b", "main")
+
+    # --- Grandchild (common): content change on feature branch ---
+    _git(grandchild, "checkout", "-b", "my-feature")
+    (grandchild / "feature.txt").write_text("grandchild feature\n")
+    _git(grandchild, "add", "feature.txt")
+    _git(grandchild, "commit", "-m", "grandchild feature commit")
+    grandchild_feature_sha = _git(
+        grandchild, "rev-parse", "HEAD"
+    ).stdout.strip()
+    _git(grandchild, "checkout", "main")
+
+    # --- Child (technical-docs): content change + updated common pointer ---
+    _git(child, "checkout", "-b", "my-feature")
+    (child / "feature.txt").write_text("child feature\n")
+    _git(child, "add", "feature.txt")
+    # Update common pointer to grandchild's feature commit
+    _git(grandchild, "checkout", grandchild_feature_sha)
+    _git(child, "add", "common")
+    _git(child, "commit", "-m", "child feature commit with updated common")
+    # Restore grandchild to main before switching child
+    _git(grandchild, "checkout", "main")
+    _git(child, "checkout", "-f", "main")
+
+    # --- Parent (root): content change on feature branch ---
+    _git(parent, "checkout", "-b", "my-feature")
+    (parent / "feature.txt").write_text("parent feature\n")
+    _git(parent, "add", "feature.txt")
+    _git(parent, "commit", "-m", "parent feature commit")
+    _git(parent, "checkout", "main")
+
+    return parent
