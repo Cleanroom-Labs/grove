@@ -29,6 +29,8 @@ grove = "grove.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+namespaces = true
+include = ["grove", "grove.*"]
 
 [tool.setuptools.package-data]
 "grove.claude_skills" = ["*.md"]
