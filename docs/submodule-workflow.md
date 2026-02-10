@@ -86,14 +86,22 @@ The `grove worktree add` command handles this. It creates the worktree, then rec
 Creating a new worktree with a new branch:
 
 ```bash
-grove worktree add my-feature ../my-project-my-feature
+grove worktree add --local-remotes my-feature ../my-project-my-feature
 ```
 
 Creating a worktree on an existing branch (without `-b`):
 
 ```bash
-grove worktree add --checkout existing-branch ../my-project-wt2
+grove worktree add --local-remotes --checkout existing-branch ../my-project-wt2
 ```
+
+### Why `--local-remotes` Is the Default for Feature Worktrees
+
+The `--local-remotes` flag keeps submodule remotes in the new worktree pointing to the main worktree's local copies rather than the upstream remote (e.g., GitHub). This means any `git push` inside a worktree submodule stays on-machine — changes propagate between worktrees through the shared local filesystem, not through the network.
+
+This matches the intended workflow: develop in a feature worktree, merge back into main locally with `grove worktree merge`, and only then push everything upstream with `grove push` from the main worktree. Without `--local-remotes`, a `git push` inside a worktree submodule would go directly to GitHub, bypassing the merge-then-push workflow.
+
+If you need worktree submodules to push directly to upstream (e.g., for CI integration from a worktree), omit the flag.
 
 Removing a worktree (also runs `git worktree prune`):
 
@@ -229,9 +237,9 @@ The setup is simple. You have three independent tasks—say, updating component 
 
 ```bash
 cd ~/Projects/my-project
-grove worktree add update-deploy-docs   ../my-project-wt1
-grove worktree add expand-whisper-docs  ../my-project-wt2
-grove worktree add fix-theme-spacing    ../my-project-wt3
+grove worktree add --local-remotes update-deploy-docs   ../my-project-wt1
+grove worktree add --local-remotes expand-whisper-docs  ../my-project-wt2
+grove worktree add --local-remotes fix-theme-spacing    ../my-project-wt3
 ```
 
 Each worktree has its own fully initialized checkout with all submodules at every level. Now you launch a coding agent in each one—three separate terminal sessions, three instances of Claude Code, each pointed at a different directory:
