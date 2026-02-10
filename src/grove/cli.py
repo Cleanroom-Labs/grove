@@ -216,6 +216,11 @@ examples:
         action="store_true",
         help="Copy Python venv from the main worktree (auto-detects location, fixes paths)",
     )
+    worktree_add_parser.add_argument(
+        "--local-remotes",
+        action="store_true",
+        help="Keep submodule remotes pointing to the main worktree (pushes stay local)",
+    )
 
     worktree_remove_parser = worktree_subparsers.add_parser(
         "remove",

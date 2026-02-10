@@ -142,7 +142,7 @@ The GUI supports:
 
 ### `grove worktree`
 
-Create and remove git worktrees with automatic recursive submodule initialization. Local git config (e.g. `user.name`, `user.email`, signing settings) is copied from the main worktree and its submodules to the new worktree by default. Structural keys (`core.*`, `remote.*`, `submodule.*`, `extensions.*`, `gc.*`) are excluded. Pass `--copy-venv` to copy the Python venv from the main worktree (auto-detects `.direnv/python-*`, `.venv/`, or `venv/` and fixes hardcoded paths). If an `.envrc` file is present and `direnv` is on PATH, `direnv allow` runs automatically.
+Create and remove git worktrees with automatic recursive submodule initialization. Local git config (e.g. `user.name`, `user.email`, signing settings) is copied from the main worktree and its submodules to the new worktree by default. Structural keys (`core.*`, `remote.*`, `submodule.*`, `extensions.*`, `gc.*`) are excluded. Pass `--copy-venv` to copy the Python venv from the main worktree (auto-detects `.direnv/python-*`, `.venv/`, or `venv/` and fixes hardcoded paths). Pass `--local-remotes` to keep submodule remotes pointing to the main worktree's local copies so that pushes stay on-machine (useful when working across multiple worktrees before pushing upstream). If an `.envrc` file is present and `direnv` is on PATH, `direnv allow` runs automatically.
 
 ```bash
 # Create a new worktree with a new branch
@@ -153,6 +153,9 @@ grove worktree add --checkout existing-branch ../wt-path
 
 # Copy the Python venv from the main worktree (faster than rebuilding)
 grove worktree add --copy-venv feature-x ../feature-x-wt
+
+# Keep submodule remotes local (pushes stay on-machine)
+grove worktree add --local-remotes feature-x ../feature-x-wt
 
 # Skip copying local git config
 grove worktree add --no-copy-config feature-x ../feature-x-wt

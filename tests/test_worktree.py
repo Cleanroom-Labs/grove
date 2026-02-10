@@ -129,6 +129,43 @@ class TestAddWorktree:
         assert result == 0
         assert wt_path.exists()
 
+    def test_local_remotes_keeps_local_urls(self, tmp_submodule_tree: Path):
+        """--local-remotes should keep submodule origins pointing to the main worktree."""
+        wt_path = tmp_submodule_tree.parent / "test-wt"
+        args = argparse.Namespace(
+            branch="local-branch", path=str(wt_path), checkout=False, local_remotes=True,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = add_worktree(args)
+
+        assert result == 0
+
+        # The worktree's submodule origin should point to the main worktree's submodule
+        out = _git(wt_path / "technical-docs", "config", "--get", "remote.origin.url")
+        assert out.stdout.strip() == str(tmp_submodule_tree / "technical-docs")
+
+        # Nested submodule should also have local URL
+        out = _git(
+            wt_path / "technical-docs" / "common",
+            "config", "--get", "remote.origin.url",
+        )
+        assert out.stdout.strip() == str(tmp_submodule_tree / "technical-docs" / "common")
+
+    def test_default_restores_upstream_urls(self, tmp_submodule_tree: Path):
+        """Without --local-remotes, submodule origins should be restored to upstream URLs."""
+        wt_path = tmp_submodule_tree.parent / "test-wt"
+        args = argparse.Namespace(branch="upstream-branch", path=str(wt_path), checkout=False)
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = add_worktree(args)
+
+        assert result == 0
+
+        # The origin should NOT point to the main worktree's submodule
+        out = _git(wt_path / "technical-docs", "config", "--get", "remote.origin.url")
+        assert out.stdout.strip() != str(tmp_submodule_tree / "technical-docs")
+
     def test_path_already_exists_returns_1(self, tmp_submodule_tree: Path):
         """Should fail if the target path already exists."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
