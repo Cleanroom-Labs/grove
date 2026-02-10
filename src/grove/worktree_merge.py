@@ -85,8 +85,7 @@ class MergeState:
 
     @classmethod
     def remove(cls, state_path: Path) -> None:
-        if state_path.exists():
-            state_path.unlink()
+        state_path.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------

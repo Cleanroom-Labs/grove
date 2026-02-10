@@ -360,7 +360,7 @@ def push_ahead_submodules(
 
         ahead_count = ahead_result.stdout.strip()
         if ahead_count and ahead_count != "0":
-            rel_path = str(submodule.path.name)
+            rel_path = submodule.submodule_rel_path
             if dry_run:
                 print(f"  {Colors.yellow('Would push')} {rel_path} ({ahead_count} commits ahead)")
             else:
