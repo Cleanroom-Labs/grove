@@ -1,6 +1,11 @@
 """
 grove.cli
-Main CLI entry point: grove {check,push,sync,visualize}
+Main CLI entry point: grove {check,push,sync,visualize,worktree,claude,completion}
+
+Exit codes:
+    0 — Success
+    1 — Error (validation failure, runtime error)
+    2 — Usage error (no command, missing required subcommand)
 """
 
 import argparse
@@ -8,14 +13,6 @@ import os
 import sys
 
 from grove.repo_utils import Colors
-
-
-def _get_subparser(parser, name):
-    """Retrieve a named subparser from a parser."""
-    for action in parser._actions:
-        if isinstance(action, argparse._SubParsersAction):
-            return action.choices.get(name)
-    return None
 
 
 def build_parser():
@@ -338,6 +335,12 @@ examples:
         help="Shell to generate completion for",
     )
 
+    # Store references for help printing (avoids argparse private API)
+    parser.grove_subparsers = {
+        "worktree": worktree_parser,
+        "claude": claude_parser,
+    }
+
     return parser
 
 
@@ -375,7 +378,7 @@ def main(argv=None):
 
     if args.command == "worktree":
         if not args.worktree_command:
-            _get_subparser(parser, "worktree").print_help()
+            parser.grove_subparsers["worktree"].print_help()
             return 2
         if args.worktree_command == "merge":
             from grove.worktree_merge import run
@@ -385,7 +388,7 @@ def main(argv=None):
 
     if args.command == "claude":
         if not args.claude_command:
-            _get_subparser(parser, "claude").print_help()
+            parser.grove_subparsers["claude"].print_help()
             return 2
         if args.claude_command == "install":
             from grove.claude import run_install

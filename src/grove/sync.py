@@ -26,7 +26,6 @@ This module:
 
 from __future__ import annotations
 
-import argparse
 import re
 import subprocess
 from dataclasses import dataclass
@@ -685,56 +684,7 @@ def _sync_group(
     return 0
 
 
-def run(args=None) -> int:
-    if not isinstance(args, argparse.Namespace):
-        parser = argparse.ArgumentParser(
-            description="Synchronize submodule sync groups across all locations.",
-            formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog="""
-Examples:
-  %(prog)s                          # Sync all groups (local-first)
-  %(prog)s common                   # Sync just "common" group
-  %(prog)s common abc1234           # Sync "common" to specific commit
-  %(prog)s --remote                 # Resolve target from remote
-  %(prog)s --dry-run                # Preview what would happen
-  %(prog)s --no-push                # Commit only, skip pushing
-
-By default, the target commit is resolved from the most advanced local
-submodule instance.  Use --remote to resolve from the remote instead.
-""",
-        )
-        parser.add_argument(
-            "group",
-            nargs="?",
-            help="Sync group name (syncs all groups if omitted)",
-        )
-        parser.add_argument(
-            "commit",
-            nargs="?",
-            help="Target commit SHA (defaults to most advanced local instance)",
-        )
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Preview changes without making them",
-        )
-        parser.add_argument(
-            "--no-push",
-            action="store_true",
-            help="Commit only, skip pushing (push is default)",
-        )
-        parser.add_argument(
-            "--remote",
-            action="store_true",
-            help="Resolve target from remote instead of local instances",
-        )
-        parser.add_argument(
-            "--force",
-            action="store_true",
-            help="Skip remote sync validation",
-        )
-        args = parser.parse_args(args)
-
+def run(args) -> int:
     try:
         repo_root = find_repo_root()
     except FileNotFoundError as e:

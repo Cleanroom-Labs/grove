@@ -11,7 +11,7 @@ Usage (via entry point):
     grove check --verbose # Show additional details
 """
 
-import argparse
+from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 
@@ -147,18 +147,7 @@ def check_sync_groups(repo_root: Path, verbose: bool = False) -> bool:
     return all_ok
 
 
-def run(args=None) -> int:
-    if not isinstance(args, argparse.Namespace):
-        parser = argparse.ArgumentParser(
-            description="Verify all submodules are correctly configured and in sync."
-        )
-        parser.add_argument(
-            "--verbose", "-v",
-            action="store_true",
-            help="Show additional details (commits, remotes)"
-        )
-        args = parser.parse_args(args)
-
+def run(args) -> int:
     try:
         repo_root = find_repo_root()
     except FileNotFoundError as e:

@@ -11,25 +11,13 @@ Args:
           Can be run from any subdirectory within a repository.
 """
 
-import argparse
+from __future__ import annotations
 import sys
 from pathlib import Path
 
 
-def run(args=None) -> int:
+def run(args) -> int:
     """Run the visualizer, callable from the CLI entry point."""
-    if not isinstance(args, argparse.Namespace):
-        parser = argparse.ArgumentParser(
-            description="Visualize git repositories and their submodules"
-        )
-        parser.add_argument(
-            "path",
-            nargs="?",
-            default=".",
-            help="Path to the git repository (default: current directory)",
-        )
-        args = parser.parse_args(args)
-
     from grove.repo_utils import find_repo_root
 
     start_path = Path(args.path).resolve()
@@ -51,10 +39,6 @@ def run(args=None) -> int:
     return 0
 
 
-def main() -> int:
-    """Main entry point."""
-    return run()
-
-
 if __name__ == "__main__":
-    sys.exit(main())
+    from grove.cli import build_parser
+    sys.exit(run(build_parser().parse_args(["visualize"] + sys.argv[1:])))

@@ -8,7 +8,7 @@ Usage (via entry point):
     repo-push --force   # Skip validation (recovery scenarios)
 """
 
-import argparse
+from __future__ import annotations
 
 from grove.check import check_sync_groups
 from grove.config import get_sync_group_exclude_paths, load_config
@@ -22,36 +22,7 @@ from grove.repo_utils import (
 )
 
 
-def run(args=None) -> int:
-    if not isinstance(args, argparse.Namespace):
-        parser = argparse.ArgumentParser(
-            description="Push committed changes through nested submodules bottom-up.",
-            formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog="""
-Examples:
-  %(prog)s                    # Push all repos with unpushed commits
-  %(prog)s --dry-run          # Preview what would be pushed
-  %(prog)s --force            # Push even with validation warnings
-
-The script validates that each repo:
-  - Has no uncommitted changes
-  - Has a pushable remote (if it needs pushing)
-  - Is on a branch (for repos that will be pushed)
-  - Has commits ahead of remote
-""",
-        )
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Show what would be pushed without pushing",
-        )
-        parser.add_argument(
-            "--force",
-            action="store_true",
-            help="Skip validation (for recovery scenarios)",
-        )
-        args = parser.parse_args(args)
-
+def run(args) -> int:
     # Validate execution context
     try:
         repo_root = find_repo_root()
