@@ -297,6 +297,7 @@ grove/
 
 For detailed workflow guidance, see:
 - [docs/submodule-workflow.md](docs/submodule-workflow.md) — Common workflows and troubleshooting
+- [docs/alternatives.md](docs/alternatives.md) — Comparison with native git features and existing tools
 
 ## License
 
