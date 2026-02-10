@@ -8,7 +8,11 @@ from unittest.mock import patch
 from grove.repo_utils import parse_gitmodules
 from grove.worktree import (
     _copy_local_config,
+    _copy_venv,
+    _detect_venv,
+    _fixup_venv_paths,
     _init_submodules,
+    _run_direnv_allow,
     add_worktree,
     remove_worktree,
 )
@@ -250,3 +254,276 @@ class TestCopyLocalConfig:
         # Non-structural key should be copied
         out = _git(target, "config", "--local", "user.signingkey")
         assert out.stdout.strip() == "GOOD_KEY"
+
+
+# ---------------------------------------------------------------------------
+# Helper: create a minimal fake venv directory
+# ---------------------------------------------------------------------------
+
+def _make_fake_venv(root: Path, venv_rel: str = ".venv") -> Path:
+    """Create a minimal fake venv under *root* / *venv_rel* for testing.
+
+    Includes pyvenv.cfg, bin/activate, bin/python (symlink), bin/grove (script
+    with shebang), and an editable-install .pth file — all containing
+    the absolute path to *root* so that fixup can be verified.
+    """
+    venv = root / venv_rel
+    venv.mkdir(parents=True)
+
+    old_root = str(root)
+
+    (venv / "pyvenv.cfg").write_text(
+        f"home = /usr/bin\n"
+        f"command = {old_root}/{venv_rel}/bin/python -m venv {old_root}/{venv_rel}\n"
+    )
+
+    bin_dir = venv / "bin"
+    bin_dir.mkdir()
+
+    (bin_dir / "activate").write_text(
+        f'VIRTUAL_ENV="{old_root}/{venv_rel}"\nexport VIRTUAL_ENV\n'
+    )
+    (bin_dir / "activate.csh").write_text(
+        f'setenv VIRTUAL_ENV "{old_root}/{venv_rel}"\n'
+    )
+    (bin_dir / "activate.fish").write_text(
+        f'set -gx VIRTUAL_ENV "{old_root}/{venv_rel}"\n'
+    )
+
+    # Symlink: bin/python -> bin/python3 (should be preserved, not fixed)
+    (bin_dir / "python3").write_text("not a real python\n")
+    (bin_dir / "python").symlink_to("python3")
+
+    # Script with shebang referencing the venv
+    grove_script = bin_dir / "grove"
+    grove_script.write_text(
+        f"#!{old_root}/{venv_rel}/bin/python\n"
+        f"# entry point\n"
+    )
+
+    # Editable install .pth file
+    sp = venv / "lib" / "python3.14" / "site-packages"
+    sp.mkdir(parents=True)
+    (sp / "__editable__.grove-0.1.0.pth").write_text(f"{old_root}/src\n")
+
+    # direct_url.json
+    di = sp / "grove-0.1.0.dist-info"
+    di.mkdir()
+    (di / "direct_url.json").write_text(
+        f'{{"url": "file://{old_root}", "dir_info": {{"editable": true}}}}\n'
+    )
+
+    return venv
+
+
+# ---------------------------------------------------------------------------
+# _detect_venv
+# ---------------------------------------------------------------------------
+
+class TestDetectVenv:
+    def test_detects_direnv_layout(self, tmp_path: Path):
+        venv = tmp_path / ".direnv" / "python-3.14"
+        venv.mkdir(parents=True)
+        (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+        assert _detect_venv(tmp_path) == venv
+
+    def test_detects_dot_venv_direct(self, tmp_path: Path):
+        venv = tmp_path / ".venv"
+        venv.mkdir()
+        (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+        assert _detect_venv(tmp_path) == venv
+
+    def test_detects_dot_venv_named(self, tmp_path: Path):
+        venv = tmp_path / ".venv" / "myproject"
+        venv.mkdir(parents=True)
+        (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+        assert _detect_venv(tmp_path) == venv
+
+    def test_detects_venv(self, tmp_path: Path):
+        venv = tmp_path / "venv"
+        venv.mkdir()
+        (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+        assert _detect_venv(tmp_path) == venv
+
+    def test_returns_none_when_missing(self, tmp_path: Path):
+        assert _detect_venv(tmp_path) is None
+
+    def test_direnv_takes_priority(self, tmp_path: Path):
+        """When both .direnv/python-* and .venv/ exist, .direnv wins."""
+        direnv_venv = tmp_path / ".direnv" / "python-3.14"
+        direnv_venv.mkdir(parents=True)
+        (direnv_venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+
+        dot_venv = tmp_path / ".venv"
+        dot_venv.mkdir()
+        (dot_venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+
+        assert _detect_venv(tmp_path) == direnv_venv
+
+    def test_picks_highest_direnv_version(self, tmp_path: Path):
+        """When multiple .direnv/python-* exist, pick the highest version."""
+        for ver in ("python-3.11", "python-3.14", "python-3.12"):
+            d = tmp_path / ".direnv" / ver
+            d.mkdir(parents=True)
+            (d / "pyvenv.cfg").write_text("home = /usr/bin\n")
+
+        result = _detect_venv(tmp_path)
+        assert result is not None
+        assert result.name == "python-3.14"
+
+
+# ---------------------------------------------------------------------------
+# _fixup_venv_paths
+# ---------------------------------------------------------------------------
+
+class TestFixupVenvPaths:
+    def test_replaces_paths_in_all_targets(self, tmp_path: Path):
+        old_root = tmp_path / "source"
+        old_root.mkdir()
+        venv = _make_fake_venv(old_root)
+
+        new_root = tmp_path / "target"
+        new_root.mkdir()
+        new_venv = new_root / ".venv"
+
+        # Copy the venv manually so we can test fixup in isolation
+        import shutil
+        shutil.copytree(venv, new_venv, symlinks=True)
+
+        _fixup_venv_paths(new_venv, str(old_root), str(new_root))
+
+        old = str(old_root)
+        new = str(new_root)
+
+        # pyvenv.cfg
+        cfg = (new_venv / "pyvenv.cfg").read_text()
+        assert new in cfg
+        assert old not in cfg
+
+        # activate scripts
+        for name in ("activate", "activate.csh", "activate.fish"):
+            text = (new_venv / "bin" / name).read_text()
+            assert new in text
+            assert old not in text
+
+        # Shebang in grove script
+        grove_text = (new_venv / "bin" / "grove").read_text()
+        assert grove_text.startswith(f"#!{new}/")
+        assert old not in grove_text
+
+        # .pth file
+        pth = (new_venv / "lib" / "python3.14" / "site-packages" / "__editable__.grove-0.1.0.pth").read_text()
+        assert f"{new}/src" in pth
+        assert old not in pth
+
+        # direct_url.json
+        durl = (new_venv / "lib" / "python3.14" / "site-packages" / "grove-0.1.0.dist-info" / "direct_url.json").read_text()
+        assert new in durl
+        assert old not in durl
+
+    def test_preserves_symlinks(self, tmp_path: Path):
+        """Symlinks in bin/ should not be modified by fixup."""
+        old_root = tmp_path / "source"
+        old_root.mkdir()
+        venv = _make_fake_venv(old_root)
+
+        # The python symlink should still point to python3
+        assert (venv / "bin" / "python").is_symlink()
+        assert (venv / "bin" / "python").resolve() == (venv / "bin" / "python3").resolve()
+
+    def test_skips_missing_files_gracefully(self, tmp_path: Path):
+        """Should not crash if expected files are missing."""
+        venv = tmp_path / ".venv"
+        venv.mkdir()
+        (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+        # No bin/ dir, no lib/ dir — should not crash
+        _fixup_venv_paths(venv, "/old", "/new")
+
+
+# ---------------------------------------------------------------------------
+# _copy_venv
+# ---------------------------------------------------------------------------
+
+class TestCopyVenv:
+    def test_copies_and_fixes_paths(self, tmp_path: Path):
+        source = tmp_path / "source"
+        source.mkdir()
+        _make_fake_venv(source)
+
+        target = tmp_path / "target"
+        target.mkdir()
+
+        assert _copy_venv(source, target) is True
+
+        # Venv should exist in target
+        target_venv = target / ".venv"
+        assert target_venv.exists()
+        assert (target_venv / "pyvenv.cfg").exists()
+
+        # Paths should reference target, not source
+        pth = (target_venv / "lib" / "python3.14" / "site-packages" / "__editable__.grove-0.1.0.pth").read_text()
+        assert str(target) in pth
+        assert str(source) not in pth
+
+    def test_preserves_symlinks_in_copy(self, tmp_path: Path):
+        source = tmp_path / "source"
+        source.mkdir()
+        _make_fake_venv(source)
+
+        target = tmp_path / "target"
+        target.mkdir()
+        _copy_venv(source, target)
+
+        python_link = target / ".venv" / "bin" / "python"
+        assert python_link.is_symlink()
+
+    def test_no_venv_returns_false(self, tmp_path: Path):
+        source = tmp_path / "source"
+        source.mkdir()
+        target = tmp_path / "target"
+        target.mkdir()
+        assert _copy_venv(source, target) is False
+
+    def test_handles_nested_venv_path(self, tmp_path: Path):
+        """A named venv like .venv/myproject/ should be copied correctly."""
+        source = tmp_path / "source"
+        source.mkdir()
+        _make_fake_venv(source, venv_rel=".venv/myproject")
+
+        target = tmp_path / "target"
+        target.mkdir()
+
+        assert _copy_venv(source, target) is True
+        assert (target / ".venv" / "myproject" / "pyvenv.cfg").exists()
+
+
+# ---------------------------------------------------------------------------
+# _run_direnv_allow
+# ---------------------------------------------------------------------------
+
+class TestRunDirenvAllow:
+    def test_calls_direnv_when_envrc_exists(self, tmp_path: Path):
+        (tmp_path / ".envrc").write_text("layout python\n")
+
+        with patch("grove.worktree.shutil.which", return_value="/usr/bin/direnv"), \
+             patch("grove.worktree.subprocess.run") as mock_run:
+            _run_direnv_allow(tmp_path)
+
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args
+        assert call_args[0][0] == ["direnv", "allow"]
+        assert call_args[1]["cwd"] == tmp_path
+
+    def test_skips_when_no_envrc(self, tmp_path: Path):
+        with patch("grove.worktree.subprocess.run") as mock_run:
+            _run_direnv_allow(tmp_path)
+        mock_run.assert_not_called()
+
+    def test_skips_when_direnv_not_installed(self, tmp_path: Path):
+        (tmp_path / ".envrc").write_text("layout python\n")
+
+        with patch("grove.worktree.shutil.which", return_value=None), \
+             patch("grove.worktree.subprocess.run") as mock_run:
+            _run_direnv_allow(tmp_path)
+
+        mock_run.assert_not_called()
