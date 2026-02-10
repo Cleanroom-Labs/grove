@@ -383,13 +383,24 @@ def _sync_group(
     no_push: bool,
     force: bool,
     remote: bool = False,
+    quiet: bool = False,
+    source_path: Path | None = None,
 ) -> int:
-    """Sync a single sync group. Returns 0 on success, 1 on failure."""
-    print(Colors.blue(f"=== Syncing group: {group.name} ==="))
-    print()
+    """Sync a single sync group. Returns 0 on success, 1 on failure.
+
+    Args:
+        quiet: Suppress verbose output (used when called from merge).
+        source_path: Local path to fetch the target commit from.  When set
+            with *commit_arg*, each submodule instance fetches from this path
+            instead of ``--all`` remotes.
+    """
+    if not quiet:
+        print(Colors.blue(f"=== Syncing group: {group.name} ==="))
+        print()
 
     # Phase 1: Discover submodules
-    print(Colors.blue(f"Discovering {group.name} submodule locations..."))
+    if not quiet:
+        print(Colors.blue(f"Discovering {group.name} submodule locations..."))
     all_submodules = discover_sync_submodules(repo_root, group.url_match)
 
     if not all_submodules:
@@ -403,11 +414,10 @@ def _sync_group(
     ]
 
     # Phase 2: Resolve target commit
-    source_path: Path | None = None
-
     if commit_arg:
-        # Explicit CLI SHA — use as-is
-        print(Colors.blue("Resolving target commit..."))
+        # Explicit CLI SHA — use as-is; keep caller-provided source_path
+        if not quiet:
+            print(Colors.blue("Resolving target commit..."))
         try:
             target_commit, commit_source = resolve_target_commit(
                 commit_arg, None,
@@ -417,11 +427,14 @@ def _sync_group(
             return 1
     elif remote:
         # --remote: push ahead submodules, then resolve from remote
-        print(Colors.blue("Checking for ahead submodules..."))
+        if not quiet:
+            print(Colors.blue("Checking for ahead submodules..."))
         if push_ahead_submodules(submodules, dry_run):
-            print()
+            if not quiet:
+                print()
 
-        print(Colors.blue("Resolving target commit from remote..."))
+        if not quiet:
+            print(Colors.blue("Resolving target commit from remote..."))
         try:
             remote_url = resolve_remote_url(repo_root, group.url_match)
             target_commit, commit_source = resolve_target_commit(
@@ -432,7 +445,8 @@ def _sync_group(
             return 1
     else:
         # Default: local-first resolution
-        print(Colors.blue("Resolving target commit from local instances..."))
+        if not quiet:
+            print(Colors.blue("Resolving target commit from local instances..."))
         tip = resolve_local_tip(submodules, repo_root)
         if tip is None:
             print(Colors.red(
@@ -442,23 +456,24 @@ def _sync_group(
             return 1
         target_commit, source_path, commit_source = tip
 
-    print(f"Target: {Colors.green(target_commit[:7])} ({commit_source})")
-    print()
+    if not quiet:
+        print(f"Target: {Colors.green(target_commit[:7])} ({commit_source})")
+        print()
 
-    # Display submodule status
-    print(f"Found {Colors.green(str(len(all_submodules)))} submodule locations:")
-    for submodule in all_submodules:
-        rel_path = str(submodule.path.relative_to(repo_root))
-        current = submodule.current_commit[:7] if submodule.current_commit else "unknown"
-        target_short = target_commit[:7]
+        # Display submodule status
+        print(f"Found {Colors.green(str(len(all_submodules)))} submodule locations:")
+        for submodule in all_submodules:
+            rel_path = str(submodule.path.relative_to(repo_root))
+            current = submodule.current_commit[:7] if submodule.current_commit else "unknown"
+            target_short = target_commit[:7]
 
-        if rel_path in allow_drift:
-            print(f"  {Colors.yellow('~')} {rel_path} ({current}) {Colors.yellow('(allow-drift, skipped)')}")
-        elif current == target_short:
-            print(f"  {Colors.green('✓')} {rel_path} (already at {current})")
-        else:
-            print(f"  {Colors.yellow('→')} {rel_path} ({current} → {target_short})")
-    print()
+            if rel_path in allow_drift:
+                print(f"  {Colors.yellow('~')} {rel_path} ({current}) {Colors.yellow('(allow-drift, skipped)')}")
+            elif current == target_short:
+                print(f"  {Colors.green('✓')} {rel_path} (already at {current})")
+            else:
+                print(f"  {Colors.yellow('→')} {rel_path} ({current} → {target_short})")
+        print()
 
     # Check if any updates needed
     submodules_to_update = [
@@ -467,62 +482,73 @@ def _sync_group(
     ]
 
     if not submodules_to_update:
-        print(Colors.green(f"All {group.name} submodules already at target commit. Nothing to do."))
+        if not quiet:
+            print(Colors.green(f"All {group.name} submodules already at target commit. Nothing to do."))
         return 0
 
     # Phase 3: Validate parent repos
-    print(Colors.blue("Validating parent repositories..."))
+    if not quiet:
+        print(Colors.blue("Validating parent repositories..."))
     parent_repos = get_parent_repos_for_submodules(submodules, repo_root)
 
-    print("  Fetching from remotes...")
+    if not quiet:
+        print("  Fetching from remotes...")
     for repo in parent_repos:
         repo.git("fetch", "--quiet", check=False)
 
     validation_failed = False
     for repo in parent_repos:
         if not repo.validate(check_sync=True):
-            print(f"  {Colors.red('✗')} {repo.rel_path}")
-            print(f"    {Colors.red(repo.error_message or 'Unknown error')}")
+            if not quiet:
+                print(f"  {Colors.red('✗')} {repo.rel_path}")
+                print(f"    {Colors.red(repo.error_message or 'Unknown error')}")
             validation_failed = True
 
-    print_status_table(parent_repos, show_behind=True)
+    if not quiet:
+        print_status_table(parent_repos, show_behind=True)
 
     if validation_failed and not force:
         print(Colors.red("Validation failed. Fix the issues above or use --force to skip."))
-        print()
-        print(Colors.blue("Common fixes:"))
-        print("  - Pull latest: cd <repo> && git pull")
-        print("  - Checkout branch: cd <repo> && git checkout main")
+        if not quiet:
+            print()
+            print(Colors.blue("Common fixes:"))
+            print("  - Pull latest: cd <repo> && git pull")
+            print("  - Checkout branch: cd <repo> && git checkout main")
         return 1
 
-    if validation_failed and force:
+    if validation_failed and force and not quiet:
         print(Colors.yellow("Warning: Proceeding despite validation failures (--force)"))
         print()
 
-    if dry_run:
+    if dry_run and not quiet:
         print(Colors.yellow("Dry run mode - previewing changes:"))
         print()
 
     # Phase 4: Update submodules
-    print(Colors.blue(f"Updating {group.name} submodules..."))
+    if not quiet:
+        print(Colors.blue(f"Updating {group.name} submodules..."))
     updated_submodules = []
 
     for submodule in submodules_to_update:
         rel_path = str(submodule.path.relative_to(repo_root))
 
         if dry_run:
-            print(f"  {Colors.yellow('Would update')} {rel_path}")
+            if not quiet:
+                print(f"  {Colors.yellow('Would update')} {rel_path}")
             updated_submodules.append(submodule)
         else:
             if submodule.update_to_commit(target_commit, source_path=source_path):
-                print(f"  {Colors.green('Updated')} {rel_path}")
+                if not quiet:
+                    print(f"  {Colors.green('Updated')} {rel_path}")
                 updated_submodules.append(submodule)
             else:
                 print(f"  {Colors.red('Failed to update')} {rel_path}")
-    print()
+    if not quiet:
+        print()
 
     if not updated_submodules:
-        print(Colors.yellow("No submodules were updated."))
+        if not quiet:
+            print(Colors.yellow("No submodules were updated."))
         return 0
 
     # Phase 5: Commit bottom-up
@@ -530,7 +556,8 @@ def _sync_group(
         group=group.name, sha=target_commit[:7]
     )
 
-    print(Colors.blue("Committing changes bottom-up..."))
+    if not quiet:
+        print(Colors.blue("Committing changes bottom-up..."))
 
     parent_to_subpaths: dict[Path, list[str]] = {}
     for submodule in updated_submodules:
@@ -558,19 +585,27 @@ def _sync_group(
                 dry_run=dry_run,
             ):
                 committed_repos.append(repo)
-    print()
+    if not quiet:
+        print()
 
     # Phase 6: Push (unless --no-push)
     if no_push:
-        print(Colors.yellow("Skipping push (--no-push specified)"))
-        print()
-        print(Colors.blue("Next steps:"))
-        print("  1. Verify: grove check")
-        print("  2. Push:   grove push")
+        if quiet:
+            print(f"    Synced {group.name} to {target_commit[:7]} "
+                  f"across {len(updated_submodules)} locations")
+        else:
+            print(Colors.yellow("Skipping push (--no-push specified)"))
+            print()
+            print(Colors.blue("Next steps:"))
+            print("  1. Verify: grove check")
+            print("  2. Push:   grove push")
         return 0
 
     if not committed_repos and not dry_run:
-        print(Colors.green("No commits made - nothing to push."))
+        if quiet:
+            print(f"    Synced {group.name} to {target_commit[:7]} (no changes needed)")
+        else:
+            print(Colors.green("No commits made - nothing to push."))
         return 0
 
     # Re-validate repos to get accurate ahead counts
@@ -584,13 +619,17 @@ def _sync_group(
                 repos_to_push.append(repo)
 
     if not repos_to_push and not dry_run:
-        print(Colors.green("All repositories up-to-date. Nothing to push."))
+        if quiet:
+            print(f"    Synced {group.name} to {target_commit[:7]} (all up-to-date)")
+        else:
+            print(Colors.green("All repositories up-to-date. Nothing to push."))
         return 0
 
-    print(Colors.blue(f"Pushing {len(repos_to_push)} repositories..."))
-    if dry_run:
-        print(Colors.yellow("(dry-run mode - no actual pushes)"))
-    print()
+    if not quiet:
+        print(Colors.blue(f"Pushing {len(repos_to_push)} repositories..."))
+        if dry_run:
+            print(Colors.yellow("(dry-run mode - no actual pushes)"))
+        print()
 
     sorted_repos = topological_sort_repos(repos_to_push)
 
@@ -604,37 +643,44 @@ def _sync_group(
             push_failed = True
             print(f"  {Colors.red('✗ Failed to push')} {repo.rel_path}")
 
-    print()
+    if not quiet:
+        print()
 
     # Final summary
     if dry_run:
-        print(f"{Colors.yellow('Dry run complete.')}")
-        print()
-        print(Colors.blue("Summary:"))
-        print(f"  Target commit: {target_commit[:7]}")
-        print(f"  Submodules to update: {len(updated_submodules)}")
-        print(f"  Commits to make: {len(committed_repos)}")
-        print(f"  Repos to push: {len(repos_to_push)}")
-        print()
-        print(Colors.blue("To execute:"))
-        print(f"  grove sync {group.name}")
+        if not quiet:
+            print(f"{Colors.yellow('Dry run complete.')}")
+            print()
+            print(Colors.blue("Summary:"))
+            print(f"  Target commit: {target_commit[:7]}")
+            print(f"  Submodules to update: {len(updated_submodules)}")
+            print(f"  Commits to make: {len(committed_repos)}")
+            print(f"  Repos to push: {len(repos_to_push)}")
+            print()
+            print(Colors.blue("To execute:"))
+            print(f"  grove sync {group.name}")
     elif push_failed:
         print(Colors.red("Some pushes failed."))
-        print()
-        print(Colors.blue("Troubleshooting:"))
-        print("  - Check remote connectivity: git remote -v")
-        print("  - Try pushing manually: grove push")
+        if not quiet:
+            print()
+            print(Colors.blue("Troubleshooting:"))
+            print("  - Check remote connectivity: git remote -v")
+            print("  - Try pushing manually: grove push")
         return 1
     else:
-        print(Colors.green(f"Sync complete for {group.name}!"))
-        print()
-        print(Colors.blue("Summary:"))
-        print(f"  Target commit: {target_commit[:7]}")
-        print(f"  Submodules updated: {len(updated_submodules)}")
-        print(f"  Repos pushed: {pushed_count}")
-        print()
-        print(Colors.blue("Next steps:"))
-        print("  1. Verify: grove check")
+        if quiet:
+            print(f"    Synced {group.name} to {target_commit[:7]} "
+                  f"({len(updated_submodules)} updated, {pushed_count} pushed)")
+        else:
+            print(Colors.green(f"Sync complete for {group.name}!"))
+            print()
+            print(Colors.blue("Summary:"))
+            print(f"  Target commit: {target_commit[:7]}")
+            print(f"  Submodules updated: {len(updated_submodules)}")
+            print(f"  Repos pushed: {pushed_count}")
+            print()
+            print(Colors.blue("Next steps:"))
+            print("  1. Verify: grove check")
 
     return 0
 

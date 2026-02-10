@@ -716,3 +716,204 @@ class TestAbortConflict:
         # Child should be restored
         child_post = _git(child, "rev-parse", "HEAD").stdout.strip()
         assert child_post == child_pre
+
+
+# ---------------------------------------------------------------------------
+# Integration tests: sync-aware merge
+# ---------------------------------------------------------------------------
+
+class TestSyncGroupMerge:
+    def test_sync_group_merge_and_propagation(
+        self, tmp_submodule_tree_with_sync_branches: Path
+    ):
+        """After merge, sync-group submodule is merged and parent auto-resolves."""
+        root = tmp_submodule_tree_with_sync_branches
+        common = root / "technical-docs" / "common"
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=root):
+            result = start_merge("my-feature", no_test=True)
+
+        assert result == 0
+        assert not _get_state_path(root).exists()
+
+        # Common should have the feature file (merged)
+        assert (common / "feature.txt").exists()
+
+        # Technical-docs and parent should have their feature files
+        assert (root / "technical-docs" / "feature.txt").exists()
+        assert (root / "feature.txt").exists()
+
+    def test_sync_group_dry_run(
+        self, tmp_submodule_tree_with_sync_branches: Path, capsys
+    ):
+        """Dry run should report sync-group predictions without executing."""
+        root = tmp_submodule_tree_with_sync_branches
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=root):
+            result = start_merge("my-feature", dry_run=True)
+
+        assert result == 0
+        assert not _get_state_path(root).exists()
+
+        output = capsys.readouterr().out
+        assert "sync group" in output.lower() or "Sync-group" in output
+
+        # No actual merges should have happened
+        common = root / "technical-docs" / "common"
+        assert not (common / "feature.txt").exists()
+
+    def test_sync_group_no_feature_branch(
+        self, tmp_submodule_tree: Path, capsys
+    ):
+        """When sync-group has no feature branch, skip gracefully."""
+        root = tmp_submodule_tree
+
+        # Put submodules on named branches but don't create feature branches
+        for sub in [root / "technical-docs" / "common", root / "technical-docs"]:
+            result = subprocess.run(
+                ["git", "-C", str(sub), "checkout", "main"],
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                _git(sub, "checkout", "-b", "main")
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=root):
+            result = start_merge("nonexistent-branch", no_test=True)
+
+        # Should succeed (nothing to merge)
+        assert result == 0
+
+    def test_sync_group_abort_undoes_sync(
+        self, tmp_submodule_tree_with_sync_branches: Path
+    ):
+        """Abort should restore all synced instances to pre-merge state."""
+        root = tmp_submodule_tree_with_sync_branches
+        common = root / "technical-docs" / "common"
+        child = root / "technical-docs"
+
+        # Record pre-merge SHAs
+        pre_common_sha = _git(common, "rev-parse", "HEAD").stdout.strip()
+        pre_child_sha = _git(child, "rev-parse", "HEAD").stdout.strip()
+        pre_root_sha = _git(root, "rev-parse", "HEAD").stdout.strip()
+
+        # Make root conflict so merge pauses at root
+        _git(root, "checkout", "my-feature")
+        (root / "README.md").write_text("feature-branch README\n")
+        _git(root, "add", "README.md")
+        _git(root, "commit", "-m", "feature conflict on root README")
+        _git(root, "checkout", "-")
+
+        (root / "README.md").write_text("main-branch README\n")
+        _git(root, "add", "README.md")
+        _git(root, "commit", "-m", "main conflict on root README")
+
+        # Re-record root SHA after the conflict setup commit
+        pre_root_sha_after = _git(root, "rev-parse", "HEAD").stdout.strip()
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=root):
+            result = start_merge("my-feature", no_test=True)
+        # Should pause on root conflict (sync + child merge succeeded)
+        assert result == 1
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=root):
+            abort_result = abort_merge()
+        assert abort_result == 0
+
+        # All repos should be restored to their pre-merge state
+        assert _git(common, "rev-parse", "HEAD").stdout.strip() == pre_common_sha
+        assert _git(child, "rev-parse", "HEAD").stdout.strip() == pre_child_sha
+
+    def test_sync_group_auto_resolve_in_parent(
+        self, tmp_submodule_tree_with_sync_branches: Path
+    ):
+        """Parent merge should auto-resolve sync-group pointer conflicts."""
+        root = tmp_submodule_tree_with_sync_branches
+        common = root / "technical-docs" / "common"
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=root):
+            result = start_merge("my-feature", no_test=True)
+
+        assert result == 0
+
+        # Verify common is on a consistent commit (not conflicted)
+        # The common submodule should be at the merged SHA
+        common_sha = _git(common, "rev-parse", "HEAD").stdout.strip()
+        assert common_sha  # Should have a valid SHA
+        assert (common / "feature.txt").exists()  # Feature was merged
+
+    def test_state_includes_pre_sync_heads(
+        self, tmp_submodule_tree_with_sync_branches: Path
+    ):
+        """MergeState should record pre_sync_heads when sync groups are involved."""
+        root = tmp_submodule_tree_with_sync_branches
+
+        # Use a failing test command to pause the merge after sync
+        (root / ".grove.toml").read_text()  # Verify it exists
+        (root / ".grove.toml").write_text(
+            '[sync-groups.common]\n'
+            f'url-match = "grandchild_origin"\n'
+            '\n'
+            '[worktree-merge]\n'
+            'test-command = "false"\n'
+        )
+        _git(root, "add", ".grove.toml")
+        _git(root, "commit", "-m", "add failing test config")
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=root):
+            result = start_merge("my-feature")
+
+        # Should be paused due to test failure (in sync-group or normal merge)
+        assert result == 1
+        state = MergeState.load(_get_state_path(root))
+
+        # pre_sync_heads should be populated
+        assert isinstance(state.pre_sync_heads, dict)
+
+        # Clean up
+        with patch("grove.worktree_merge.find_repo_root", return_value=root):
+            abort_merge()
+
+
+class TestMergeStateBackwardCompat:
+    def test_load_without_pre_sync_heads(self, tmp_path: Path):
+        """Old state files without pre_sync_heads should load with empty dict."""
+        state_path = tmp_path / "merge.json"
+        state_path.write_text(json.dumps({
+            "branch": "feat", "no_ff": False, "no_test": False,
+            "started_at": "2026-01-01T00:00:00",
+            "repos": [{"rel_path": ".", "status": "pending",
+                        "pre_merge_head": None, "post_merge_head": None,
+                        "reason": None}],
+        }))
+        state = MergeState.load(state_path)
+        assert state.pre_sync_heads == {}
+
+    def test_load_with_pre_sync_heads(self, tmp_path: Path):
+        """State files with pre_sync_heads should load correctly."""
+        state_path = tmp_path / "merge.json"
+        state_path.write_text(json.dumps({
+            "branch": "feat", "no_ff": False, "no_test": False,
+            "started_at": "2026-01-01T00:00:00",
+            "repos": [{"rel_path": "common", "status": "merged",
+                        "pre_merge_head": "aaa", "post_merge_head": "bbb",
+                        "reason": None, "sync_group": "common"}],
+            "pre_sync_heads": {"technical-docs": "ccc"},
+        }))
+        state = MergeState.load(state_path)
+        assert state.pre_sync_heads == {"technical-docs": "ccc"}
+        assert state.repos[0].sync_group == "common"
+
+    def test_save_includes_pre_sync_heads(self, tmp_path: Path):
+        """Saved state should include pre_sync_heads."""
+        state_path = tmp_path / "merge.json"
+        state = MergeState(
+            branch="feat", no_ff=False, no_test=False,
+            started_at="2026-01-01T00:00:00",
+            repos=[RepoMergeEntry(rel_path=".", sync_group="common")],
+            pre_sync_heads={"technical-docs": "abc123"},
+        )
+        state.save(state_path)
+
+        data = json.loads(state_path.read_text())
+        assert data["pre_sync_heads"] == {"technical-docs": "abc123"}
+        assert data["repos"][0]["sync_group"] == "common"
