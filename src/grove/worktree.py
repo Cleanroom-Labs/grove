@@ -143,13 +143,19 @@ def _run_direnv_allow(worktree_path: Path) -> None:
     )
 
 
-def _init_submodules(worktree_path: Path, ref_worktree: Path, *, copy_config: bool = True) -> bool:
+def _init_submodules(
+    worktree_path: Path,
+    ref_worktree: Path,
+    *,
+    copy_config: bool = True,
+    local_remotes: bool = False,
+) -> bool:
     """Recursively initialize submodules using the main worktree as reference.
 
     When the main worktree already has a submodule checked out, temporarily
     overrides the URL to point at that copy (avoiding redundant network
-    fetches and resolving local filesystem URLs). Original URLs are restored
-    via ``git submodule sync --recursive``.
+    fetches and resolving local filesystem URLs). Unless *local_remotes* is
+    True, original URLs are restored via ``git submodule sync --recursive``.
     """
     gitmodules = worktree_path / ".gitmodules"
     if not gitmodules.exists():
@@ -185,13 +191,14 @@ def _init_submodules(worktree_path: Path, ref_worktree: Path, *, copy_config: bo
     for _name, subpath, _url in entries:
         sub_worktree = worktree_path / subpath
         sub_ref = ref_worktree / subpath
-        if not _init_submodules(sub_worktree, sub_ref, copy_config=copy_config):
+        if not _init_submodules(sub_worktree, sub_ref, copy_config=copy_config, local_remotes=local_remotes):
             return False
         if copy_config and sub_ref.exists() and sub_worktree.exists():
             _copy_local_config(sub_ref, sub_worktree)
 
-    # Restore original remote URLs at all levels
-    run_git(worktree_path, "submodule", "sync", "--recursive", check=False)
+    if not local_remotes:
+        # Restore original remote URLs at all levels
+        run_git(worktree_path, "submodule", "sync", "--recursive", check=False)
 
     return True
 
@@ -239,14 +246,19 @@ def add_worktree(args) -> int:
         else:
             print(f"  {Colors.yellow('Warning')}: no Python venv found in {repo_root}")
 
+    local_remotes = getattr(args, "local_remotes", False)
+
     print(f"{Colors.blue('Initializing submodules')} (using main worktree as reference)...")
 
-    if not _init_submodules(worktree_path, repo_root, copy_config=copy_config):
+    if not _init_submodules(worktree_path, repo_root, copy_config=copy_config, local_remotes=local_remotes):
         print(f"\n{Colors.yellow('Warning')}: worktree created but submodule initialization failed.")
         print(f"  Path:   {worktree_path}")
         print(f"  Branch: {branch}")
         print("  You may need to initialize submodules manually.")
         return 1
+
+    if local_remotes:
+        print(f"{Colors.blue('Local remotes')}: submodule pushes will go to the main worktree")
 
     _run_direnv_allow(worktree_path)
 
