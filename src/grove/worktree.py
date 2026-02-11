@@ -290,10 +290,17 @@ def remove_worktree(args) -> int:
 
     print(f"{Colors.blue('Removing worktree')} at {worktree_path}...")
 
-    result = run_git(repo_root, *git_args, check=False, capture=False)
+    result = run_git(repo_root, *git_args, check=False, capture=True)
     if result.returncode != 0:
-        print(f"{Colors.red('Failed to remove worktree')}")
-        return 1
+        if "submodules" in result.stderr:
+            # git worktree remove refuses when submodules are present.
+            # Fall back to manual removal + prune.
+            print(f"  {Colors.yellow('Worktree contains submodules')}; removing manually...")
+            shutil.rmtree(worktree_path)
+        else:
+            print(result.stderr.rstrip())
+            print(f"{Colors.red('Failed to remove worktree')}")
+            return 1
 
     # Prune stale worktree entries
     run_git(repo_root, "worktree", "prune", check=False)
