@@ -123,10 +123,26 @@ In DAG mode, execution order is by depth (leaf-first, root-last):
 - **Intermediates** (parent repos): stage updated submodule pointers, run intermediate test tiers
 - **Root**: stage all updated parents, run root test tiers
 
+## Intermediate Sync-Group Handling
+
+Cascade detects sync groups at **all levels**, not just the leaf. If an intermediate repo in the cascade chain belongs to a sync group, cascade automatically:
+
+1. **Discovers peer instances** of that intermediate sync group
+2. **Expands the plan** to include peers and their parent chains (may promote linear → DAG)
+3. **Designates one instance as primary** (commits normally), others as sync targets
+4. **Syncs peers** to the primary's SHA after each primary commits
+
+If intermediate sync-group instances have **diverged**:
+- **Pre-cascade**: grove auto-merges cleanly resolvable divergences before starting the cascade
+- **Deferred**: groups with merge conflicts are resolved dynamically during cascade execution
+- **Merge conflict**: cascade pauses with instructions; resolve conflicts, then `grove cascade --continue`
+
 ## Error Handling
 
 - **"A cascade is already in progress"**: direct to `--continue`, `--abort`, or `--status`
 - **"not a recognized repository"**: verify the path points to a submodule in the grove
 - **"at least a leaf and one parent"**: cascade needs a submodule, not the root itself
 - **"instances are not in sync"**: run `grove sync <group>` first, or use `--force` to bypass
+- **"Merge conflict syncing <peer>"**: resolve conflicts in the specified path, then `--continue`
+- **"Divergence could not be auto-resolved"**: group will be resolved dynamically during cascade
 - **No test tiers configured**: cascade will commit without testing (with warning)

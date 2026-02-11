@@ -367,3 +367,109 @@ def tmp_sync_group_diverged(tmp_sync_group_multi_instance: Path) -> Path:
     _git(backend_common, "commit", "-m", "Add feature B")
 
     return root
+
+
+@pytest.fixture()
+def tmp_intermediate_sync_group(tmp_path: Path) -> Path:
+    """Create a tree where intermediate repos (not leaves) form a sync group.
+
+    Layout::
+
+        root/                              (main repo -- project root)
+        +-- workspace-a/                   (submodule → service_origin)
+        |   +-- libs/common/               (submodule → common_origin)
+        +-- workspace-b/                   (submodule → service_origin, same origin!)
+        |   +-- libs/common/               (submodule → common_origin)
+        +-- .grove.toml
+
+    ``workspace-a`` and ``workspace-b`` share the same origin (service_origin),
+    forming a sync group called "services".  They are intermediates in the
+    cascade chain (libs/common → workspace-{a,b} → root).
+
+    Returns the *root* repository path.
+    """
+    # ---- common_origin: the shared library (leaf) ----
+    common_origin = tmp_path / "common_origin"
+    _init_repo(common_origin)
+    (common_origin / "lib.py").write_text("def hello(): return 'hello'\n")
+    _git(common_origin, "add", "lib.py")
+    _git(common_origin, "commit", "-m", "Add library code")
+
+    # ---- service_origin: the shared intermediate repo ----
+    service_origin = tmp_path / "service_origin"
+    _init_repo(service_origin)
+    (service_origin / "service.py").write_text("# service code\n")
+    _git(service_origin, "add", "service.py")
+    _git(service_origin, "commit", "-m", "Add service code")
+    _git(service_origin, "submodule", "add", str(common_origin), "libs/common")
+    _git(service_origin, "commit", "-m", "Add libs/common submodule")
+
+    # ---- root repo ----
+    root = tmp_path / "root"
+    _init_repo(root)
+
+    (root / ".grove.toml").write_text(
+        '[sync-groups.services]\n'
+        f'url-match = "service_origin"\n'
+        '\n'
+        '[cascade]\n'
+        'local-tests = "true"\n'
+        'contract-tests = "true"\n'
+    )
+    _git(root, "add", ".grove.toml")
+    _git(root, "commit", "-m", "Add grove config")
+
+    # Both workspaces point to the SAME service_origin
+    _git(root, "submodule", "add", str(service_origin), "workspace-a")
+    _git(root, "submodule", "add", str(service_origin), "workspace-b")
+    _git(root, "commit", "-m", "Add workspace-a and workspace-b submodules")
+
+    # Recursively initialise all nested submodules
+    _git(root, "submodule", "update", "--init", "--recursive")
+
+    # Configure git user in all submodule worktrees
+    for sub_dir in [
+        root / "workspace-a",
+        root / "workspace-a" / "libs" / "common",
+        root / "workspace-b",
+        root / "workspace-b" / "libs" / "common",
+    ]:
+        if (sub_dir / ".git").exists():
+            _git(sub_dir, "config", "user.email", "test@example.com")
+            _git(sub_dir, "config", "user.name", "Test User")
+
+    return root
+
+
+@pytest.fixture()
+def tmp_intermediate_sync_group_diverged(tmp_intermediate_sync_group: Path) -> Path:
+    """Extend intermediate sync group fixture with diverged workspace commits.
+
+    After this fixture:
+    - workspace-a has an extra commit (extra-a.txt)
+    - workspace-b has a different extra commit (extra-b.txt)
+
+    The "services" sync group has diverged instances (neither is ancestor
+    of the other).
+
+    Returns the *root* repository path.
+    """
+    root = tmp_intermediate_sync_group
+
+    # Put workspaces on branches so we can commit
+    for ws_name in ["workspace-a", "workspace-b"]:
+        ws = root / ws_name
+        _git(ws, "checkout", "-b", f"{ws_name}-work")
+
+    # Diverge: different commits in each workspace
+    ws_a = root / "workspace-a"
+    (ws_a / "extra-a.txt").write_text("workspace A extra\n")
+    _git(ws_a, "add", "extra-a.txt")
+    _git(ws_a, "commit", "-m", "Add extra-a.txt")
+
+    ws_b = root / "workspace-b"
+    (ws_b / "extra-b.txt").write_text("workspace B extra\n")
+    _git(ws_b, "add", "extra-b.txt")
+    _git(ws_b, "commit", "-m", "Add extra-b.txt")
+
+    return root
