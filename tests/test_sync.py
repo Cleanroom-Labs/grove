@@ -1,12 +1,14 @@
 """Tests for grove.sync."""
 
-import pytest
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from grove.config import SyncGroup
 from grove.repo_utils import parse_gitmodules
-from grove.sync import resolve_remote_url, resolve_target_commit
+from grove.sync import _sync_group, resolve_remote_url, resolve_target_commit
 
 
 class TestParseGitmodules:
@@ -201,3 +203,50 @@ class TestResolveRemoteUrl:
         """Should return None when .gitmodules doesn't exist."""
         url = resolve_remote_url(tmp_path, "anything")
         assert url is None
+
+
+# ---------------------------------------------------------------------------
+# Parent pointer propagation
+# ---------------------------------------------------------------------------
+
+def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", "-C", str(cwd)] + list(args),
+        capture_output=True, text=True, check=True,
+    )
+
+
+class TestSyncParentPointerPropagation:
+    def test_sync_propagates_child_pointer_updates_to_parent(
+        self, tmp_sync_group_multi_instance: Path,
+    ):
+        """After syncing common, the root should also update its pointers
+        to frontend/backend/shared (which received sync commits)."""
+        root = tmp_sync_group_multi_instance
+        common_origin = root.parent / "common_origin"
+
+        # Add a new commit to common_origin so sync has something to do
+        (common_origin / "new_feature.py").write_text("# new feature\n")
+        _git(common_origin, "add", "new_feature.py")
+        _git(common_origin, "commit", "-m", "Add new feature")
+
+        target_sha = _git(common_origin, "rev-parse", "HEAD").stdout.strip()
+
+        group = SyncGroup(
+            name="common",
+            url_match="common_origin",
+            standalone_repo=common_origin,
+        )
+
+        result = _sync_group(
+            group, root, commit_arg=target_sha,
+            dry_run=False, no_push=True, force=True,
+        )
+
+        assert result == 0
+
+        # Root should have no modified submodules — all pointers up to date
+        status = _git(root, "status", "--porcelain")
+        assert status.stdout.strip() == "", (
+            f"Root has uncommitted submodule changes after sync:\n{status.stdout}"
+        )
