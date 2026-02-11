@@ -95,7 +95,9 @@ Contents:
 - `started_at` — ISO 8601 timestamp
 - `system_mode` — `"default"` | `"all"` | `"none"`
 - `quick` — boolean
-- `repos[]` — per-repo state including role, status, pre_cascade_head, failed_tier, diagnosis
+- `repos[]` — per-repo state including role, status, pre_cascade_head, failed_tier, diagnosis, child_rel_paths
+- `sync_group_name` — (optional) name of the sync group if DAG mode
+- `is_dag` — (optional) boolean, true for DAG cascades
 
 ### Operations
 
@@ -106,7 +108,41 @@ Contents:
 | `grove cascade --abort` | Load state, `git reset --hard` each committed repo, delete state |
 | `grove cascade --status` | Load and display state |
 
+## Sync-Group Awareness
+
+### Consistency Check
+
+Before building the cascade chain, grove checks if the target submodule belongs to a sync group. If it does, all instances of that sync group must be at the same commit.
+
+- **All consistent**: cascade proceeds in DAG mode (all instances)
+- **Inconsistent**: cascade fails, suggesting `grove sync <group>` first
+- **Inconsistent + `--force`**: cascade proceeds with a warning
+
+### DAG Cascading
+
+When the leaf is a sync-group submodule, cascade builds a DAG instead of a linear chain:
+
+1. Discover all instances of the sync group
+2. Build individual cascade chains from each instance to root
+3. Merge chains into a deduplicated set keyed by repo path
+4. Compute parent-relative `child_rel_paths` for each entry
+5. Sort by depth ascending (leaves first, root last)
+6. Assign roles: instances = leaf, root = root, others = intermediate
+
+**Example:** If `libs/common` exists in `frontend/`, `backend/`, and `shared/`:
+
+```
+Execution order (depth ascending):
+  depth 0: frontend/libs/common (leaf), backend/libs/common (leaf), shared/libs/common (leaf)
+  depth 1: frontend (intermediate), backend (intermediate), shared (intermediate)
+  depth 2: . (root)
+```
+
+Each intermediate stages the correct parent-relative child path (e.g., `frontend` stages `libs/common`, root stages `frontend`, `backend`, `shared`).
+
 ## Algorithm
+
+### Linear Chain (non-sync-group)
 
 1. **Discover cascade chain:** From the given submodule path, walk up `Path.parents` to find all ancestor repos. Result: `[leaf, parent1, ..., root]`.
 
@@ -116,6 +152,19 @@ Contents:
    c. Run applicable test tiers based on role and flags.
    d. On failure: run auto-diagnosis if applicable, save state, exit with code 1.
    e. On all tiers passing: commit pointer update, advance to next repo.
+
+3. **On completion:** Delete state file, print summary.
+
+### DAG (sync-group)
+
+1. **Build unified plan:** Discover all sync-group instances, build per-instance chains, merge and deduplicate, sort by depth.
+
+2. **Process each repo in depth order (ascending):**
+   a. Record `pre_cascade_head`.
+   b. Stage all `child_rel_paths` (may be multiple for repos with several sync-group children).
+   c. Run applicable test tiers.
+   d. On failure: save state with `is_dag=True` and `sync_group_name`, exit.
+   e. On success: commit, advance.
 
 3. **On completion:** Delete state file, print summary.
 

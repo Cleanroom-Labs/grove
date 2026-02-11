@@ -40,15 +40,32 @@ grove cascade libs/common
 
 Cascade walks up the tree: `libs/common → services/api → . (root)`, running tests and committing pointer updates at each level.
 
-### With sync groups
+### Cascading a sync-group submodule
 
-If you need to sync all instances of a submodule first, compose with `grove sync`:
+When a submodule belongs to a sync group (e.g., `libs/common` shared by multiple parent repos), cascade automatically detects this and builds a DAG covering all instances.
 
 ```bash
-grove sync common --no-push    # sync horizontally
-grove cascade libs/common       # cascade vertically
-grove push                      # push everything
+# 1. Ensure all instances are in sync
+grove sync common
+
+# 2. Make your change in one instance, commit it
+cd frontend/libs/common
+# ... edit, test, commit ...
+cd ../../..
+
+# 3. Sync the change to all instances
+grove sync common
+
+# 4. Cascade from all instances upward (DAG mode)
+grove cascade frontend/libs/common
+
+# 5. Push just the affected repos
+grove push --cascade frontend/libs/common
 ```
+
+In DAG mode, cascade processes all instances as leaves, all their parents as intermediates, and the root last — deduplicating shared ancestors. You can point to any instance; grove discovers the others automatically.
+
+If instances are out of sync, cascade fails with a suggestion to run `grove sync` first. Use `--force` to bypass this check during prototyping.
 
 ### Handling test failures
 
@@ -157,6 +174,7 @@ test-command = "pytest -x"
 | `--quick` | Rapid iteration during development. Only runs local + contract tests. |
 | `--system` | Before releases or after major changes. Runs system-tests at every level. |
 | `--no-system` | When experimental changes in sibling repos would break system tests. |
+| `--force` | Skip sync-group consistency check. Use when prototyping with out-of-sync instances. |
 | `--dry-run` | Preview cascade chain and test plan without executing anything. |
 
 ## Test Design Tips
