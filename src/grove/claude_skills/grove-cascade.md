@@ -13,6 +13,8 @@ Propagate a change from a leaf submodule upward through intermediate parents to 
 - `--abort` -- rollback all cascade commits
 - `--status` -- show current cascade progress
 
+When the leaf is a **sync-group submodule** (multiple instances sharing the same URL), cascade automatically builds a DAG covering all instances and their parent chains, deduplicating shared ancestors.
+
 ## Starting a New Cascade
 
 ### Step 1: Check for in-progress cascade
@@ -22,7 +24,17 @@ Run `grove cascade --status`.
 - If a cascade is already in progress, inform the user and suggest `--continue`, `--abort`, or `--status`.
 - If no cascade in progress, proceed.
 
-### Step 2: Dry-run preview
+### Step 2: Sync-group consistency check
+
+If the leaf belongs to a sync group, grove verifies all instances are at the same commit before proceeding.
+
+- **All in sync**: cascade proceeds normally (DAG mode with all instances)
+- **Out of sync**: cascade fails with a suggestion to run `grove sync <group>` first
+- **Out of sync + `--force`**: cascade proceeds with a warning (useful during prototyping)
+
+If the leaf is NOT in a sync group, this check is skipped and cascade runs as a linear chain.
+
+### Step 3: Dry-run preview
 
 Run `grove cascade <path> --dry-run`.
 
@@ -31,16 +43,17 @@ Report:
 - Which test tiers will run at each level
 - Which test commands are configured
 
-### Step 3: Confirm and execute
+### Step 4: Confirm and execute
 
 Show the preview and ask user to confirm. Mention:
-- Number of repos in the chain
+- Number of repos in the chain (or DAG)
+- Whether DAG mode is active (sync-group submodule with multiple instances)
 - Test tiers per role (leaf: local+contract, intermediate: +integration, root: +system)
 - Suggest `--quick` for fast iteration or `--system` for thorough testing
 
 Run `grove cascade <path>`.
 
-### Step 4: Handle cascade pause
+### Step 5: Handle cascade pause
 
 If the cascade pauses (exit code 1):
 
@@ -60,11 +73,11 @@ If the cascade pauses (exit code 1):
 - Guide the user to the likely source of the failure.
 - After fixing: `/grove-cascade --continue`
 
-### Step 5: Report completion
+### Step 6: Report completion
 
 When cascade finishes (exit code 0):
 - Summary of repos and tiers tested
-- Suggest `grove push` to distribute the committed changes
+- Suggest `grove push --cascade <path>` to push exactly the repos that were cascaded
 - Suggest `grove check` to verify grove health
 
 ## Continuing a Cascade (`--continue`)
@@ -92,11 +105,28 @@ When cascade finishes (exit code 0):
 - **`--quick`**: rapid iteration during development, only local + contract tests
 - **`--system`**: before releases or after major changes, system-tests at every level
 - **`--no-system`**: when experimental sibling changes would break system tests
+- **`--force`**: skip sync-group consistency check (for prototyping when instances are out of sync)
 - **`--dry-run`**: preview cascade chain and test plan without executing
+
+## Sync-Group Cascade Workflow
+
+When a submodule belongs to a sync group (e.g., `libs/common` shared by `frontend`, `backend`, `shared`):
+
+1. `grove sync common` — ensure all instances are at the same commit
+2. Make your change in one instance
+3. `grove sync common` — propagate the change to all instances
+4. `grove cascade libs/common` — cascade from ALL instances through ALL parent chains (DAG mode)
+5. `grove push --cascade libs/common` — push exactly the affected repos
+
+In DAG mode, execution order is by depth (leaf-first, root-last):
+- **Leaves** (all sync-group instances): run leaf test tiers
+- **Intermediates** (parent repos): stage updated submodule pointers, run intermediate test tiers
+- **Root**: stage all updated parents, run root test tiers
 
 ## Error Handling
 
 - **"A cascade is already in progress"**: direct to `--continue`, `--abort`, or `--status`
 - **"not a recognized repository"**: verify the path points to a submodule in the grove
 - **"at least a leaf and one parent"**: cascade needs a submodule, not the root itself
+- **"instances are not in sync"**: run `grove sync <group>` first, or use `--force` to bypass
 - **No test tiers configured**: cascade will commit without testing (with warning)

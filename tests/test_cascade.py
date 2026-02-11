@@ -18,14 +18,19 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
 from grove.cascade import (
     CascadeState,
     RepoCascadeEntry,
+    _build_linear_entries,
+    _build_unified_cascade_plan,
+    _check_sync_group_consistency,
     _determine_tiers,
     _discover_cascade_chain,
+    _find_sync_group_for_path,
     _get_state_path,
     abort_cascade,
     continue_cascade,
     run_cascade,
     show_cascade_status,
 )
+from grove.config import load_config
 from grove.repo_utils import discover_repos_from_gitmodules
 
 
@@ -179,6 +184,135 @@ class TestDiscoverCascadeChain:
 
         with pytest.raises(ValueError, match="not a recognized repository"):
             _discover_cascade_chain(root / "nonexistent", repos)
+
+
+# ---------------------------------------------------------------------------
+# Sync-group awareness (Feature 2)
+# ---------------------------------------------------------------------------
+
+class TestFindSyncGroupForPath:
+    """Tests for _find_sync_group_for_path()."""
+
+    def test_sync_group_submodule_detected(self, tmp_sync_group_multi_instance: Path):
+        """A sync-group submodule should be identified."""
+        root = tmp_sync_group_multi_instance
+        config = load_config(root)
+        target = root / "frontend" / "libs" / "common"
+
+        result = _find_sync_group_for_path(target, root, config)
+
+        assert result is not None
+        name, group = result
+        assert name == "common"
+        assert "common_origin" in group.url_match
+
+    def test_non_sync_group_submodule_returns_none(self, tmp_sync_group_multi_instance: Path):
+        """A regular submodule (not in a sync group) should return None."""
+        root = tmp_sync_group_multi_instance
+        config = load_config(root)
+        # 'frontend' is a submodule but not in any sync group
+        target = root / "frontend"
+
+        result = _find_sync_group_for_path(target, root, config)
+
+        assert result is None
+
+    def test_all_instances_detected(self, tmp_sync_group_multi_instance: Path):
+        """Each instance of the sync group should be detected."""
+        root = tmp_sync_group_multi_instance
+        config = load_config(root)
+
+        for parent in ["frontend", "backend", "shared"]:
+            target = root / parent / "libs" / "common"
+            result = _find_sync_group_for_path(target, root, config)
+            assert result is not None, f"{parent}/libs/common should be in sync group"
+            assert result[0] == "common"
+
+
+class TestCheckSyncGroupConsistency:
+    """Tests for _check_sync_group_consistency()."""
+
+    def test_consistent_group_passes(self, tmp_sync_group_multi_instance: Path):
+        """When all instances are at the same commit, the check should pass."""
+        root = tmp_sync_group_multi_instance
+        result = _check_sync_group_consistency(
+            "common", root, "common_origin", force=False,
+        )
+        assert result is True
+
+    def test_diverged_group_fails(self, tmp_sync_group_diverged: Path, capsys):
+        """When instances have different commits, the check should fail."""
+        root = tmp_sync_group_diverged
+        result = _check_sync_group_consistency(
+            "common", root, "common_origin", force=False,
+        )
+        assert result is False
+        output = capsys.readouterr().out
+        assert "not in sync" in output.lower()
+        assert "grove sync" in output.lower()
+
+    def test_diverged_group_force_proceeds(self, tmp_sync_group_diverged: Path, capsys):
+        """With --force, diverged instances should still proceed."""
+        root = tmp_sync_group_diverged
+        result = _check_sync_group_consistency(
+            "common", root, "common_origin", force=True,
+        )
+        assert result is True
+        output = capsys.readouterr().out
+        assert "warning" in output.lower()
+
+
+class TestCascadeSyncGroupCheck:
+    """Integration tests: sync-group check during cascade start."""
+
+    def test_non_sync_group_leaf_no_check(self, tmp_submodule_tree: Path, capsys):
+        """Cascading a non-sync-group submodule should skip the check entirely."""
+        root = tmp_submodule_tree
+        (root / ".grove.toml").write_text(
+            '[sync-groups.common]\n'
+            'url-match = "grandchild_origin"\n'
+            '\n'
+            '[cascade]\nlocal-tests = "true"\n'
+        )
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("technical-docs", dry_run=True)
+        assert result == 0
+        output = capsys.readouterr().out
+        # Should NOT mention sync-group detection
+        assert "sync-group detected" not in output.lower()
+
+    def test_consistent_sync_group_proceeds(
+        self, tmp_sync_group_multi_instance: Path, capsys,
+    ):
+        """Cascading a consistent sync-group submodule should proceed."""
+        root = tmp_sync_group_multi_instance
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("frontend/libs/common", dry_run=True)
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "sync-group detected" in output.lower()
+
+    def test_inconsistent_sync_group_fails(
+        self, tmp_sync_group_diverged: Path, capsys,
+    ):
+        """Cascading a diverged sync-group submodule should fail."""
+        root = tmp_sync_group_diverged
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("frontend/libs/common")
+        assert result == 1
+        output = capsys.readouterr().out
+        assert "not in sync" in output.lower()
+
+    def test_inconsistent_sync_group_force_proceeds(
+        self, tmp_sync_group_diverged: Path, capsys,
+    ):
+        """--force should bypass the sync-group consistency check."""
+        root = tmp_sync_group_diverged
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("frontend/libs/common", dry_run=True, force=True)
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "warning" in output.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -528,3 +662,211 @@ class TestRunDispatcher:
         with patch("grove.cascade.find_repo_root", return_value=root):
             result = cascade_run(args)
         assert result == 0
+
+
+# ---------------------------------------------------------------------------
+# DAG cascade plan building (Feature 3)
+# ---------------------------------------------------------------------------
+
+class TestBuildLinearEntries:
+    """Tests for _build_linear_entries()."""
+
+    def test_correct_roles(self, tmp_submodule_tree: Path):
+        """Linear entries should have leaf/intermediate/root roles."""
+        root = tmp_submodule_tree
+        repos = discover_repos_from_gitmodules(root)
+        grandchild = root / "technical-docs" / "common"
+        chain = _discover_cascade_chain(grandchild, repos)
+
+        entries = _build_linear_entries(chain, root)
+
+        assert len(entries) == 3
+        assert entries[0].role == "leaf"
+        assert entries[1].role == "intermediate"
+        assert entries[2].role == "root"
+
+    def test_child_rel_paths_are_parent_relative(self, tmp_submodule_tree: Path):
+        """child_rel_paths should be relative to the parent repo, not root."""
+        root = tmp_submodule_tree
+        repos = discover_repos_from_gitmodules(root)
+        grandchild = root / "technical-docs" / "common"
+        chain = _discover_cascade_chain(grandchild, repos)
+
+        entries = _build_linear_entries(chain, root)
+
+        # Leaf has no children
+        assert entries[0].child_rel_paths is None
+        # Intermediate (technical-docs) → child is "common" (relative to technical-docs)
+        assert entries[1].child_rel_paths == ["common"]
+        # Root → child is "technical-docs" (relative to root)
+        assert entries[2].child_rel_paths == ["technical-docs"]
+
+
+class TestBuildUnifiedCascadePlan:
+    """Tests for _build_unified_cascade_plan()."""
+
+    def test_dag_includes_all_instances_as_leaves(
+        self, tmp_sync_group_multi_instance: Path,
+    ):
+        """DAG plan should include all sync-group instances as leaves."""
+        root = tmp_sync_group_multi_instance
+        repos = discover_repos_from_gitmodules(root)
+        chain, entries = _build_unified_cascade_plan(
+            "common", "common_origin", root, repos,
+        )
+
+        leaf_entries = [e for e in entries if e.role == "leaf"]
+        leaf_rels = {e.rel_path for e in leaf_entries}
+
+        assert len(leaf_entries) == 3
+        assert "frontend/libs/common" in leaf_rels
+        assert "backend/libs/common" in leaf_rels
+        assert "shared/libs/common" in leaf_rels
+
+    def test_dag_deduplicates_root(self, tmp_sync_group_multi_instance: Path):
+        """DAG plan should have exactly one root entry."""
+        root = tmp_sync_group_multi_instance
+        repos = discover_repos_from_gitmodules(root)
+        chain, entries = _build_unified_cascade_plan(
+            "common", "common_origin", root, repos,
+        )
+
+        root_entries = [e for e in entries if e.role == "root"]
+        assert len(root_entries) == 1
+        assert root_entries[0].rel_path == "."
+
+    def test_dag_depth_ordering(self, tmp_sync_group_multi_instance: Path):
+        """Entries should be ordered deepest first (leaves, then intermediates, then root)."""
+        root = tmp_sync_group_multi_instance
+        repos = discover_repos_from_gitmodules(root)
+        chain, entries = _build_unified_cascade_plan(
+            "common", "common_origin", root, repos,
+        )
+
+        # All leaves should come before all intermediates, which come before root
+        roles = [e.role for e in entries]
+        leaf_indices = [i for i, r in enumerate(roles) if r == "leaf"]
+        intermediate_indices = [i for i, r in enumerate(roles) if r == "intermediate"]
+        root_indices = [i for i, r in enumerate(roles) if r == "root"]
+
+        assert max(leaf_indices) < min(intermediate_indices)
+        assert max(intermediate_indices) < min(root_indices)
+
+    def test_dag_correct_child_rel_paths(self, tmp_sync_group_multi_instance: Path):
+        """child_rel_paths should be relative to each repo, not root."""
+        root = tmp_sync_group_multi_instance
+        repos = discover_repos_from_gitmodules(root)
+        chain, entries = _build_unified_cascade_plan(
+            "common", "common_origin", root, repos,
+        )
+
+        entry_map = {e.rel_path: e for e in entries}
+
+        # Leaves have no children
+        assert entry_map["frontend/libs/common"].child_rel_paths is None
+
+        # Intermediates: frontend → libs/common (relative to frontend)
+        fe = entry_map["frontend"]
+        assert fe.child_rel_paths is not None
+        assert "libs/common" in fe.child_rel_paths
+
+        # Root → frontend, backend, shared (relative to root)
+        root_entry = entry_map["."]
+        assert root_entry.child_rel_paths is not None
+        assert "frontend" in root_entry.child_rel_paths
+        assert "backend" in root_entry.child_rel_paths
+        assert "shared" in root_entry.child_rel_paths
+
+    def test_dag_total_count(self, tmp_sync_group_multi_instance: Path):
+        """DAG plan should have 7 repos: 3 leaves + 3 intermediates + 1 root."""
+        root = tmp_sync_group_multi_instance
+        repos = discover_repos_from_gitmodules(root)
+        chain, entries = _build_unified_cascade_plan(
+            "common", "common_origin", root, repos,
+        )
+
+        assert len(entries) == 7
+        assert len([e for e in entries if e.role == "leaf"]) == 3
+        assert len([e for e in entries if e.role == "intermediate"]) == 3
+        assert len([e for e in entries if e.role == "root"]) == 1
+
+
+class TestCascadeDAGExecution:
+    """Integration tests for DAG cascade execution."""
+
+    def test_dag_cascade_dry_run(self, tmp_sync_group_multi_instance: Path, capsys):
+        """DAG cascade dry run should preview all repos in the plan."""
+        root = tmp_sync_group_multi_instance
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("frontend/libs/common", dry_run=True)
+
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "dag" in output.lower()
+        # Should mention all three instances
+        assert "frontend/libs/common" in output
+        assert "backend/libs/common" in output
+        assert "shared/libs/common" in output
+
+    def test_dag_state_round_trips(self, tmp_sync_group_multi_instance: Path):
+        """DAG cascade state should save and load with new fields."""
+        root = tmp_sync_group_multi_instance
+        state = CascadeState(
+            submodule_path="frontend/libs/common",
+            started_at="2026-01-15T12:00:00+00:00",
+            system_mode="default",
+            quick=False,
+            repos=[
+                RepoCascadeEntry(
+                    rel_path="frontend/libs/common", role="leaf",
+                    child_rel_paths=None,
+                ),
+                RepoCascadeEntry(
+                    rel_path="frontend", role="intermediate",
+                    child_rel_paths=["libs/common"],
+                ),
+                RepoCascadeEntry(
+                    rel_path=".", role="root",
+                    child_rel_paths=["frontend", "backend", "shared"],
+                ),
+            ],
+            sync_group_name="common",
+            is_dag=True,
+        )
+
+        state_path = root / "test-state.json"
+        state.save(state_path)
+        loaded = CascadeState.load(state_path)
+
+        assert loaded.sync_group_name == "common"
+        assert loaded.is_dag is True
+        assert loaded.repos[0].child_rel_paths is None
+        assert loaded.repos[1].child_rel_paths == ["libs/common"]
+        assert loaded.repos[2].child_rel_paths == ["frontend", "backend", "shared"]
+        state_path.unlink()
+
+    def test_linear_cascade_regression(self, tmp_submodule_tree: Path, capsys):
+        """Non-sync-group cascade should still work with linear chain."""
+        root = tmp_submodule_tree
+        child = root / "technical-docs"
+
+        (root / ".grove.toml").write_text(
+            '[sync-groups.common]\n'
+            'url-match = "grandchild_origin"\n'
+            '\n'
+            '[cascade]\nlocal-tests = "true"\n'
+        )
+
+        # Make a change in technical-docs (NOT a sync-group submodule)
+        (child / "new-file.txt").write_text("new content\n")
+        _git(child, "add", "new-file.txt")
+        _git(child, "commit", "-m", "leaf change")
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("technical-docs")
+
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "complete" in output.lower()
+        # Should NOT be a DAG cascade
+        assert "dag" not in output.lower()

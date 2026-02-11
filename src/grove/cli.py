@@ -84,7 +84,25 @@ examples:
         "push",
         help="Push committed changes through nested submodules bottom-up",
         description="Push committed changes through nested submodules using "
-        "topological sort to ensure children are pushed before parents.",
+        "topological sort to ensure children are pushed before parents.\n\n"
+        "By default, pushes all repos with unpushed commits (excluding "
+        "sync-group submodules). Use filter options to push a subset.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+examples:
+  grove push                              Push all repos with unpushed commits
+  grove push --dry-run                    Preview what would be pushed
+  grove push frontend backend             Push specific repos by path
+  grove push --sync-group common          Push parents of a sync group
+  grove push --cascade libs/common        Push cascade chain from a leaf
+  grove push --cascade libs/common --dry-run  Preview cascade push
+""",
+    )
+    push_parser.add_argument(
+        "paths",
+        nargs="*",
+        default=[],
+        help="Specific repo paths to push (exact match on relative path)",
     )
     push_parser.add_argument(
         "--dry-run",
@@ -95,6 +113,16 @@ examples:
         "--force",
         action="store_true",
         help="Skip validation (for recovery scenarios)",
+    )
+    push_parser.add_argument(
+        "--sync-group",
+        metavar="NAME",
+        help="Push parent repos of a sync group",
+    )
+    push_parser.add_argument(
+        "--cascade",
+        metavar="PATH",
+        help="Push repos in the cascade chain from a leaf submodule to root",
     )
 
     # --- grove sync ---
@@ -143,6 +171,22 @@ examples:
         "--force",
         action="store_true",
         help="Skip remote sync validation",
+    )
+    sync_parser.add_argument(
+        "--continue",
+        action="store_true",
+        dest="continue_sync",
+        help="Resume a paused sync merge after resolving conflicts",
+    )
+    sync_parser.add_argument(
+        "--abort",
+        action="store_true",
+        help="Abort an in-progress sync merge",
+    )
+    sync_parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Show current sync merge progress",
     )
 
     # --- grove visualize ---
@@ -349,6 +393,11 @@ examples:
         "--quick",
         action="store_true",
         help="Run only local-tests and contract-tests everywhere (fastest)",
+    )
+    cascade_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip sync-group consistency check (proceed even if instances differ)",
     )
 
     # --- grove claude ---

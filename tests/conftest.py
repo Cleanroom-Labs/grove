@@ -238,3 +238,132 @@ def tmp_submodule_tree_with_sync_branches(tmp_submodule_tree: Path) -> Path:
     _git(parent, "checkout", "main")
 
     return parent
+
+
+def _init_repo(path: Path) -> None:
+    """Create a git repo at *path* with git user config and an initial commit."""
+    path.mkdir(parents=True, exist_ok=True)
+    _git(path, "init")
+    _git(path, "config", "user.email", "test@example.com")
+    _git(path, "config", "user.name", "Test User")
+    (path / "README.md").write_text(f"# {path.name}\n")
+    _git(path, "add", "README.md")
+    _git(path, "commit", "-m", "Initial commit")
+
+
+@pytest.fixture()
+def tmp_sync_group_multi_instance(tmp_path: Path) -> Path:
+    """Create a tree with a sync-group submodule in three separate parents.
+
+    Layout::
+
+        root/                              (main repo -- project root)
+        +-- frontend/                      (submodule → frontend_origin)
+        |   +-- libs/common/               (submodule → common_origin)
+        +-- backend/                       (submodule → backend_origin)
+        |   +-- libs/common/               (submodule → common_origin)
+        +-- shared/                        (submodule → shared_origin)
+        |   +-- libs/common/               (submodule → common_origin)
+        +-- .grove.toml
+
+    All three ``libs/common`` instances point to the same origin repo,
+    creating a sync group with three instances.
+
+    Returns the *root* repository path.
+    """
+    # ---- common_origin: the shared library ----
+    common_origin = tmp_path / "common_origin"
+    _init_repo(common_origin)
+    (common_origin / "lib.py").write_text("def hello(): return 'hello'\n")
+    _git(common_origin, "add", "lib.py")
+    _git(common_origin, "commit", "-m", "Add library code")
+
+    # ---- Three parent repos, each with libs/common as submodule ----
+    parent_names = ["frontend_origin", "backend_origin", "shared_origin"]
+    for name in parent_names:
+        origin = tmp_path / name
+        _init_repo(origin)
+        (origin / "app.py").write_text(f"# {name} app\n")
+        _git(origin, "add", "app.py")
+        _git(origin, "commit", "-m", f"Add {name} app code")
+        _git(origin, "submodule", "add", str(common_origin), "libs/common")
+        _git(origin, "commit", "-m", "Add libs/common submodule")
+
+    # ---- root repo: adds all three as submodules ----
+    root = tmp_path / "root"
+    _init_repo(root)
+
+    (root / ".grove.toml").write_text(
+        '[sync-groups.common]\n'
+        f'url-match = "common_origin"\n'
+        f'standalone-repo = "{common_origin}"\n'
+        '\n'
+        '[cascade]\n'
+        'local-tests = "true"\n'
+        'contract-tests = "true"\n'
+    )
+    _git(root, "add", ".grove.toml")
+    _git(root, "commit", "-m", "Add grove config")
+
+    for sub_name, origin_name in [
+        ("frontend", "frontend_origin"),
+        ("backend", "backend_origin"),
+        ("shared", "shared_origin"),
+    ]:
+        _git(root, "submodule", "add", str(tmp_path / origin_name), sub_name)
+
+    _git(root, "commit", "-m", "Add frontend, backend, shared submodules")
+
+    # Recursively initialise all nested submodules
+    _git(root, "submodule", "update", "--init", "--recursive")
+
+    # Configure git user in all submodule worktrees
+    for sub_dir in [
+        root / "frontend",
+        root / "frontend" / "libs" / "common",
+        root / "backend",
+        root / "backend" / "libs" / "common",
+        root / "shared",
+        root / "shared" / "libs" / "common",
+    ]:
+        if (sub_dir / ".git").exists():
+            _git(sub_dir, "config", "user.email", "test@example.com")
+            _git(sub_dir, "config", "user.name", "Test User")
+
+    return root
+
+
+@pytest.fixture()
+def tmp_sync_group_diverged(tmp_sync_group_multi_instance: Path) -> Path:
+    """Extend multi-instance fixture with diverged commits in common instances.
+
+    After this fixture:
+    - frontend/libs/common has commit A (feature-a.txt)
+    - backend/libs/common has commit B (feature-b.txt)
+    - shared/libs/common is unchanged (at original commit)
+
+    Commits A and B are siblings (neither is ancestor of the other),
+    so ``resolve_local_tip()`` will return None (diverged).
+
+    Returns the *root* repository path.
+    """
+    root = tmp_sync_group_multi_instance
+
+    # Put the common instances on branches so we can commit
+    for parent_name in ["frontend", "backend"]:
+        common = root / parent_name / "libs" / "common"
+        # Create a branch from detached HEAD
+        _git(common, "checkout", "-b", f"{parent_name}-work")
+
+    # Diverge: different commits in each instance
+    frontend_common = root / "frontend" / "libs" / "common"
+    (frontend_common / "feature-a.txt").write_text("feature A\n")
+    _git(frontend_common, "add", "feature-a.txt")
+    _git(frontend_common, "commit", "-m", "Add feature A")
+
+    backend_common = root / "backend" / "libs" / "common"
+    (backend_common / "feature-b.txt").write_text("feature B\n")
+    _git(backend_common, "add", "feature-b.txt")
+    _git(backend_common, "commit", "-m", "Add feature B")
+
+    return root

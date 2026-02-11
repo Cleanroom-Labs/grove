@@ -454,12 +454,18 @@ def _sync_group(
             print(Colors.blue("Resolving target commit from local instances..."))
         tip = resolve_local_tip(submodules, repo_root)
         if tip is None:
-            print(Colors.red(
-                "Error: local submodule instances have diverged (no single tip).\n"
-                "Use --remote to resolve from the remote, or specify a commit SHA."
-            ))
-            return 1
-        target_commit, source_path, commit_source = tip
+            # Attempt divergence merge
+            from grove.sync_merge import attempt_divergence_merge
+
+            merge_result = attempt_divergence_merge(
+                group.name, submodules, repo_root,
+                group.standalone_repo, dry_run, force,
+            )
+            if merge_result is None:
+                return 1  # paused (conflict) or failed
+            target_commit, source_path, commit_source = merge_result
+        else:
+            target_commit, source_path, commit_source = tip
 
     if not quiet:
         print(f"Target: {Colors.green(target_commit[:7])} ({commit_source})")
@@ -691,6 +697,17 @@ def _sync_group(
 
 
 def run(args) -> int:
+    # Dispatch sync merge operations
+    if getattr(args, "continue_sync", False):
+        from grove.sync_merge import continue_sync_merge
+        return continue_sync_merge()
+    if getattr(args, "abort", False):
+        from grove.sync_merge import abort_sync_merge
+        return abort_sync_merge()
+    if getattr(args, "status", False):
+        from grove.sync_merge import show_sync_merge_status
+        return show_sync_merge_status()
+
     try:
         repo_root = find_repo_root()
     except FileNotFoundError as e:

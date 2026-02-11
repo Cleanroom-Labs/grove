@@ -18,6 +18,7 @@ from pathlib import Path
 from grove.config import (
     CASCADE_TIERS,
     CascadeConfig,
+    SyncGroup,
     load_config,
 )
 from grove.filelock import atomic_write_json, locked_open
@@ -48,6 +49,7 @@ class RepoCascadeEntry:
     pre_cascade_head: str | None = None
     failed_tier: str | None = None
     diagnosis: list[dict] | None = None  # [{rel_path, tier, passed}]
+    child_rel_paths: list[str] | None = None  # paths relative to THIS repo
 
 
 @dataclass
@@ -58,6 +60,8 @@ class CascadeState:
     system_mode: str  # "default" | "all" | "none"
     quick: bool
     repos: list[RepoCascadeEntry]
+    sync_group_name: str | None = None
+    is_dag: bool = False
 
     def save(self, state_path: Path) -> None:
         data = {
@@ -66,6 +70,8 @@ class CascadeState:
             "system_mode": self.system_mode,
             "quick": self.quick,
             "repos": [asdict(r) for r in self.repos],
+            "sync_group_name": self.sync_group_name,
+            "is_dag": self.is_dag,
         }
         atomic_write_json(state_path, json.dumps(data, indent=2) + "\n")
 
@@ -80,6 +86,8 @@ class CascadeState:
             system_mode=data["system_mode"],
             quick=data["quick"],
             repos=repos,
+            sync_group_name=data.get("sync_group_name"),
+            is_dag=data.get("is_dag", False),
         )
 
     @classmethod
@@ -285,6 +293,171 @@ def _discover_cascade_chain(
 
 
 # ---------------------------------------------------------------------------
+# Sync-group awareness
+# ---------------------------------------------------------------------------
+
+def _find_sync_group_for_path(
+    submodule_path: Path,
+    repo_root: Path,
+    config,
+) -> tuple[str, SyncGroup] | None:
+    """Return (group_name, SyncGroup) if *submodule_path* belongs to a sync group.
+
+    Iterates configured sync groups, discovers instances via .gitmodules URL
+    matching, and checks whether *submodule_path* matches any instance.
+    Returns None if the path is not a sync-group submodule.
+    """
+    from grove.sync import discover_sync_submodules
+
+    resolved = submodule_path.resolve()
+
+    for name, group in config.sync_groups.items():
+        submodules = discover_sync_submodules(repo_root, group.url_match)
+        for sub in submodules:
+            if sub.path.resolve() == resolved:
+                return (name, group)
+
+    return None
+
+
+def _build_unified_cascade_plan(
+    sync_group_name: str,
+    url_match: str,
+    repo_root: Path,
+    all_repos: list[RepoInfo],
+) -> tuple[list[RepoInfo], list[RepoCascadeEntry]]:
+    """Build a DAG cascade plan from all instances of a sync group.
+
+    Discovers all sync-group instances, builds individual cascade chains,
+    merges them into a deduplicated plan sorted by depth (deepest first),
+    and computes correct parent-relative child paths for each repo.
+
+    Returns (plan_repos, entries) where plan_repos[i] corresponds to entries[i].
+    """
+    from grove.sync import discover_sync_submodules
+
+    submodules = discover_sync_submodules(repo_root, url_match)
+
+    # Build chains for each instance and collect all repos by path
+    # Key: resolved path → {repo, depth, children (resolved paths)}
+    repo_map: dict[Path, dict] = {}
+
+    for sub in submodules:
+        try:
+            chain = _discover_cascade_chain(sub.path, all_repos)
+        except ValueError:
+            continue
+
+        for depth, repo in enumerate(chain):
+            rp = repo.path.resolve()
+            if rp not in repo_map:
+                repo_map[rp] = {
+                    "repo": repo,
+                    "depth": depth,
+                    "children": set(),
+                }
+            else:
+                # Keep the maximum depth (deepest-first ordering)
+                repo_map[rp]["depth"] = max(repo_map[rp]["depth"], depth)
+
+            # Record child→parent relationship
+            if depth > 0:
+                parent = chain[depth - 1] if depth < len(chain) else None
+                # Actually chain is leaf→root, so chain[depth-1] is one level closer to leaf
+                # Wait, chain is [leaf, parent1, parent2, ..., root]
+                # chain[0] = leaf (depth 0), chain[1] = parent1 (depth 1), etc.
+                # For chain[depth], its child is chain[depth-1]
+                child_path = chain[depth - 1].path.resolve()
+                repo_map[rp]["children"].add(child_path)
+
+    # Sort by depth ascending (leaves first at depth 0, root last at max depth)
+    # This matches cascade execution order: process leaf → intermediate → root
+    sorted_items = sorted(repo_map.values(), key=lambda x: x["depth"])
+
+    # Determine which paths are leaves (the sync-group instances)
+    leaf_paths = {sub.path.resolve() for sub in submodules}
+
+    plan_repos: list[RepoInfo] = []
+    entries: list[RepoCascadeEntry] = []
+
+    for item in sorted_items:
+        repo = item["repo"]
+        rp = repo.path.resolve()
+        rel = str(rp.relative_to(repo_root)) if rp != repo_root else "."
+
+        # Assign roles
+        if rp in leaf_paths:
+            role = "leaf"
+        elif item == sorted_items[-1]:
+            role = "root"
+        else:
+            role = "intermediate"
+
+        # Compute child_rel_paths relative to THIS repo (not root)
+        child_rel_paths = None
+        if item["children"]:
+            child_rel_paths = sorted(
+                str(child_path.relative_to(rp))
+                for child_path in item["children"]
+            )
+
+        entry = RepoCascadeEntry(
+            rel_path=rel, role=role, child_rel_paths=child_rel_paths,
+        )
+        plan_repos.append(repo)
+        entries.append(entry)
+
+    return plan_repos, entries
+
+
+def _check_sync_group_consistency(
+    group_name: str,
+    repo_root: Path,
+    url_match: str,
+    force: bool,
+) -> bool:
+    """Check all instances of a sync group are at the same commit.
+
+    Returns True if the cascade should proceed, False to abort.
+    """
+    from grove.sync import discover_sync_submodules
+
+    submodules = discover_sync_submodules(repo_root, url_match)
+    if len(submodules) < 2:
+        return True  # nothing to check with fewer than 2 instances
+
+    commits = {}
+    for sub in submodules:
+        sha = sub.get_current_commit()
+        rel = str(sub.path.relative_to(repo_root))
+        commits[rel] = sha
+
+    unique_shas = set(commits.values())
+    if len(unique_shas) <= 1:
+        return True  # all instances at the same commit
+
+    # Inconsistent
+    if force:
+        print(Colors.yellow(
+            f"Warning: Sync group '{group_name}' has inconsistent instances (--force)."
+        ))
+        for rel, sha in sorted(commits.items()):
+            print(f"  {rel}: {sha[:8] if sha else '(none)'}")
+        print()
+        return True
+
+    print(Colors.red(
+        f"Error: Sync group '{group_name}' instances are not in sync."
+    ))
+    for rel, sha in sorted(commits.items()):
+        print(f"  {rel}: {sha[:8] if sha else '(none)'}")
+    print()
+    print(f"Run {Colors.blue(f'grove sync {group_name}')} first, "
+          f"or use {Colors.blue('--force')} to skip this check.")
+    return False
+
+
+# ---------------------------------------------------------------------------
 # Core cascade execution
 # ---------------------------------------------------------------------------
 
@@ -323,7 +496,7 @@ _TIER_STATUS = {
 def _process_repo(
     repo: RepoInfo,
     entry: RepoCascadeEntry,
-    child_rel_path: str | None,
+    child_rel_paths: list[str] | None,
     config: CascadeConfig,
     state: CascadeState,
     state_path: Path,
@@ -331,19 +504,23 @@ def _process_repo(
     repo_root: Path,
     dry_run: bool,
 ) -> int:
-    """Process a single repo in the cascade chain.  Returns 0 on success, 1 if paused."""
+    """Process a single repo in the cascade chain.  Returns 0 on success, 1 if paused.
+
+    child_rel_paths are paths relative to THIS repo (not root).
+    """
     print(f"  {Colors.blue(entry.rel_path)} ({entry.role})")
 
     # Record pre-cascade head
     entry.pre_cascade_head = repo.get_commit_sha(short=False)
     state.save(state_path)
 
-    # Stage child submodule pointer if this is not the leaf
-    if child_rel_path is not None:
-        if dry_run:
-            print(f"    Would stage submodule pointer: {child_rel_path}")
-        else:
-            repo.git("add", child_rel_path, check=False)
+    # Stage child submodule pointer(s) if this is not the leaf
+    if child_rel_paths:
+        for crp in child_rel_paths:
+            if dry_run:
+                print(f"    Would stage submodule pointer: {crp}")
+            else:
+                repo.git("add", crp, check=False)
 
     # Determine which tiers to run
     tiers = _determine_tiers(entry.role, state.system_mode, state.quick)
@@ -366,14 +543,15 @@ def _process_repo(
             continue
 
         if not _run_tier(repo, entry, tier, config, journal_path, state, state_path):
-            # Test failed — run auto-diagnosis if applicable
-            if child_rel_path and tier == "integration-tests":
+            # Test failed — run auto-diagnosis against the first child
+            first_child = child_rel_paths[0] if child_rel_paths else None
+            if first_child and tier == "integration-tests":
                 _auto_diagnose_integration(
-                    entry, child_rel_path, config, repo_root, journal_path,
+                    entry, first_child, config, repo_root, journal_path,
                 )
-            elif child_rel_path and tier == "system-tests":
+            elif first_child and tier == "system-tests":
                 _auto_diagnose_system(
-                    entry, child_rel_path, config, repo_root, journal_path,
+                    entry, first_child, config, repo_root, journal_path,
                 )
 
             state.save(state_path)
@@ -386,11 +564,17 @@ def _process_repo(
         state.save(state_path)
 
     # Commit
-    if child_rel_path is not None:
-        child_sha = run_git(
-            repo_root / child_rel_path, "rev-parse", "--short", "HEAD", check=False,
-        ).stdout.strip()
-        message = f"chore(cascade): update {child_rel_path} submodule to {child_sha}"
+    if child_rel_paths:
+        if len(child_rel_paths) == 1:
+            crp = child_rel_paths[0]
+            child_sha = run_git(
+                repo.path / crp, "rev-parse", "--short", "HEAD", check=False,
+            ).stdout.strip()
+            message = f"chore(cascade): update {crp} submodule to {child_sha}"
+        else:
+            message = (
+                f"chore(cascade): update {len(child_rel_paths)} submodule pointers"
+            )
 
         if dry_run:
             print(f"    Would commit: {message}")
@@ -415,11 +599,43 @@ def _process_repo(
 # Public entry points
 # ---------------------------------------------------------------------------
 
+def _build_linear_entries(
+    chain: list[RepoInfo],
+    repo_root: Path,
+) -> list[RepoCascadeEntry]:
+    """Build RepoCascadeEntry list for a linear chain with correct child_rel_paths.
+
+    chain is [leaf, parent1, ..., root].  Each non-leaf entry gets
+    child_rel_paths set to the path of its child relative to itself.
+    """
+    entries: list[RepoCascadeEntry] = []
+    for i, repo in enumerate(chain):
+        rel = str(repo.path.relative_to(repo_root)) if repo.path != repo_root else "."
+        if i == 0:
+            role = "leaf"
+        elif i == len(chain) - 1:
+            role = "root"
+        else:
+            role = "intermediate"
+
+        # Compute child_rel_path relative to THIS repo
+        child_rel_paths = None
+        if i > 0:
+            child = chain[i - 1]
+            child_rel_paths = [str(child.path.relative_to(repo.path))]
+
+        entries.append(RepoCascadeEntry(
+            rel_path=rel, role=role, child_rel_paths=child_rel_paths,
+        ))
+    return entries
+
+
 def run_cascade(
     submodule_path: str,
     dry_run: bool = False,
     system_mode: str = "default",
     quick: bool = False,
+    force: bool = False,
 ) -> int:
     """Start a new cascade from the given submodule path."""
     repo_root = find_repo_root()
@@ -450,29 +666,44 @@ def run_cascade(
     # Resolve submodule path
     target = (repo_root / submodule_path).resolve()
 
-    # Build cascade chain
-    try:
-        chain = _discover_cascade_chain(target, repos)
-    except ValueError as e:
-        print(Colors.red(f"Error: {e}"))
-        return 1
+    # Sync-group consistency check
+    sg_match = _find_sync_group_for_path(target, repo_root, config)
+    if sg_match is not None:
+        sg_name, sg_group = sg_match
+        print(Colors.blue(f"Sync-group detected: '{sg_name}'"))
+        if not _check_sync_group_consistency(sg_name, repo_root, sg_group.url_match, force):
+            return 1
+        print()
 
-    if len(chain) < 2:
-        print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
-        print("The given path appears to be the root repository itself.")
-        return 1
+    # Build cascade plan — DAG for sync-group submodules, linear chain otherwise
+    is_dag = False
+    sg_name_for_state: str | None = None
 
-    # Assign roles
-    entries: list[RepoCascadeEntry] = []
-    for i, repo in enumerate(chain):
-        rel = str(repo.path.relative_to(repo_root)) if repo.path != repo_root else "."
-        if i == 0:
-            role = "leaf"
-        elif i == len(chain) - 1:
-            role = "root"
-        else:
-            role = "intermediate"
-        entries.append(RepoCascadeEntry(rel_path=rel, role=role))
+    if sg_match is not None:
+        sg_name, sg_group = sg_match
+        sg_name_for_state = sg_name
+        chain, entries = _build_unified_cascade_plan(
+            sg_name, sg_group.url_match, repo_root, repos,
+        )
+        is_dag = True
+
+        if len(chain) < 2:
+            print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
+            return 1
+    else:
+        try:
+            chain = _discover_cascade_chain(target, repos)
+        except ValueError as e:
+            print(Colors.red(f"Error: {e}"))
+            return 1
+
+        if len(chain) < 2:
+            print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
+            print("The given path appears to be the root repository itself.")
+            return 1
+
+        # Build linear entries with correct parent-relative child_rel_paths
+        entries = _build_linear_entries(chain, repo_root)
 
     # Create state
     state = CascadeState(
@@ -481,6 +712,8 @@ def run_cascade(
         system_mode=system_mode,
         quick=quick,
         repos=entries,
+        sync_group_name=sg_name_for_state,
+        is_dag=is_dag,
     )
 
     # Ensure state directory exists
@@ -489,8 +722,14 @@ def run_cascade(
 
     _log(journal_path, f"START cascade from {submodule_path}")
 
-    print(Colors.blue(f"Cascade: {submodule_path} → root"))
-    print(f"Chain: {' → '.join(e.rel_path for e in entries)}")
+    if is_dag:
+        leaf_entries = [e for e in entries if e.role == "leaf"]
+        print(Colors.blue(
+            f"Cascade (DAG): {len(leaf_entries)} sync-group instances → root"
+        ))
+    else:
+        print(Colors.blue(f"Cascade: {submodule_path} → root"))
+    print(f"Plan: {' → '.join(e.rel_path for e in entries)}")
     if dry_run:
         print(Colors.yellow("(dry-run mode — no changes will be made)"))
     print()
@@ -518,25 +757,24 @@ def _execute_cascade(
     repo_root: Path,
     dry_run: bool,
 ) -> int:
-    """Execute the cascade chain.  Returns 0 on success, 1 if paused."""
-    child_rel_path: str | None = None
+    """Execute the cascade chain/DAG.  Returns 0 on success, 1 if paused.
 
+    Each entry carries its own ``child_rel_paths`` (relative to that repo),
+    so this function works for both linear chains and DAGs.
+    """
     for repo, entry in zip(chain, entries):
         if entry.status == "committed":
-            child_rel_path = entry.rel_path
             continue
         if entry.status == "paused":
             # Resuming from paused state — re-run from the failed tier
             pass
 
         result = _process_repo(
-            repo, entry, child_rel_path, config,
+            repo, entry, entry.child_rel_paths, config,
             state, state_path, journal_path, repo_root, dry_run,
         )
         if result != 0:
             return result
-
-        child_rel_path = entry.rel_path
 
     return 0
 
@@ -584,15 +822,25 @@ def continue_cascade() -> int:
     paused_entry.diagnosis = None
     state.save(state_path)
 
-    # Rebuild the chain
+    # Rebuild the chain/DAG (repo objects, not entries — entries come from state)
     repos = discover_repos_from_gitmodules(repo_root)
-    target = (repo_root / state.submodule_path).resolve()
 
-    try:
-        chain = _discover_cascade_chain(target, repos)
-    except ValueError as e:
-        print(Colors.red(f"Error rebuilding chain: {e}"))
-        return 1
+    if state.is_dag and state.sync_group_name:
+        grove_config = load_config(repo_root)
+        sg = grove_config.sync_groups.get(state.sync_group_name)
+        if sg is None:
+            print(Colors.red(f"Error: sync group '{state.sync_group_name}' no longer in config."))
+            return 1
+        chain, _ = _build_unified_cascade_plan(
+            state.sync_group_name, sg.url_match, repo_root, repos,
+        )
+    else:
+        target = (repo_root / state.submodule_path).resolve()
+        try:
+            chain = _discover_cascade_chain(target, repos)
+        except ValueError as e:
+            print(Colors.red(f"Error rebuilding chain: {e}"))
+            return 1
 
     result = _execute_cascade(
         chain, state.repos, state, state_path, journal_path,
@@ -723,4 +971,5 @@ def run(args) -> int:
         dry_run=getattr(args, "dry_run", False),
         system_mode=system_mode,
         quick=getattr(args, "quick", False),
+        force=getattr(args, "force", False),
     )
