@@ -12,12 +12,9 @@ from grove.repo_utils import RepoInfo, run_git
 from grove.worktree_merge import (
     MergeState,
     RepoMergeEntry,
-    _count_divergent_commits,
     _get_journal_path,
     _get_state_path,
     _get_test_command,
-    _has_branch,
-    _is_ancestor,
     _log,
     _predict_conflicts,
     abort_merge,
@@ -43,12 +40,12 @@ class TestHasBranch:
     def test_existing_branch(self, tmp_submodule_tree_with_branches: Path):
         repo = RepoInfo(path=tmp_submodule_tree_with_branches,
                         repo_root=tmp_submodule_tree_with_branches)
-        assert _has_branch(repo, "my-feature") is True
+        assert repo.has_local_branch("my-feature") is True
 
     def test_nonexistent_branch(self, tmp_submodule_tree_with_branches: Path):
         repo = RepoInfo(path=tmp_submodule_tree_with_branches,
                         repo_root=tmp_submodule_tree_with_branches)
-        assert _has_branch(repo, "nonexistent") is False
+        assert repo.has_local_branch("nonexistent") is False
 
 
 class TestIsAncestor:
@@ -56,19 +53,19 @@ class TestIsAncestor:
         """If branch == HEAD, it should be an ancestor."""
         repo = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
         # HEAD is an ancestor of itself
-        assert _is_ancestor(repo, "HEAD") is True
+        assert repo.is_ancestor("HEAD") is True
 
     def test_not_merged(self, tmp_submodule_tree_with_branches: Path):
         repo = RepoInfo(path=tmp_submodule_tree_with_branches,
                         repo_root=tmp_submodule_tree_with_branches)
-        assert _is_ancestor(repo, "my-feature") is False
+        assert repo.is_ancestor("my-feature") is False
 
 
 class TestCountDivergentCommits:
     def test_divergent(self, tmp_submodule_tree_with_branches: Path):
         repo = RepoInfo(path=tmp_submodule_tree_with_branches,
                         repo_root=tmp_submodule_tree_with_branches)
-        ahead, behind = _count_divergent_commits(repo, "my-feature")
+        ahead, behind = repo.count_divergent_commits("my-feature")
         # main is 0 ahead and 1 behind the feature branch
         assert ahead == 0
         assert behind == 1

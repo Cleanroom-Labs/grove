@@ -7,7 +7,6 @@ from grove.repo_utils import (
     Colors,
     RepoInfo,
     RepoStatus,
-    discover_repos,
     discover_repos_from_gitmodules,
     find_repo_root,
     get_git_common_dir,
@@ -110,45 +109,6 @@ class TestRepoInfoRelPath:
         assert info.rel_path == "technical-docs/common"
 
 
-# ---------------------------------------------------------------------------
-# discover_repos
-# ---------------------------------------------------------------------------
-
-class TestDiscoverRepos:
-    def test_finds_repos(self, tmp_submodule_tree: Path):
-        """discover_repos should find all repos in the tree."""
-        repos = discover_repos(tmp_submodule_tree)
-        paths = {r.path for r in repos}
-
-        # Must include the root and the technical-docs submodule.
-        assert tmp_submodule_tree in paths
-        assert tmp_submodule_tree / "technical-docs" in paths
-
-    def test_exclude_paths(self, tmp_submodule_tree: Path):
-        """Passing exclude_paths should skip those submodules."""
-        common_path = tmp_submodule_tree / "technical-docs" / "common"
-        repos = discover_repos(tmp_submodule_tree, exclude_paths={common_path})
-        paths = {r.path for r in repos}
-
-        assert common_path not in paths
-        # The rest should still be present
-        assert tmp_submodule_tree in paths
-        assert tmp_submodule_tree / "technical-docs" in paths
-
-    def test_no_exclusion_includes_all(self, tmp_submodule_tree: Path):
-        """Without exclude_paths, all submodules should be included."""
-        repos = discover_repos(tmp_submodule_tree)
-        paths = {r.path for r in repos}
-
-        common_paths = {p for p in paths if p.name == "common"}
-        assert len(common_paths) >= 1
-
-    def test_root_always_included(self, tmp_submodule_tree: Path):
-        repos = discover_repos(tmp_submodule_tree)
-        root_repos = [r for r in repos if r.path == tmp_submodule_tree]
-        assert len(root_repos) == 1
-
-
 class TestDiscoverReposFromGitmodules:
     def test_finds_all_repos(self, tmp_submodule_tree: Path):
         """Should discover root, child, and grandchild."""
@@ -189,15 +149,6 @@ class TestDiscoverReposFromGitmodules:
         repos = discover_repos_from_gitmodules(tmp_submodule_tree)
         root_repos = [r for r in repos if r.path == tmp_submodule_tree]
         assert len(root_repos) == 1
-
-    def test_matches_discover_repos(self, tmp_submodule_tree: Path):
-        """Should find the same set of repos as discover_repos."""
-        old_repos = discover_repos(tmp_submodule_tree)
-        new_repos = discover_repos_from_gitmodules(tmp_submodule_tree)
-
-        old_paths = {r.path for r in old_repos}
-        new_paths = {r.path for r in new_repos}
-        assert old_paths == new_paths
 
     def test_no_gitmodules(self, tmp_git_repo: Path):
         """Repo with no .gitmodules should return only the root."""

@@ -9,8 +9,6 @@ pause/resume on conflicts or test failures, and full abort/rollback.
 from __future__ import annotations
 
 import json
-import subprocess
-import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,9 +22,11 @@ from grove.repo_utils import (
     discover_repos_from_gitmodules,
     find_repo_root,
     get_git_common_dir,
-    get_git_worktree_dir,
+    get_state_path,
+    log_to_journal,
     parse_gitmodules,
     run_git,
+    run_test,
     topological_sort_repos,
 )
 from grove.topology import TopologyCache
@@ -93,7 +93,7 @@ class MergeState:
 
 def _get_state_path(repo_root: Path) -> Path:
     """Per-worktree merge state file."""
-    return get_git_worktree_dir(repo_root) / "grove" / "merge-state.json"
+    return get_state_path(repo_root, "merge-state.json")
 
 
 def _get_journal_path(repo_root: Path) -> Path:
@@ -105,38 +105,7 @@ def _get_journal_path(repo_root: Path) -> Path:
 
 def _log(journal_path: Path, message: str) -> None:
     """Append a timestamped entry to the merge journal."""
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-    with locked_open(journal_path, "a") as f:
-        f.write(f"[{ts}] {message}\n")
-
-
-# ---------------------------------------------------------------------------
-# Git helpers
-# ---------------------------------------------------------------------------
-
-def _has_branch(repo: RepoInfo, branch: str) -> bool:
-    """Shim — delegates to ``repo.has_local_branch``."""
-    return repo.has_local_branch(branch)
-
-
-def _is_ancestor(repo: RepoInfo, branch: str) -> bool:
-    """Shim — delegates to ``repo.is_ancestor``."""
-    return repo.is_ancestor(branch)
-
-
-def _count_divergent_commits(repo: RepoInfo, branch: str) -> tuple[int, int]:
-    """Shim — delegates to ``repo.count_divergent_commits``."""
-    return repo.count_divergent_commits(branch)
-
-
-def _get_unmerged_files(repo: RepoInfo) -> list[str]:
-    """Shim — delegates to ``repo.get_unmerged_files``."""
-    return repo.get_unmerged_files()
-
-
-def _has_merge_head(repo: RepoInfo) -> bool:
-    """Shim — delegates to ``repo.has_merge_head``."""
-    return repo.has_merge_head()
+    log_to_journal(journal_path, message)
 
 
 # ---------------------------------------------------------------------------
@@ -463,13 +432,7 @@ def _get_test_command(root_config: MergeConfig, repo: RepoInfo) -> str | None:
 
 def _run_test(repo: RepoInfo, test_cmd: str) -> tuple[bool, float]:
     """Run a test command. Returns (passed, duration_seconds)."""
-    start = time.monotonic()
-    result = subprocess.run(
-        test_cmd, shell=True, cwd=str(repo.path),
-        capture_output=True, text=True,
-    )
-    duration = time.monotonic() - start
-    return (result.returncode == 0, duration)
+    return run_test(repo.path, test_cmd)
 
 
 # ---------------------------------------------------------------------------
