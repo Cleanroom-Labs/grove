@@ -23,6 +23,7 @@ from grove.cascade import (
     _check_sync_group_consistency,
     _determine_tiers,
     _discover_cascade_chain,
+    _expand_linear_for_intermediate_sync_groups,
     _find_sync_group_for_path,
     _get_state_path,
     abort_cascade,
@@ -711,7 +712,7 @@ class TestBuildUnifiedCascadePlan:
         """DAG plan should include all sync-group instances as leaves."""
         root = tmp_sync_group_multi_instance
         repos = discover_repos_from_gitmodules(root)
-        chain, entries = _build_unified_cascade_plan(
+        chain, entries, _isg = _build_unified_cascade_plan(
             "common", "common_origin", root, repos,
         )
 
@@ -727,7 +728,7 @@ class TestBuildUnifiedCascadePlan:
         """DAG plan should have exactly one root entry."""
         root = tmp_sync_group_multi_instance
         repos = discover_repos_from_gitmodules(root)
-        chain, entries = _build_unified_cascade_plan(
+        chain, entries, _isg = _build_unified_cascade_plan(
             "common", "common_origin", root, repos,
         )
 
@@ -739,7 +740,7 @@ class TestBuildUnifiedCascadePlan:
         """Entries should be ordered deepest first (leaves, then intermediates, then root)."""
         root = tmp_sync_group_multi_instance
         repos = discover_repos_from_gitmodules(root)
-        chain, entries = _build_unified_cascade_plan(
+        chain, entries, _isg = _build_unified_cascade_plan(
             "common", "common_origin", root, repos,
         )
 
@@ -756,7 +757,7 @@ class TestBuildUnifiedCascadePlan:
         """child_rel_paths should be relative to each repo, not root."""
         root = tmp_sync_group_multi_instance
         repos = discover_repos_from_gitmodules(root)
-        chain, entries = _build_unified_cascade_plan(
+        chain, entries, _isg = _build_unified_cascade_plan(
             "common", "common_origin", root, repos,
         )
 
@@ -781,7 +782,7 @@ class TestBuildUnifiedCascadePlan:
         """DAG plan should have 7 repos: 3 leaves + 3 intermediates + 1 root."""
         root = tmp_sync_group_multi_instance
         repos = discover_repos_from_gitmodules(root)
-        chain, entries = _build_unified_cascade_plan(
+        chain, entries, _isg = _build_unified_cascade_plan(
             "common", "common_origin", root, repos,
         )
 
@@ -870,3 +871,274 @@ class TestCascadeDAGExecution:
         assert "complete" in output.lower()
         # Should NOT be a DAG cascade
         assert "dag" not in output.lower()
+
+
+# ---------------------------------------------------------------------------
+# Intermediate sync-group expansion
+# ---------------------------------------------------------------------------
+
+class TestIntermediateSyncGroupExpansion:
+    """Tests for intermediate sync-group detection and plan expansion."""
+
+    def test_expansion_detects_intermediate_sync_group(
+        self, tmp_intermediate_sync_group: Path,
+    ):
+        """Plan for leaf cascade should detect intermediate sync-group peers."""
+        root = tmp_intermediate_sync_group
+        repos = discover_repos_from_gitmodules(root)
+        config = load_config(root)
+
+        # Start with a linear chain from workspace-a/libs/common
+        target = (root / "workspace-a" / "libs" / "common").resolve()
+        chain = _discover_cascade_chain(target, repos)
+        entries = _build_linear_entries(chain, root)
+
+        sg_names = _expand_linear_for_intermediate_sync_groups(
+            chain, entries, root, config, repos,
+        )
+
+        assert "services" in sg_names
+        # Plan should now include workspace-b (the peer)
+        rel_paths = {e.rel_path for e in entries}
+        assert "workspace-b" in rel_paths
+        assert "workspace-a" in rel_paths
+
+    def test_expansion_designates_primary_and_sync_targets(
+        self, tmp_intermediate_sync_group: Path,
+    ):
+        """Exactly one instance should be primary, others sync targets."""
+        root = tmp_intermediate_sync_group
+        repos = discover_repos_from_gitmodules(root)
+        config = load_config(root)
+
+        target = (root / "workspace-a" / "libs" / "common").resolve()
+        chain = _discover_cascade_chain(target, repos)
+        entries = _build_linear_entries(chain, root)
+
+        _expand_linear_for_intermediate_sync_groups(
+            chain, entries, root, config, repos,
+        )
+
+        # workspace-a should be primary (has sync_peers)
+        entry_map = {e.rel_path: e for e in entries}
+        ws_a = entry_map["workspace-a"]
+        assert ws_a.sync_peers is not None
+        assert "workspace-b" in ws_a.sync_peers
+        assert ws_a.sync_primary_rel is None
+
+        # workspace-b should be a sync target
+        ws_b = entry_map["workspace-b"]
+        assert ws_b.sync_primary_rel == "workspace-a"
+
+    def test_expansion_adds_parent_chains_for_peers(
+        self, tmp_intermediate_sync_group: Path,
+    ):
+        """Root should appear in the plan and have both workspaces as children."""
+        root = tmp_intermediate_sync_group
+        repos = discover_repos_from_gitmodules(root)
+        config = load_config(root)
+
+        target = (root / "workspace-a" / "libs" / "common").resolve()
+        chain = _discover_cascade_chain(target, repos)
+        entries = _build_linear_entries(chain, root)
+
+        _expand_linear_for_intermediate_sync_groups(
+            chain, entries, root, config, repos,
+        )
+
+        entry_map = {e.rel_path: e for e in entries}
+        root_entry = entry_map["."]
+        assert root_entry.child_rel_paths is not None
+        assert "workspace-a" in root_entry.child_rel_paths
+        assert "workspace-b" in root_entry.child_rel_paths
+
+    def test_no_expansion_without_intermediate_sync_groups(
+        self, tmp_submodule_tree: Path,
+    ):
+        """Non-sync-group intermediates should not cause expansion."""
+        root = tmp_submodule_tree
+        repos = discover_repos_from_gitmodules(root)
+
+        # Write a config with a sync group that doesn't match intermediates
+        (root / ".grove.toml").write_text(
+            '[sync-groups.common]\n'
+            'url-match = "nonexistent_origin"\n'
+            '\n'
+            '[cascade]\nlocal-tests = "true"\n'
+        )
+        config = load_config(root)
+
+        target = (root / "technical-docs").resolve()
+        chain = _discover_cascade_chain(target, repos)
+        entries = _build_linear_entries(chain, root)
+
+        original_count = len(entries)
+        sg_names = _expand_linear_for_intermediate_sync_groups(
+            chain, entries, root, config, repos,
+        )
+
+        assert sg_names == []
+        assert len(entries) == original_count
+
+
+class TestIntermediateSyncGroupExecution:
+    """Integration tests for cascade with intermediate sync groups."""
+
+    def test_cascade_syncs_intermediate_peers(
+        self, tmp_intermediate_sync_group: Path, capsys,
+    ):
+        """Cascade from leaf should sync workspace-b after committing workspace-a."""
+        root = tmp_intermediate_sync_group
+
+        # Make a change in workspace-a/libs/common (the leaf)
+        leaf = root / "workspace-a" / "libs" / "common"
+        _git(leaf, "checkout", "-b", "work")
+        (leaf / "new.txt").write_text("new feature\n")
+        _git(leaf, "add", "new.txt")
+        _git(leaf, "commit", "-m", "Add new feature")
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("workspace-a/libs/common")
+
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "complete" in output.lower()
+
+        # workspace-a and workspace-b should now point to the same commit
+        ws_a_sha = _git(root / "workspace-a", "rev-parse", "HEAD").stdout.strip()
+        ws_b_sha = _git(root / "workspace-b", "rev-parse", "HEAD").stdout.strip()
+        assert ws_a_sha == ws_b_sha
+
+    def test_dry_run_shows_sync_targets(
+        self, tmp_intermediate_sync_group: Path, capsys,
+    ):
+        """Dry run should show sync-target entries."""
+        root = tmp_intermediate_sync_group
+
+        # Make a change in workspace-a/libs/common
+        leaf = root / "workspace-a" / "libs" / "common"
+        _git(leaf, "checkout", "-b", "work")
+        (leaf / "new.txt").write_text("new feature\n")
+        _git(leaf, "add", "new.txt")
+        _git(leaf, "commit", "-m", "Add new feature")
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("workspace-a/libs/common", dry_run=True)
+
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "sync target" in output.lower()
+        assert "workspace-b" in output
+
+    def test_linear_to_dag_promotion(
+        self, tmp_intermediate_sync_group: Path, capsys,
+    ):
+        """Cascade starting from non-sync-group leaf should become DAG."""
+        root = tmp_intermediate_sync_group
+
+        # Make a change in workspace-a/libs/common
+        leaf = root / "workspace-a" / "libs" / "common"
+        _git(leaf, "checkout", "-b", "work")
+        (leaf / "new.txt").write_text("new feature\n")
+        _git(leaf, "add", "new.txt")
+        _git(leaf, "commit", "-m", "Add new feature")
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("workspace-a/libs/common", dry_run=True)
+
+        assert result == 0
+        output = capsys.readouterr().out
+        # Should be promoted to DAG because of intermediate sync group
+        assert "dag" in output.lower()
+
+    def test_abort_restores_synced_entries(
+        self, tmp_intermediate_sync_group: Path, capsys,
+    ):
+        """Aborting after sync should restore workspace-b to original commit."""
+        root = tmp_intermediate_sync_group
+
+        # Record original workspace-b HEAD
+        original_ws_b_sha = _git(
+            root / "workspace-b", "rev-parse", "HEAD",
+        ).stdout.strip()
+
+        # Make a change in workspace-a/libs/common
+        leaf = root / "workspace-a" / "libs" / "common"
+        _git(leaf, "checkout", "-b", "work")
+        (leaf / "new.txt").write_text("new feature\n")
+        _git(leaf, "add", "new.txt")
+        _git(leaf, "commit", "-m", "Add new feature")
+
+        # Run cascade, then abort (cascade succeeds, so we need to
+        # test abort on a paused state — use a failing test command)
+        (root / ".grove.toml").write_text(
+            '[sync-groups.services]\n'
+            f'url-match = "service_origin"\n'
+            '\n'
+            '[cascade]\n'
+            'local-tests = "true"\n'
+            'integration-tests = "false"\n'  # will fail at root level
+        )
+        _git(root, "add", ".grove.toml")
+        _git(root, "commit", "-m", "Config with failing integration tests")
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("workspace-a/libs/common")
+
+        # Should have paused at root's integration test failure
+        assert result == 1
+
+        # Now abort
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            abort_result = abort_cascade()
+        assert abort_result == 0
+
+        # workspace-b should be restored to its original commit
+        restored_ws_b_sha = _git(
+            root / "workspace-b", "rev-parse", "HEAD",
+        ).stdout.strip()
+        assert restored_ws_b_sha == original_ws_b_sha
+
+
+class TestIntermediateDivergenceResolution:
+    """Tests for diverged intermediate sync-group resolution."""
+
+    def test_pre_cascade_auto_resolves_clean_divergence(
+        self, tmp_intermediate_sync_group_diverged: Path, capsys,
+    ):
+        """Cleanly diverged intermediate sync group should be auto-resolved."""
+        root = tmp_intermediate_sync_group_diverged
+
+        # Make a change in workspace-a/libs/common (leaf)
+        leaf = root / "workspace-a" / "libs" / "common"
+        _git(leaf, "checkout", "-b", "work")
+        (leaf / "new.txt").write_text("new feature\n")
+        _git(leaf, "add", "new.txt")
+        _git(leaf, "commit", "-m", "Add new feature")
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("workspace-a/libs/common")
+
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "auto-resolved" in output.lower()
+
+    def test_force_bypasses_divergence_checks(
+        self, tmp_intermediate_sync_group_diverged: Path, capsys,
+    ):
+        """--force should skip pre-cascade divergence resolution."""
+        root = tmp_intermediate_sync_group_diverged
+
+        # Make a change in workspace-a/libs/common
+        leaf = root / "workspace-a" / "libs" / "common"
+        _git(leaf, "checkout", "-b", "work")
+        (leaf / "new.txt").write_text("new feature\n")
+        _git(leaf, "add", "new.txt")
+        _git(leaf, "commit", "-m", "Add new feature")
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("workspace-a/libs/common", force=True)
+
+        # Should complete (or fail) without auto-resolving divergence
+        output = capsys.readouterr().out
+        assert "auto-resolved" not in output.lower()

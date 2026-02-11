@@ -98,6 +98,10 @@ Contents:
 - `repos[]` — per-repo state including role, status, pre_cascade_head, failed_tier, diagnosis, child_rel_paths
 - `sync_group_name` — (optional) name of the sync group if DAG mode
 - `is_dag` — (optional) boolean, true for DAG cascades
+- `intermediate_sync_groups` — (optional) list of sync-group names discovered at intermediate levels
+- `deferred_sync_groups` — (optional) list of sync-group names with unresolved divergence
+- `merge_conflict_peer` — (optional) rel_path of peer with active merge conflict
+- `merge_conflict_primary` — (optional) rel_path of the primary that committed before conflict
 
 ### Operations
 
@@ -139,6 +143,31 @@ Execution order (depth ascending):
 ```
 
 Each intermediate stages the correct parent-relative child path (e.g., `frontend` stages `libs/common`, root stages `frontend`, `backend`, `shared`).
+
+### Intermediate Sync-Group Expansion
+
+Sync-group detection happens not just at the leaf level, but at **all** levels during plan building. If an intermediate repo belongs to a sync group, the cascade plan is expanded to include peer instances and their parent chains.
+
+**Algorithm (fixed-point iteration):**
+1. For each non-leaf entry in the plan, check if it belongs to a sync group
+2. If yes, discover all instances → add peers as "sync targets"
+3. Build cascade chains from each peer's parent upward to root
+4. Repeat until no new repos are added (handles nested sync groups)
+
+**Primary/sync-target pattern:**
+- One instance per sync group is the "primary" (commits normally via test+stage+commit)
+- Other instances are "sync targets" (skipped during processing, synced to primary's SHA after it commits)
+- Within the same depth, primaries are sorted before sync targets
+
+**Linear-to-DAG promotion:** A cascade that starts as linear (non-sync-group leaf) becomes a DAG if any intermediate is a sync-group member.
+
+### Intermediate Divergence Resolution
+
+When intermediate sync-group instances have diverged commits (neither is ancestor of the other):
+
+**Phase 1 — Pre-cascade auto-resolve:** After building the plan, check each intermediate sync group for divergence. Attempt auto-merge for all groups. Groups that merge cleanly have all instances synced to the merged commit. Groups with conflicts are flagged as "deferred."
+
+**Phase 2 — Dynamic resolution:** When the cascade commits a primary whose peers belong to a deferred group, the merge is attempted with the primary's new commit (which includes the child pointer update) against each peer's current commit. If the merge has a conflict, cascade pauses with instructions to resolve.
 
 ## Algorithm
 

@@ -129,3 +129,33 @@ grove cascade frontend/libs/common --force
 ```
 
 This cascades only through `frontend → root`, skipping the other instances. Not recommended for final integration, but useful for quick iteration.
+
+## Intermediate Sync Groups
+
+Sync-group detection extends beyond the leaf level. If any **intermediate** repo in a cascade chain belongs to a sync group, cascade automatically discovers peer instances and expands the plan.
+
+### Example
+
+```
+root/
+├── workspace-a/           ← sync group "services" (instance 1)
+│   └── libs/common/       ← cascade leaf
+├── workspace-b/           ← sync group "services" (instance 2)
+│   └── libs/common/
+```
+
+Cascade from `workspace-a/libs/common`:
+1. Builds chain: `libs/common → workspace-a → root`
+2. Detects `workspace-a` is in sync group "services"
+3. Discovers peer `workspace-b`
+4. Expands plan: after committing `workspace-a`, syncs `workspace-b` to the same commit, then cascades `workspace-b → root`
+
+The cascade is automatically promoted from a linear chain to a DAG.
+
+### Diverged Intermediates
+
+If intermediate sync-group instances have diverged (different developers committed different things):
+
+- **Clean divergence**: auto-merged before cascade starts
+- **Merge conflict**: cascade pauses; resolve, then `grove cascade --continue`
+- **Force**: `--force` skips divergence resolution (for prototyping)
