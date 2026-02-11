@@ -1,0 +1,153 @@
+# Cascade Design
+
+`grove cascade` propagates a change from a leaf submodule upward through the dependency tree to the root, running tests at each level and committing submodule pointer updates.
+
+## Motivation
+
+Existing grove commands serve different axes:
+
+- **sync** — horizontal consistency (all instances of a sync-group submodule at the same commit)
+- **push** — distribute already-committed changes bottom-up
+- **merge** — merge a feature branch across the submodule tree
+
+None of them answer: "I changed a leaf submodule — now integrate it upward through the tree with testing at each level." Cascade fills this vertical-integration gap.
+
+## Four-Tier Test Model
+
+Four test tiers form a progressive confidence ladder:
+
+| Tier | What it tests | Mocking strategy |
+|------|--------------|-----------------|
+| `local-tests` | Project-internal correctness | All dependencies mocked |
+| `contract-tests` | Interface boundaries | Other side mocked |
+| `integration-tests` | Direct interface works when connected | Transitive dependencies mocked |
+| `system-tests` | Full end-to-end chain | No mocking |
+
+Each tier is optional. When a tier is not configured, it is skipped during cascade execution.
+
+### Fallback
+
+`local-tests` falls back to `[worktree-merge].test-command` when not configured explicitly. This enables easy adoption — projects already using `worktree merge` with a test command get cascade testing for free.
+
+## Role-Based Execution
+
+Each repo in the cascade chain has a role based on its position:
+
+| | Leaf | Intermediate | Root |
+|---|---|---|---|
+| `local-tests` | Run | Run | Run |
+| `contract-tests` | Run | Run | Run |
+| `integration-tests` | **Skip** | Run | Run |
+| `system-tests` | **Skip** | **Skip** | **Run** |
+
+**Rationale:**
+- **Leaf skips integration-tests**: the leaf's dependencies haven't changed.
+- **Intermediates skip system-tests**: full end-to-end at every level would be slow and might break due to experimental changes in sibling dependencies.
+- **Root runs system-tests**: final gate before the cascade is complete.
+
+### Override Flags
+
+- `--system` — run system-tests at every level (thorough mode)
+- `--no-system` — skip system-tests even at root (fast mode)
+- `--quick` — run only local-tests + contract-tests everywhere (fastest)
+
+## Auto-Diagnosis
+
+When tests fail, cascade provides diagnostic information to help locate the failure source.
+
+### `local-tests` / `contract-tests` failure
+
+No auto-diagnosis. The problem is internal to the project or in its interface expectations.
+
+### `integration-tests` failure
+
+**Single-phase diagnosis:** Run `local-tests` of the changed child submodule.
+
+- Submodule's local-tests **fail** → problem is *inside* the dependency
+- Submodule's local-tests **pass** → problem is at the *interface* between parent and child
+
+### `system-tests` failure
+
+**Two-phase diagnosis:**
+
+1. **Phase 1:** Run `local-tests` of the changed child submodule. If it fails, the culprit is found — skip phase 2.
+2. **Phase 2:** Run `integration-tests` of the changed child submodule.
+   - Fails → problem is in a transitive dependency or deeper interface
+   - Passes → problem is at the root's own interface or a non-obvious interaction
+
+## State Machine
+
+Cascade uses a state file for pause/resume/abort, following the same pattern as `worktree merge`.
+
+### States per repo
+
+```
+pending → local-passed → contract-passed → integration-passed → system-passed → committed
+                                     ↘ paused (on any failure)
+```
+
+### State file
+
+Location: `.git/grove/cascade-state.json` (inside the git directory, not the working tree).
+
+Contents:
+- `submodule_path` — the original cascade target
+- `started_at` — ISO 8601 timestamp
+- `system_mode` — `"default"` | `"all"` | `"none"`
+- `quick` — boolean
+- `repos[]` — per-repo state including role, status, pre_cascade_head, failed_tier, diagnosis
+
+### Operations
+
+| Command | Effect |
+|---------|--------|
+| `grove cascade <path>` | Create state, execute chain |
+| `grove cascade --continue` | Load state, resume from paused repo |
+| `grove cascade --abort` | Load state, `git reset --hard` each committed repo, delete state |
+| `grove cascade --status` | Load and display state |
+
+## Algorithm
+
+1. **Discover cascade chain:** From the given submodule path, walk up `Path.parents` to find all ancestor repos. Result: `[leaf, parent1, ..., root]`.
+
+2. **Process each repo bottom-up:**
+   a. Record `pre_cascade_head` (for rollback).
+   b. Stage child submodule pointer (if not leaf).
+   c. Run applicable test tiers based on role and flags.
+   d. On failure: run auto-diagnosis if applicable, save state, exit with code 1.
+   e. On all tiers passing: commit pointer update, advance to next repo.
+
+3. **On completion:** Delete state file, print summary.
+
+## Configuration
+
+New `[cascade]` section in `.grove.toml`:
+
+```toml
+[cascade]
+local-tests = "pytest tests/unit -x"
+contract-tests = "pytest tests/contracts -x"
+integration-tests = "pytest tests/integration"
+system-tests = "pytest tests/system"
+
+# Per-repo overrides
+[cascade.overrides."services/api"]
+local-tests = "npm test -- --unit"
+integration-tests = "npm test -- --integration"
+
+[cascade.overrides."."]
+local-tests = "make test-unit"
+system-tests = "make test-e2e"
+```
+
+Override resolution: per-repo override → default tier command → None (skip).
+
+## Reuse from Existing Code
+
+| Component | Source |
+|-----------|--------|
+| State persistence | `worktree_merge.py` MergeState pattern |
+| Repo discovery | `repo_utils.discover_repos_from_gitmodules()` |
+| Git operations | `repo_utils.RepoInfo.git()`, `run_git()` |
+| File locking | `filelock.atomic_write_json()`, `locked_open()` |
+| Journal logging | Same monthly-rotated log pattern as merge |
