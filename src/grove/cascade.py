@@ -25,6 +25,7 @@ from grove.filelock import atomic_write_json, locked_open
 from grove.repo_utils import (
     Colors,
     RepoInfo,
+    RepoStatus,
     discover_repos_from_gitmodules,
     find_repo_root,
     get_git_common_dir,
@@ -68,6 +69,7 @@ class CascadeState:
     deferred_sync_groups: list[str] | None = None
     merge_conflict_peer: str | None = None
     merge_conflict_primary: str | None = None
+    push: bool = False
 
     def save(self, state_path: Path) -> None:
         data = {
@@ -82,6 +84,7 @@ class CascadeState:
             "deferred_sync_groups": self.deferred_sync_groups,
             "merge_conflict_peer": self.merge_conflict_peer,
             "merge_conflict_primary": self.merge_conflict_primary,
+            "push": self.push,
         }
         atomic_write_json(state_path, json.dumps(data, indent=2) + "\n")
 
@@ -102,6 +105,7 @@ class CascadeState:
             deferred_sync_groups=data.get("deferred_sync_groups"),
             merge_conflict_peer=data.get("merge_conflict_peer"),
             merge_conflict_primary=data.get("merge_conflict_primary"),
+            push=data.get("push", False),
         )
 
     @classmethod
@@ -877,6 +881,7 @@ def run_cascade(
     system_mode: str = "default",
     quick: bool = False,
     force: bool = False,
+    push: bool = False,
 ) -> int:
     """Start a new cascade from a submodule path or sync-group name."""
     repo_root = find_repo_root()
@@ -1042,6 +1047,7 @@ def run_cascade(
         is_dag=is_dag,
         intermediate_sync_groups=intermediate_sg_names or None,
         deferred_sync_groups=deferred_sg_names or None,
+        push=push,
     )
 
     # Ensure state directory exists
@@ -1070,9 +1076,52 @@ def run_cascade(
         CascadeState.remove(state_path)
         _log(journal_path, "DONE cascade completed successfully")
         print(Colors.green("Cascade complete."))
-        print(f"Run {Colors.blue('grove push')} to distribute changes.")
+        if push and not dry_run:
+            push_result = _push_cascade_repos(chain, journal_path)
+            if push_result != 0:
+                return push_result
+        elif push and dry_run:
+            print(Colors.yellow(
+                "(--push: would push all cascade repos after completion)"
+            ))
+        else:
+            print(f"Run {Colors.blue('grove push')} to distribute changes.")
 
     return result
+
+
+def _push_cascade_repos(chain: list[RepoInfo], journal_path: Path) -> int:
+    """Push repos modified by cascade, in chain order (already topological)."""
+    print()
+    print(Colors.blue("Pushing cascade repos..."))
+
+    repos_to_push = []
+    for repo in chain:
+        repo.validate(allow_detached=True, allow_no_remote=True)
+        if repo.status == RepoStatus.PENDING:
+            repos_to_push.append(repo)
+
+    if not repos_to_push:
+        print(Colors.green("All cascade repos are up-to-date. Nothing to push."))
+        return 0
+
+    _log(journal_path, f"PUSH {len(repos_to_push)} repos")
+
+    push_failed = False
+    for repo in repos_to_push:
+        if not repo.push(dry_run=False):
+            push_failed = True
+            print(f"  {Colors.red('✗ Failed to push')} {repo.rel_path}")
+
+    print()
+    if push_failed:
+        _log(journal_path, "PUSH failed")
+        print(Colors.red("Some pushes failed. Run 'grove push' to retry."))
+        return 1
+
+    _log(journal_path, f"PUSH complete ({len(repos_to_push)} repos)")
+    print(Colors.green(f"Successfully pushed {len(repos_to_push)} repositories."))
+    return 0
 
 
 def _execute_cascade(
@@ -1319,10 +1368,16 @@ def continue_cascade() -> int:
     )
 
     if result == 0:
+        push = state.push
         CascadeState.remove(state_path)
         _log(journal_path, "DONE cascade completed successfully")
         print(Colors.green("Cascade complete."))
-        print(f"Run {Colors.blue('grove push')} to distribute changes.")
+        if push:
+            push_result = _push_cascade_repos(chain, journal_path)
+            if push_result != 0:
+                return push_result
+        else:
+            print(f"Run {Colors.blue('grove push')} to distribute changes.")
 
     return result
 
@@ -1464,4 +1519,5 @@ def run(args) -> int:
         system_mode=system_mode,
         quick=getattr(args, "quick", False),
         force=getattr(args, "force", False),
+        push=getattr(args, "push", False),
     )

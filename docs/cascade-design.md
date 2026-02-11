@@ -112,6 +112,7 @@ Contents:
 | `grove cascade --continue` | Load state, resume from paused repo |
 | `grove cascade --abort` | Load state, `git reset --hard` each committed repo, delete state |
 | `grove cascade --status` | Load and display state |
+| `grove cascade <path> --push` | Execute cascade, then push all chain repos on success |
 
 ## Sync-Group Awareness
 

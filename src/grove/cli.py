@@ -405,6 +405,11 @@ examples:
         metavar="NAME",
         help="Cascade all instances of a sync group (alternative to specifying a path)",
     )
+    cascade_parser.add_argument(
+        "--push",
+        action="store_true",
+        help="Push all cascade repos after successful completion",
+    )
 
     # --- grove claude ---
     claude_parser = subparsers.add_parser(
