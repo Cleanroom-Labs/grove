@@ -29,12 +29,117 @@ class MergeConfig:
     test_overrides: dict[str, str] = field(default_factory=dict)
 
 
+# The four cascade test tiers, in execution order.
+CASCADE_TIERS = ("local-tests", "contract-tests", "integration-tests", "system-tests")
+
+
+@dataclass
+class CascadeConfig:
+    """Configuration for ``grove cascade``.
+
+    Four test tiers form a progressive confidence ladder:
+
+    - **local-tests** — project-internal, all deps mocked
+    - **contract-tests** — interface boundaries, other side mocked
+    - **integration-tests** — direct deps real, transitive deps mocked
+    - **system-tests** — everything real, no mocking
+
+    Each tier is optional.  When a tier is *None* it is skipped during
+    cascade execution.  ``local-tests`` falls back to
+    ``[worktree-merge].test-command`` when not configured explicitly.
+
+    Per-repo overrides are stored as
+    ``{repo_rel_path: {tier_name: command}}``.
+    """
+    local_tests: str | None = None
+    contract_tests: str | None = None
+    integration_tests: str | None = None
+    system_tests: str | None = None
+    overrides: dict[str, dict[str, str]] = field(default_factory=dict)
+
+    def get_command(self, tier: str, repo_rel_path: str) -> str | None:
+        """Resolve the test command for a tier and repo, checking overrides first."""
+        repo_overrides = self.overrides.get(repo_rel_path, {})
+        if tier in repo_overrides:
+            return repo_overrides[tier]
+        attr = tier.replace("-", "_")
+        return getattr(self, attr, None)
+
+
 @dataclass
 class GroveConfig:
     """Top-level configuration loaded from .grove.toml."""
     sync_groups: dict[str, SyncGroup] = field(default_factory=dict)
     merge: MergeConfig = field(default_factory=MergeConfig)
+    cascade: CascadeConfig = field(default_factory=CascadeConfig)
 
+
+# ---------------------------------------------------------------------------
+# Parsing helpers
+# ---------------------------------------------------------------------------
+
+def _parse_cascade_section(raw: dict, merge: MergeConfig) -> CascadeConfig:
+    """Parse the ``[cascade]`` section from raw TOML data.
+
+    Falls back to ``[worktree-merge].test-command`` for ``local-tests``
+    when neither ``[cascade].local-tests`` nor an override is configured.
+    """
+    cascade_raw = raw.get("cascade", {})
+    if not isinstance(cascade_raw, dict):
+        raise ValueError(
+            f"cascade: expected a table, got {type(cascade_raw).__name__}"
+        )
+
+    tier_values: dict[str, str | None] = {}
+    for tier in CASCADE_TIERS:
+        val = cascade_raw.get(tier)
+        if val is not None and not isinstance(val, str):
+            raise ValueError(f"cascade.{tier}: expected a string, got {type(val).__name__}")
+        tier_values[tier] = val
+
+    # Fallback: local-tests inherits from worktree-merge.test-command
+    if tier_values["local-tests"] is None and merge.test_command is not None:
+        tier_values["local-tests"] = merge.test_command
+
+    # Parse per-repo overrides
+    overrides: dict[str, dict[str, str]] = {}
+    overrides_raw = cascade_raw.get("overrides", {})
+    if not isinstance(overrides_raw, dict):
+        raise ValueError("cascade.overrides: expected a table")
+
+    for repo_path, repo_data in overrides_raw.items():
+        if not isinstance(repo_data, dict):
+            raise ValueError(
+                f"cascade.overrides.{repo_path}: expected a table, "
+                f"got {type(repo_data).__name__}"
+            )
+        repo_overrides: dict[str, str] = {}
+        for key, val in repo_data.items():
+            if key not in CASCADE_TIERS:
+                raise ValueError(
+                    f"cascade.overrides.{repo_path}.{key}: "
+                    f"unknown tier (expected one of {', '.join(CASCADE_TIERS)})"
+                )
+            if not isinstance(val, str):
+                raise ValueError(
+                    f"cascade.overrides.{repo_path}.{key}: expected a string, "
+                    f"got {type(val).__name__}"
+                )
+            repo_overrides[key] = val
+        overrides[repo_path] = repo_overrides
+
+    return CascadeConfig(
+        local_tests=tier_values["local-tests"],
+        contract_tests=tier_values["contract-tests"],
+        integration_tests=tier_values["integration-tests"],
+        system_tests=tier_values["system-tests"],
+        overrides=overrides,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def load_config(repo_root: Path) -> GroveConfig:
     """Load .grove.toml from *repo_root*.
@@ -112,7 +217,10 @@ def load_config(repo_root: Path) -> GroveConfig:
         test_overrides=dict(test_overrides_raw),
     )
 
-    return GroveConfig(sync_groups=sync_groups, merge=merge)
+    # --- [cascade] section ---
+    cascade = _parse_cascade_section(raw, merge)
+
+    return GroveConfig(sync_groups=sync_groups, merge=merge, cascade=cascade)
 
 
 def get_sync_group_exclude_paths(repo_root: Path, config: GroveConfig) -> set[Path]:

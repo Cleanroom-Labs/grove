@@ -282,6 +282,75 @@ examples:
         help="Skip running test commands",
     )
 
+    # --- grove cascade ---
+    cascade_parser = subparsers.add_parser(
+        "cascade",
+        help="Propagate a submodule change upward with tiered testing",
+        description="Bottom-up cascade integration: propagate a change from "
+        "a leaf submodule through intermediate parents to the root, running "
+        "tests at each level and committing submodule pointer updates.\n\n"
+        "Four test tiers form a progressive confidence ladder:\n"
+        "  local-tests        Project-internal, all deps mocked\n"
+        "  contract-tests     Interface boundaries, other side mocked\n"
+        "  integration-tests  Direct deps real, transitive deps mocked\n"
+        "  system-tests       Everything real, no mocking\n\n"
+        "Configure tiers in .grove.toml under [cascade].",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+examples:
+  grove cascade libs/common               Start cascade from a leaf submodule
+  grove cascade libs/common --dry-run     Preview cascade chain and test plan
+  grove cascade --status                  Show current cascade state
+  grove cascade --continue                Resume after fixing a test failure
+  grove cascade --abort                   Rollback all pointer commits
+  grove cascade libs/common --quick       Run only local + contract tests
+  grove cascade libs/common --system      Run system-tests at every level
+  grove cascade libs/common --no-system   Skip system-tests even at root
+""",
+    )
+    cascade_parser.add_argument(
+        "path",
+        nargs="?",
+        help="Path to the leaf submodule to cascade from",
+    )
+    cascade_parser.add_argument(
+        "--continue",
+        action="store_true",
+        dest="continue_cascade",
+        help="Resume after fixing a test failure",
+    )
+    cascade_parser.add_argument(
+        "--abort",
+        action="store_true",
+        help="Rollback all cascade commits and restore pre-cascade state",
+    )
+    cascade_parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Show current cascade progress",
+    )
+    cascade_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview the cascade chain and test plan without making changes",
+    )
+    cascade_system = cascade_parser.add_mutually_exclusive_group()
+    cascade_system.add_argument(
+        "--system",
+        action="store_true",
+        help="Run system-tests at every level (thorough mode)",
+    )
+    cascade_system.add_argument(
+        "--no-system",
+        action="store_true",
+        help="Skip system-tests even at root (fast mode)",
+    )
+    cascade_parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Run only local-tests and contract-tests everywhere (fastest)",
+    )
+
     # --- grove claude ---
     claude_parser = subparsers.add_parser(
         "claude",
@@ -406,6 +475,10 @@ def main(argv=None):
 
     if args.command == "sync":
         from grove.sync import run
+        return run(args)
+
+    if args.command == "cascade":
+        from grove.cascade import run
         return run(args)
 
     if args.command == "visualize":
