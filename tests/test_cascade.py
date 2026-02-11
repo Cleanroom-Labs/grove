@@ -1247,3 +1247,169 @@ class TestCascadeSyncGroupFlag:
         # Should proceed (may pass or fail on tests, but shouldn't return 1 for consistency)
         output = capsys.readouterr().out
         assert "not in sync" not in output.lower() or "warning" in output.lower()
+
+
+# ---------------------------------------------------------------------------
+# --push flag (Feature 7)
+# ---------------------------------------------------------------------------
+
+class TestCascadePushFlag:
+    """Tests for the --push flag that pushes repos after successful cascade."""
+
+    def test_push_flag_pushes_after_cascade(self, tmp_submodule_tree: Path, capsys):
+        """--push should push cascade repos after successful completion."""
+        root = tmp_submodule_tree
+        grandchild = root / "technical-docs" / "common"
+
+        # Configure cascade with always-passing test
+        config_path = root / ".grove.toml"
+        config_path.write_text(
+            config_path.read_text() +
+            '\n[cascade]\n'
+            'local-tests = "true"\n'
+        )
+
+        # Make a change in the leaf
+        (grandchild / "push-test.txt").write_text("push test\n")
+        _git(grandchild, "add", "push-test.txt")
+        _git(grandchild, "commit", "-m", "leaf change for push")
+
+        # Mock RepoInfo.push since test fixtures use non-bare remotes
+        with patch("grove.cascade.find_repo_root", return_value=root), \
+             patch("grove.repo_utils.RepoInfo.push", return_value=True) as mock_push:
+            result = run_cascade("technical-docs/common", push=True)
+
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "cascade complete" in output.lower()
+        assert "pushing cascade repos" in output.lower()
+        # Should NOT suggest manual push when --push is active
+        assert "grove push" not in output
+        # push() should have been called on repos with pending commits
+        assert mock_push.call_count > 0
+
+    def test_push_flag_dry_run_shows_note(self, tmp_submodule_tree: Path, capsys):
+        """--push --dry-run should print a note about auto-push, not actually push."""
+        root = tmp_submodule_tree
+        config_path = root / ".grove.toml"
+        config_path.write_text(
+            config_path.read_text() +
+            '\n[cascade]\n'
+            'local-tests = "true"\n'
+        )
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("technical-docs/common", dry_run=True, push=True)
+
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "--push" in output
+        assert "would push" in output.lower()
+        # Should NOT actually push anything
+        assert "pushing cascade repos" not in output.lower()
+
+    def test_push_flag_not_called_on_failure(self, tmp_submodule_tree: Path, capsys):
+        """When cascade pauses (test failure), no push should happen."""
+        root = tmp_submodule_tree
+        grandchild = root / "technical-docs" / "common"
+
+        # Configure with a failing test
+        (root / ".grove.toml").write_text(
+            '[sync-groups.common]\n'
+            'url-match = "grandchild_origin"\n'
+            '\n'
+            '[cascade]\n'
+            'local-tests = "false"\n'
+        )
+
+        (grandchild / "push-test.txt").write_text("content\n")
+        _git(grandchild, "add", "push-test.txt")
+        _git(grandchild, "commit", "-m", "leaf change")
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("technical-docs/common", push=True)
+
+        assert result == 1
+        output = capsys.readouterr().out
+        assert "paused" in output.lower()
+        # Should NOT push
+        assert "pushing cascade repos" not in output.lower()
+
+    def test_push_flag_persisted_in_state(self, tmp_path: Path):
+        """push=True should survive save/load cycle in CascadeState."""
+        state_path = tmp_path / "cascade-state.json"
+        state = CascadeState(
+            submodule_path="libs/common",
+            started_at="2026-01-15T12:00:00+00:00",
+            system_mode="default",
+            quick=False,
+            repos=[
+                RepoCascadeEntry(rel_path="libs/common", role="leaf"),
+            ],
+            push=True,
+        )
+        state.save(state_path)
+        loaded = CascadeState.load(state_path)
+        assert loaded.push is True
+
+    def test_push_flag_defaults_false_in_state(self, tmp_path: Path):
+        """push should default to False when missing from saved state."""
+        state_path = tmp_path / "cascade-state.json"
+        # Simulate old state file without push field
+        data = {
+            "submodule_path": "libs/common",
+            "started_at": "2026-01-15T12:00:00+00:00",
+            "system_mode": "default",
+            "quick": False,
+            "repos": [{"rel_path": "libs/common", "role": "leaf", "status": "pending"}],
+        }
+        state_path.write_text(json.dumps(data))
+        loaded = CascadeState.load(state_path)
+        assert loaded.push is False
+
+    def test_push_flag_on_continue(self, tmp_submodule_tree: Path, capsys):
+        """--push should persist through pause/continue and push after success."""
+        root = tmp_submodule_tree
+        grandchild = root / "technical-docs" / "common"
+
+        # Step 1: Start with a failing test and --push
+        (root / ".grove.toml").write_text(
+            '[sync-groups.common]\n'
+            'url-match = "grandchild_origin"\n'
+            '\n'
+            '[cascade]\n'
+            'local-tests = "false"\n'
+        )
+
+        (grandchild / "push-test.txt").write_text("content\n")
+        _git(grandchild, "add", "push-test.txt")
+        _git(grandchild, "commit", "-m", "leaf change")
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade("technical-docs/common", push=True)
+        assert result == 1
+
+        # Verify push is persisted in state
+        state_path = _get_state_path(root)
+        state = CascadeState.load(state_path)
+        assert state.push is True
+
+        # Step 2: Fix the test
+        (root / ".grove.toml").write_text(
+            '[sync-groups.common]\n'
+            'url-match = "grandchild_origin"\n'
+            '\n'
+            '[cascade]\n'
+            'local-tests = "true"\n'
+        )
+
+        # Step 3: Continue — should complete and push
+        capsys.readouterr()  # clear previous output
+        with patch("grove.cascade.find_repo_root", return_value=root), \
+             patch("grove.repo_utils.RepoInfo.push", return_value=True):
+            result = continue_cascade()
+
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "complete" in output.lower()
+        assert "pushing cascade repos" in output.lower()

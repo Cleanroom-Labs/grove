@@ -14,6 +14,8 @@ Propagate a change from a leaf submodule upward through intermediate parents to 
 - `--abort` -- rollback all cascade commits
 - `--status` -- show current cascade progress
 
+Optional flags: `--quick`, `--system`, `--no-system`, `--force`, `--push`, `--dry-run`
+
 When the leaf is a **sync-group submodule** (multiple instances sharing the same URL), cascade automatically builds a DAG covering all instances and their parent chains, deduplicating shared ancestors.
 
 ## Starting a New Cascade
@@ -108,6 +110,7 @@ When cascade finishes (exit code 0):
 - **`--no-system`**: when experimental sibling changes would break system tests
 - **`--sync-group NAME`**: cascade all instances of a sync group by name (alternative to specifying a path)
 - **`--force`**: skip sync-group consistency check (for prototyping when instances are out of sync)
+- **`--push`**: push all cascade repos after successful completion (persisted through pause/resume)
 - **`--dry-run`**: preview cascade chain and test plan without executing
 
 ## Sync-Group Cascade Workflow
@@ -117,9 +120,9 @@ When a submodule belongs to a sync group (e.g., `libs/common` shared by `fronten
 1. `grove sync common` — ensure all instances are at the same commit
 2. Make your change in one instance
 3. `grove sync common` — propagate the change to all instances
-4. `grove cascade libs/common` — cascade from ALL instances through ALL parent chains (DAG mode)
-   - Alternative: `grove cascade --sync-group common` — same result, by group name
-5. `grove push --cascade libs/common` — push exactly the affected repos
+4. `grove cascade libs/common --push` — cascade from ALL instances and push on success
+   - Alternative: `grove cascade --sync-group common --push` — same result, by group name
+   - Or omit `--push` and run `grove push --cascade libs/common` separately
 
 In DAG mode, execution order is by depth (leaf-first, root-last):
 - **Leaves** (all sync-group instances): run leaf test tiers

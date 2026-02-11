@@ -182,6 +182,7 @@ test-command = "pytest -x"
 | `--no-system` | When experimental changes in sibling repos would break system tests. |
 | `--sync-group NAME` | Cascade all instances of a sync group by name (alternative to specifying a path). |
 | `--force` | Skip sync-group consistency check. Use when prototyping with out-of-sync instances. |
+| `--push` | Push all cascade repos after successful completion. Persisted through pause/resume. |
 | `--dry-run` | Preview cascade chain and test plan without executing anything. |
 
 ## Test Design Tips
