@@ -871,13 +871,14 @@ def _expand_linear_for_intermediate_sync_groups(
 
 
 def run_cascade(
-    submodule_path: str,
+    submodule_path: str | None = None,
+    sync_group_name: str | None = None,
     dry_run: bool = False,
     system_mode: str = "default",
     quick: bool = False,
     force: bool = False,
 ) -> int:
-    """Start a new cascade from the given submodule path."""
+    """Start a new cascade from a submodule path or sync-group name."""
     repo_root = find_repo_root()
     state_path = _get_state_path(repo_root)
     journal_path = _get_journal_path(repo_root)
@@ -903,27 +904,30 @@ def run_cascade(
     # Discover repos
     repos = discover_repos_from_gitmodules(repo_root)
 
-    # Resolve submodule path
-    target = (repo_root / submodule_path).resolve()
-
-    # Sync-group consistency check
-    sg_match = _find_sync_group_for_path(target, repo_root, config)
-    if sg_match is not None:
-        sg_name, sg_group = sg_match
-        print(Colors.blue(f"Sync-group detected: '{sg_name}'"))
-        if not _check_sync_group_consistency(sg_name, repo_root, sg_group.url_match, force):
-            return 1
-        print()
-
-    # Build cascade plan — DAG for sync-group submodules, linear chain otherwise
+    # Build cascade plan — three entry modes:
+    # 1. --sync-group NAME: direct sync-group cascade (always DAG)
+    # 2. Path to sync-group leaf: auto-detected DAG
+    # 3. Path to non-sync-group leaf: linear chain (may promote to DAG)
     is_dag = False
     sg_name_for_state: str | None = None
 
-    if sg_match is not None:
-        sg_name, sg_group = sg_match
-        sg_name_for_state = sg_name
+    if sync_group_name:
+        # Mode 1: Direct sync-group cascade by name
+        sg = config.sync_groups.get(sync_group_name)
+        if sg is None:
+            print(Colors.red(f"Error: Unknown sync group '{sync_group_name}'."))
+            print(f"Available groups: {', '.join(config.sync_groups)}")
+            return 1
+
+        print(Colors.blue(f"Cascading sync group: '{sync_group_name}'"))
+        if not _check_sync_group_consistency(sync_group_name, repo_root, sg.url_match, force):
+            return 1
+        print()
+
+        sg_name_for_state = sync_group_name
+        submodule_path = f"(sync-group: {sync_group_name})"
         chain, entries, intermediate_sg_names = _build_unified_cascade_plan(
-            sg_name, sg_group.url_match, repo_root, repos, config=config,
+            sync_group_name, sg.url_match, repo_root, repos, config=config,
         )
         is_dag = True
 
@@ -931,26 +935,51 @@ def run_cascade(
             print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
             return 1
     else:
-        try:
-            chain = _discover_cascade_chain(target, repos)
-        except ValueError as e:
-            print(Colors.red(f"Error: {e}"))
-            return 1
+        assert submodule_path is not None
+        target = (repo_root / submodule_path).resolve()
 
-        if len(chain) < 2:
-            print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
-            print("The given path appears to be the root repository itself.")
-            return 1
+        # Mode 2/3: Path-based — check if leaf is a sync-group member
+        sg_match = _find_sync_group_for_path(target, repo_root, config)
+        if sg_match is not None:
+            sg_name, sg_group = sg_match
+            print(Colors.blue(f"Sync-group detected: '{sg_name}'"))
+            if not _check_sync_group_consistency(sg_name, repo_root, sg_group.url_match, force):
+                return 1
+            print()
 
-        # Build linear entries with correct parent-relative child_rel_paths
-        entries = _build_linear_entries(chain, repo_root)
-
-        # Check for intermediate sync groups — may promote linear to DAG
-        intermediate_sg_names = _expand_linear_for_intermediate_sync_groups(
-            chain, entries, repo_root, config, repos,
-        )
-        if intermediate_sg_names:
+        if sg_match is not None:
+            # Mode 2: sync-group leaf DAG
+            sg_name, sg_group = sg_match
+            sg_name_for_state = sg_name
+            chain, entries, intermediate_sg_names = _build_unified_cascade_plan(
+                sg_name, sg_group.url_match, repo_root, repos, config=config,
+            )
             is_dag = True
+
+            if len(chain) < 2:
+                print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
+                return 1
+        else:
+            # Mode 3: linear chain from non-sync-group leaf
+            try:
+                chain = _discover_cascade_chain(target, repos)
+            except ValueError as e:
+                print(Colors.red(f"Error: {e}"))
+                return 1
+
+            if len(chain) < 2:
+                print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
+                print("The given path appears to be the root repository itself.")
+                return 1
+
+            entries = _build_linear_entries(chain, repo_root)
+
+            # Check for intermediate sync groups — may promote linear to DAG
+            intermediate_sg_names = _expand_linear_for_intermediate_sync_groups(
+                chain, entries, repo_root, config, repos,
+            )
+            if intermediate_sg_names:
+                is_dag = True
 
     # Pre-cascade divergence resolution for intermediate sync groups (Phase 1)
     deferred_sg_names: list[str] = []
@@ -1410,8 +1439,13 @@ def run(args) -> int:
         return show_cascade_status()
 
     path = getattr(args, "path", None)
-    if not path:
-        print(Colors.red("Usage: grove cascade <path>"))
+    sync_group = getattr(args, "sync_group", None)
+
+    if path and sync_group:
+        print(Colors.red("Error: Specify either a path or --sync-group, not both."))
+        return 2
+    if not path and not sync_group:
+        print(Colors.red("Usage: grove cascade <path>  or  grove cascade --sync-group <name>"))
         print("  Or use --continue, --abort, or --status")
         return 2
 
@@ -1425,6 +1459,7 @@ def run(args) -> int:
 
     return run_cascade(
         submodule_path=path,
+        sync_group_name=sync_group,
         dry_run=getattr(args, "dry_run", False),
         system_mode=system_mode,
         quick=getattr(args, "quick", False),

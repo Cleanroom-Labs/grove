@@ -65,6 +65,12 @@ grove push --cascade frontend/libs/common
 
 In DAG mode, cascade processes all instances as leaves, all their parents as intermediates, and the root last — deduplicating shared ancestors. You can point to any instance; grove discovers the others automatically.
 
+Alternatively, cascade directly by sync-group name:
+
+```bash
+grove cascade --sync-group common
+```
+
 If instances are out of sync, cascade fails with a suggestion to run `grove sync` first. Use `--force` to bypass this check during prototyping.
 
 ### Handling test failures
@@ -174,6 +180,7 @@ test-command = "pytest -x"
 | `--quick` | Rapid iteration during development. Only runs local + contract tests. |
 | `--system` | Before releases or after major changes. Runs system-tests at every level. |
 | `--no-system` | When experimental changes in sibling repos would break system tests. |
+| `--sync-group NAME` | Cascade all instances of a sync group by name (alternative to specifying a path). |
 | `--force` | Skip sync-group consistency check. Use when prototyping with out-of-sync instances. |
 | `--dry-run` | Preview cascade chain and test plan without executing anything. |
 

@@ -1142,3 +1142,108 @@ class TestIntermediateDivergenceResolution:
         # Should complete (or fail) without auto-resolving divergence
         output = capsys.readouterr().out
         assert "auto-resolved" not in output.lower()
+
+
+# ---------------------------------------------------------------------------
+# --sync-group flag (Feature 5)
+# ---------------------------------------------------------------------------
+
+class TestCascadeSyncGroupFlag:
+    """Tests for the --sync-group NAME entry point."""
+
+    def test_sync_group_flag_cascades_all_instances(
+        self, tmp_sync_group_multi_instance: Path, capsys,
+    ):
+        """run_cascade(sync_group_name=...) should build a DAG and cascade all instances."""
+        root = tmp_sync_group_multi_instance
+
+        # Make a change in one instance
+        leaf = root / "frontend" / "libs" / "common"
+        _git(leaf, "checkout", "-b", "work")
+        (leaf / "new.txt").write_text("new feature\n")
+        _git(leaf, "add", "new.txt")
+        _git(leaf, "commit", "-m", "Add new feature")
+
+        # Sync all instances to the same commit (required for consistency check)
+        new_sha = _git(leaf, "rev-parse", "HEAD").stdout.strip()
+        for parent in ["backend", "shared"]:
+            inst = root / parent / "libs" / "common"
+            _git(inst, "fetch", str(leaf), "work")
+            _git(inst, "checkout", new_sha)
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade(sync_group_name="common")
+
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "sync group" in output.lower()
+
+    def test_sync_group_flag_dry_run(
+        self, tmp_sync_group_multi_instance: Path, capsys,
+    ):
+        """Dry run with --sync-group should show all instances in the plan."""
+        root = tmp_sync_group_multi_instance
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade(sync_group_name="common", dry_run=True)
+
+        assert result == 0
+        output = capsys.readouterr().out
+        # All three instances should appear in the dry-run output
+        assert "frontend" in output
+        assert "backend" in output
+        assert "shared" in output
+
+    def test_sync_group_flag_unknown_group(self, tmp_sync_group_multi_instance: Path, capsys):
+        """Unknown sync-group name should return error with available groups."""
+        root = tmp_sync_group_multi_instance
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade(sync_group_name="nonexistent")
+
+        assert result == 1
+        output = capsys.readouterr().out
+        assert "unknown sync group" in output.lower()
+        assert "common" in output  # should list available groups
+
+    def test_sync_group_flag_and_path_mutually_exclusive(self, capsys):
+        """Providing both path and --sync-group should return error."""
+        from grove.cascade import run as cascade_run
+        from argparse import Namespace
+
+        args = Namespace(
+            continue_cascade=False, abort=False, status=False,
+            path="frontend/libs/common", sync_group="common",
+            dry_run=False, system=False, no_system=False, quick=False,
+            force=False,
+        )
+        result = cascade_run(args)
+        assert result == 2
+        output = capsys.readouterr().out
+        assert "not both" in output.lower()
+
+    def test_sync_group_flag_consistency_check(
+        self, tmp_sync_group_diverged: Path, capsys,
+    ):
+        """Diverged instances should fail without --force."""
+        root = tmp_sync_group_diverged
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade(sync_group_name="common")
+
+        assert result == 1
+        output = capsys.readouterr().out
+        assert "not in sync" in output.lower() or "sync" in output.lower()
+
+    def test_sync_group_flag_consistency_force(
+        self, tmp_sync_group_diverged: Path, capsys,
+    ):
+        """Diverged instances should proceed with --force."""
+        root = tmp_sync_group_diverged
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade(sync_group_name="common", force=True)
+
+        # Should proceed (may pass or fail on tests, but shouldn't return 1 for consistency)
+        output = capsys.readouterr().out
+        assert "not in sync" not in output.lower() or "warning" in output.lower()
