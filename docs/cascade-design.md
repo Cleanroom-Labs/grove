@@ -108,6 +108,7 @@ Contents:
 | Command | Effect |
 |---------|--------|
 | `grove cascade <path>` | Create state, execute chain |
+| `grove cascade --sync-group NAME` | Create state from sync-group name, execute DAG |
 | `grove cascade --continue` | Load state, resume from paused repo |
 | `grove cascade --abort` | Load state, `git reset --hard` each committed repo, delete state |
 | `grove cascade --status` | Load and display state |

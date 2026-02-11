@@ -350,6 +350,7 @@ examples:
   grove cascade libs/common --quick       Run only local + contract tests
   grove cascade libs/common --system      Run system-tests at every level
   grove cascade libs/common --no-system   Skip system-tests even at root
+  grove cascade --sync-group common       Cascade all instances of a sync group
 """,
     )
     cascade_parser.add_argument(
@@ -398,6 +399,11 @@ examples:
         "--force",
         action="store_true",
         help="Skip sync-group consistency check (proceed even if instances differ)",
+    )
+    cascade_parser.add_argument(
+        "--sync-group",
+        metavar="NAME",
+        help="Cascade all instances of a sync group (alternative to specifying a path)",
     )
 
     # --- grove claude ---
