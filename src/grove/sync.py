@@ -581,12 +581,14 @@ def _sync_group(
     for repo in parent_repos:
         subpaths = parent_to_subpaths.get(repo.path, [])
 
-        if not subpaths:
-            # Intermediate repo — pick up child submodule pointer changes
-            result = repo.git("diff", "--name-only", check=False)
-            if result.returncode == 0 and result.stdout.strip():
-                changed_files = result.stdout.strip().split("\n")
-                subpaths = [f for f in changed_files if f]
+        # Also pick up indirect changes (e.g. child repos that received
+        # sync commits, updating the parent's submodule pointers).
+        result = repo.git("diff", "--name-only", check=False)
+        if result.returncode == 0 and result.stdout.strip():
+            existing = set(subpaths)
+            for f in result.stdout.strip().split("\n"):
+                if f and f not in existing:
+                    subpaths.append(f)
 
         if subpaths:
             if commit_submodule_changes(
