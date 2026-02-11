@@ -341,8 +341,14 @@ grove/
 
 ## Documentation
 
-For detailed workflow guidance, see:
+Architecture and philosophy:
+- [docs/why-submodules.md](docs/why-submodules.md) — Why submodule-based decomposition, dependency management, and sync groups
+- [docs/why-worktrees.md](docs/why-worktrees.md) — Why worktrees for parallel and agentic development, and how Grove makes them practical
+- [docs/best-practices.md](docs/best-practices.md) — Testing strategy, cascade discipline, and building composable ecosystems
+
+Workflow and reference:
 - [docs/submodule-workflow.md](docs/submodule-workflow.md) — Common workflows and troubleshooting
+- [docs/cascade-guide.md](docs/cascade-guide.md) — Cascade user guide with configuration examples
 - [docs/alternatives.md](docs/alternatives.md) — Comparison with native git features and existing tools
 
 ## License
