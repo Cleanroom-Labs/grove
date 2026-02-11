@@ -8,7 +8,8 @@ Provides:
 - RepoStatus: Enum for repository validation states
 - RepoInfo: Dataclass representing a git repository with validation/push methods
 - parse_gitmodules(): Parse .gitmodules files with optional URL filtering
-- discover_repos(): Find all git repos in a submodule tree
+- discover_repos_from_gitmodules(): Find all git repos via .gitmodules metadata
+- discover_repos(): Find all git repos by filesystem walk (legacy)
 - topological_sort_repos(): Sort repos for bottom-up operations
 - print_status_table(): Formatted status output
 """
@@ -480,40 +481,56 @@ def discover_repos(
     return repos
 
 
+def discover_repos_from_gitmodules(
+    repo_root: Path,
+    exclude_paths: set[Path] | None = None,
+) -> list[RepoInfo]:
+    """Discover repos by recursively walking ``.gitmodules`` files.
+
+    Unlike :func:`discover_repos` (which scans for ``.git`` files),
+    this builds parent–child relationships during discovery — each
+    returned :class:`RepoInfo` has its ``parent`` attribute set.
+
+    Only initialized submodules (those with a ``.git`` entry on disk)
+    are included.
+    """
+    root_repo = RepoInfo(path=repo_root, repo_root=repo_root)
+    repos: list[RepoInfo] = [root_repo]
+
+    def _walk(parent_repo: RepoInfo) -> None:
+        gitmodules_path = parent_repo.path / ".gitmodules"
+        for _name, subpath, _url in parse_gitmodules(gitmodules_path):
+            full_path = parent_repo.path / subpath
+            if "node_modules" in full_path.parts:
+                continue
+            if not (full_path / ".git").exists():
+                continue
+            if exclude_paths and full_path in exclude_paths:
+                continue
+            child = RepoInfo(path=full_path, repo_root=repo_root)
+            child.parent = parent_repo
+            repos.append(child)
+            _walk(child)
+
+    _walk(root_repo)
+    return repos
+
+
 def build_dependency_graph(repos: list[RepoInfo]) -> dict[Path, set[Path]]:
     """
     Build a dependency graph where children must be pushed before parents.
     Returns dict mapping repo path -> set of repo paths that must be pushed first.
-    """
-    paths = {repo.path for repo in repos}
 
-    # Build graph: for each repo, find its parent (if any)
+    Relies on ``RepoInfo.parent`` pointers set by
+    :func:`discover_repos_from_gitmodules`.
+    """
     graph: dict[Path, set[Path]] = {repo.path: set() for repo in repos}
 
     for repo in repos:
-        # Walk up the directory tree to find parent repo
-        for parent_path in repo.path.parents:
-            if parent_path in paths:
-                # Parent depends on child being pushed first
-                graph[parent_path].add(repo.path)
-                break
+        if repo.parent is not None and repo.parent.path in graph:
+            graph[repo.parent.path].add(repo.path)
 
     return graph
-
-
-def set_parent_relationships(repos: list[RepoInfo]) -> None:
-    """
-    Set the parent attribute on each repo based on directory hierarchy.
-    Modifies repos in place.
-    """
-    path_to_repo = {repo.path: repo for repo in repos}
-
-    for repo in repos:
-        # Walk up the directory tree to find parent repo
-        for parent_path in repo.path.parents:
-            if parent_path in path_to_repo:
-                repo.parent = path_to_repo[parent_path]
-                break
 
 
 def topological_sort_repos(repos: list[RepoInfo]) -> list[RepoInfo]:

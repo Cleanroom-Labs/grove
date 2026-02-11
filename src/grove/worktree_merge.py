@@ -21,13 +21,12 @@ from grove.config import GroveConfig, MergeConfig, get_sync_group_exclude_paths,
 from grove.repo_utils import (
     Colors,
     RepoInfo,
-    discover_repos,
+    discover_repos_from_gitmodules,
     find_repo_root,
     get_git_common_dir,
     get_git_worktree_dir,
     parse_gitmodules,
     run_git,
-    set_parent_relationships,
     topological_sort_repos,
 )
 from grove.topology import TopologyCache
@@ -586,8 +585,7 @@ def start_merge(
     config = load_config(repo_root)
     exclude_paths = get_sync_group_exclude_paths(repo_root, config)
 
-    repos = discover_repos(repo_root, exclude_paths=exclude_paths or None)
-    set_parent_relationships(repos)
+    repos = discover_repos_from_gitmodules(repo_root, exclude_paths=exclude_paths or None)
 
     # Record topology
     cache = TopologyCache.for_repo(repo_root)
@@ -880,7 +878,7 @@ def continue_merge() -> int:
     # Continue with remaining pending repos
     # Re-discover repos to get RepoInfo objects
     exclude_paths = get_sync_group_exclude_paths(repo_root, config)
-    all_repos = discover_repos(repo_root, exclude_paths=exclude_paths or None)
+    all_repos = discover_repos_from_gitmodules(repo_root, exclude_paths=exclude_paths or None)
     path_to_repo = {r.path: r for r in all_repos}
 
     for entry in state.repos:

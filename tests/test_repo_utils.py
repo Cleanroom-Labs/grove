@@ -8,6 +8,7 @@ from grove.repo_utils import (
     RepoInfo,
     RepoStatus,
     discover_repos,
+    discover_repos_from_gitmodules,
     find_repo_root,
     get_git_common_dir,
     get_git_worktree_dir,
@@ -148,6 +149,63 @@ class TestDiscoverRepos:
         assert len(root_repos) == 1
 
 
+class TestDiscoverReposFromGitmodules:
+    def test_finds_all_repos(self, tmp_submodule_tree: Path):
+        """Should discover root, child, and grandchild."""
+        repos = discover_repos_from_gitmodules(tmp_submodule_tree)
+        paths = {r.path for r in repos}
+
+        assert tmp_submodule_tree in paths
+        assert tmp_submodule_tree / "technical-docs" in paths
+        assert tmp_submodule_tree / "technical-docs" / "common" in paths
+
+    def test_parent_pointers_set(self, tmp_submodule_tree: Path):
+        """Every non-root repo should have parent set."""
+        repos = discover_repos_from_gitmodules(tmp_submodule_tree)
+        path_to_repo = {r.path: r for r in repos}
+
+        root = path_to_repo[tmp_submodule_tree]
+        child = path_to_repo[tmp_submodule_tree / "technical-docs"]
+        grandchild = path_to_repo[tmp_submodule_tree / "technical-docs" / "common"]
+
+        assert root.parent is None
+        assert child.parent is root
+        assert grandchild.parent is child
+
+    def test_exclude_paths(self, tmp_submodule_tree: Path):
+        """Excluded paths should be skipped."""
+        common_path = tmp_submodule_tree / "technical-docs" / "common"
+        repos = discover_repos_from_gitmodules(
+            tmp_submodule_tree, exclude_paths={common_path},
+        )
+        paths = {r.path for r in repos}
+
+        assert common_path not in paths
+        assert tmp_submodule_tree in paths
+        assert tmp_submodule_tree / "technical-docs" in paths
+
+    def test_root_always_included(self, tmp_submodule_tree: Path):
+        """Root repo should always be in the result."""
+        repos = discover_repos_from_gitmodules(tmp_submodule_tree)
+        root_repos = [r for r in repos if r.path == tmp_submodule_tree]
+        assert len(root_repos) == 1
+
+    def test_matches_discover_repos(self, tmp_submodule_tree: Path):
+        """Should find the same set of repos as discover_repos."""
+        old_repos = discover_repos(tmp_submodule_tree)
+        new_repos = discover_repos_from_gitmodules(tmp_submodule_tree)
+
+        old_paths = {r.path for r in old_repos}
+        new_paths = {r.path for r in new_repos}
+        assert old_paths == new_paths
+
+    def test_no_gitmodules(self, tmp_git_repo: Path):
+        """Repo with no .gitmodules should return only the root."""
+        repos = discover_repos_from_gitmodules(tmp_git_repo)
+        assert len(repos) == 1
+        assert repos[0].path == tmp_git_repo
+
+
 # ---------------------------------------------------------------------------
 # topological_sort_repos
 # ---------------------------------------------------------------------------
@@ -155,7 +213,7 @@ class TestDiscoverRepos:
 class TestTopologicalSort:
     def test_children_before_parents(self, tmp_submodule_tree: Path):
         """After topological sort, children must appear before their parents."""
-        repos = discover_repos(tmp_submodule_tree)
+        repos = discover_repos_from_gitmodules(tmp_submodule_tree)
         sorted_repos = topological_sort_repos(repos)
 
         # Build an index mapping path -> position

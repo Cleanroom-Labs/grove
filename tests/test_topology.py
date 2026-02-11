@@ -409,9 +409,9 @@ class TestResolveRelativeUrl:
 class TestBuildEntries:
     def test_with_submodule_tree(self, tmp_submodule_tree: Path):
         """build_entries should produce entries for submodules with correct parent info."""
-        from grove.repo_utils import discover_repos
+        from grove.repo_utils import discover_repos_from_gitmodules
 
-        repos = discover_repos(tmp_submodule_tree)
+        repos = discover_repos_from_gitmodules(tmp_submodule_tree)
         entries = build_entries(repos, tmp_submodule_tree)
 
         # Should have entries for technical-docs and technical-docs/common
@@ -425,9 +425,9 @@ class TestBuildEntries:
         assert by_path["technical-docs/common"].parent_rel_path == "technical-docs"
 
     def test_entries_have_commits(self, tmp_submodule_tree: Path):
-        from grove.repo_utils import discover_repos
+        from grove.repo_utils import discover_repos_from_gitmodules
 
-        repos = discover_repos(tmp_submodule_tree)
+        repos = discover_repos_from_gitmodules(tmp_submodule_tree)
         entries = build_entries(repos, tmp_submodule_tree)
 
         for e in entries:
@@ -435,9 +435,9 @@ class TestBuildEntries:
             assert e.commit != "unknown"
 
     def test_entries_have_urls(self, tmp_submodule_tree: Path):
-        from grove.repo_utils import discover_repos
+        from grove.repo_utils import discover_repos_from_gitmodules
 
-        repos = discover_repos(tmp_submodule_tree)
+        repos = discover_repos_from_gitmodules(tmp_submodule_tree)
         entries = build_entries(repos, tmp_submodule_tree)
 
         for e in entries:
@@ -450,10 +450,10 @@ class TestBuildEntries:
 
 class TestTopologyCacheRecord:
     def test_record_from_real_repos(self, tmp_submodule_tree: Path):
-        from grove.repo_utils import discover_repos, run_git
+        from grove.repo_utils import discover_repos_from_gitmodules, run_git
 
         cache = TopologyCache(tmp_submodule_tree / ".git" / "topo.json")
-        repos = discover_repos(tmp_submodule_tree)
+        repos = discover_repos_from_gitmodules(tmp_submodule_tree)
 
         result = run_git(tmp_submodule_tree, "rev-parse", "--short", "HEAD")
         root_commit = result.stdout.strip()
