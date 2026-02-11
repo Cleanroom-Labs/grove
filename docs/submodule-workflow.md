@@ -27,6 +27,12 @@ Three levels of nesting, each serving a distinct purpose:
 
 The theme submodule appears at every level. This is intentional—it allows each project to build its own documentation in isolation while maintaining consistent styling.
 
+## Core Workflow Principle
+
+The main checkout of the root repository is the central merge point — not a development environment. All development happens in worktrees created with `grove worktree add`. When work is complete, changes are merged back into main with `grove worktree merge`, and only then pushed upstream with `grove push`. The main checkout stays clean; it exists solely to integrate parallel work.
+
+The rest of this guide explains the mechanics behind this workflow.
+
 ## Complexities of Deeply Nested Submodules
 
 Working with this setup day-to-day surfaces a few recurring realities.
