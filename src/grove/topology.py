@@ -5,7 +5,7 @@ Topology caching for submodule tree structure.
 Captures the full submodule tree — parent-child nesting, commit hashes,
 and both absolute and relative URLs — indexed by root commit SHA.
 The cache is stored at .git/grove-topology.json and incrementally
-built by discover_repos() when a TopologyCache is provided.
+built by discover_repos_from_gitmodules() when a TopologyCache is provided.
 """
 from __future__ import annotations
 
@@ -122,31 +122,25 @@ def _is_relative_url(url: str) -> bool:
 def build_entries(repos, repo_root: Path) -> list[SubmoduleEntry]:
     """Build SubmoduleEntry list from discovered RepoInfo objects.
 
-    For each non-root repo, determines the parent by walking up the
-    directory tree, then parses the parent's .gitmodules for URL info.
+    For each non-root repo, uses the ``RepoInfo.parent`` pointer to
+    determine the parent, then parses the parent's .gitmodules for URL info.
 
     Args:
-        repos: List of RepoInfo objects (from discover_repos).
+        repos: List of RepoInfo objects (from discover_repos_from_gitmodules).
         repo_root: Root repository path.
     """
     from grove.repo_utils import parse_gitmodules, run_git
 
-    path_set = {r.path for r in repos}
     entries = []
 
     for repo in repos:
         if repo.path == repo_root:
             continue
 
-        # Find parent repo by walking up the directory tree
-        parent_path = None
-        for ancestor in repo.path.parents:
-            if ancestor in path_set:
-                parent_path = ancestor
-                break
-
-        if parent_path is None:
+        # Use parent pointer set during discovery
+        if repo.parent is None:
             continue
+        parent_path = repo.parent.path
 
         parent_rel = (
             "." if parent_path == repo_root

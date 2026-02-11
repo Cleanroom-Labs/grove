@@ -3,13 +3,13 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from grove.repo_utils import RepoInfo, RepoStatus, discover_repos
+from grove.repo_utils import RepoInfo, RepoStatus, discover_repos_from_gitmodules
 
 
 class TestPushDiscovery:
     def test_discovers_repos_in_tree(self, tmp_submodule_tree: Path):
-        """discover_repos should find repos in the submodule tree."""
-        repos = discover_repos(tmp_submodule_tree)
+        """discover_repos_from_gitmodules should find repos in the submodule tree."""
+        repos = discover_repos_from_gitmodules(tmp_submodule_tree)
         # Should find at least the parent and technical-docs
         assert len(repos) >= 2
         paths = [r.path for r in repos]

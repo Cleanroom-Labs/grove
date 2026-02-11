@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from grove.config import CONFIG_FILENAME
-from grove.repo_utils import RepoInfo, discover_repos, run_git
+from grove.repo_utils import RepoInfo, run_git
 from grove.worktree_merge import (
     MergeState,
     RepoMergeEntry,

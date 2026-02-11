@@ -131,29 +131,35 @@ def discover_sync_submodules(repo_root: Path, url_match: str) -> list[SyncSubmod
 def get_parent_repos_for_submodules(
     submodules: list[SyncSubmodule],
     repo_root: Path,
+    all_repos: list[RepoInfo] | None = None,
 ) -> list[RepoInfo]:
     """
     Get the parent repos that will need commits after updating submodules.
     Returns repos sorted by depth (deepest first for bottom-up commits).
+
+    When *all_repos* is provided (from ``discover_repos_from_gitmodules``),
+    parent pointers are followed directly.  Otherwise the repo tree is
+    discovered on the fly.
     """
-    parent_paths = set()
+    if all_repos is None:
+        from grove.repo_utils import discover_repos_from_gitmodules
+        all_repos = discover_repos_from_gitmodules(repo_root)
+
+    path_to_repo = {r.path: r for r in all_repos}
+    collected: dict[Path, RepoInfo] = {}
 
     for submodule in submodules:
-        parent_paths.add(submodule.parent_repo)
+        repo = path_to_repo.get(submodule.parent_repo)
+        while repo is not None and repo.path not in collected:
+            collected[repo.path] = repo
+            repo = repo.parent
 
-        current = submodule.parent_repo
-        while current != repo_root and current != current.parent:
-            git_file = current / ".git"
-            if git_file.is_file():
-                for parent in current.parents:
-                    if (parent / ".git").is_dir() or (parent / ".git").is_file():
-                        parent_paths.add(parent)
-                        break
-            current = current.parent
+    # Always include root
+    root_repo = path_to_repo.get(repo_root)
+    if root_repo is not None and repo_root not in collected:
+        collected[repo_root] = root_repo
 
-    parent_paths.add(repo_root)
-
-    repos = [RepoInfo(path=p, repo_root=repo_root) for p in parent_paths]
+    repos = list(collected.values())
     repos.sort(key=lambda r: -r.depth)
 
     return repos

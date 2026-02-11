@@ -225,13 +225,12 @@ class SubmoduleVisualizerApp:
 
     def _load_repos(self) -> None:
         """Load repositories from the current path."""
-        from grove.repo_utils import discover_repos, set_parent_relationships
+        from grove.repo_utils import discover_repos_from_gitmodules
 
         self._update_status(f"Loading {self.repo_path}...")
 
         try:
-            self.repos = discover_repos(self.repo_path)
-            set_parent_relationships(self.repos)
+            self.repos = discover_repos_from_gitmodules(self.repo_path)
 
             # Validate all repos
             for repo in self.repos:

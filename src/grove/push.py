@@ -15,7 +15,7 @@ from grove.config import get_sync_group_exclude_paths, load_config
 from grove.repo_utils import (
     Colors,
     RepoStatus,
-    discover_repos,
+    discover_repos_from_gitmodules,
     find_repo_root,
     print_status_table,
     topological_sort_repos,
@@ -37,7 +37,7 @@ def run(args) -> int:
     config = load_config(repo_root)
     exclude_paths = get_sync_group_exclude_paths(repo_root, config)
 
-    repos = discover_repos(repo_root, exclude_paths=exclude_paths or None)
+    repos = discover_repos_from_gitmodules(repo_root, exclude_paths=exclude_paths or None)
     print(f"Found {Colors.green(str(len(repos)))} repositories")
     print()
 
