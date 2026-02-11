@@ -20,7 +20,7 @@ from grove.filelock import atomic_write_json, locked_open
 from grove.repo_utils import (
     Colors,
     find_repo_root,
-    get_git_worktree_dir,
+    get_state_path,
     run_git,
 )
 
@@ -57,7 +57,7 @@ class SyncMergeState:
 
 
 def _get_state_path(repo_root: Path) -> Path:
-    return get_git_worktree_dir(repo_root) / "grove" / "sync-merge-state.json"
+    return get_state_path(repo_root, "sync-merge-state.json")
 
 
 # ---------------------------------------------------------------------------

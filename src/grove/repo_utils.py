@@ -9,7 +9,6 @@ Provides:
 - RepoInfo: Dataclass representing a git repository with validation/push methods
 - parse_gitmodules(): Parse .gitmodules files with optional URL filtering
 - discover_repos_from_gitmodules(): Find all git repos via .gitmodules metadata
-- discover_repos(): Find all git repos by filesystem walk (legacy)
 - topological_sort_repos(): Sort repos for bottom-up operations
 - print_status_table(): Formatted status output
 """
@@ -18,6 +17,8 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+import time
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import cached_property
@@ -235,11 +236,6 @@ class RepoInfo:
 
         return ("new-branch", "0")
 
-    def get_ahead_count(self, branch: str) -> str:
-        """Get count of commits ahead of remote. Returns 'new-branch' if remote branch doesn't exist."""
-        ahead, _ = self.get_ahead_behind_count(branch)
-        return ahead
-
     def validate(
         self,
         check_sync: bool = False,
@@ -387,26 +383,6 @@ class RepoInfo:
             return "unknown"
         return result.stdout.strip()
 
-    def get_remote_commit_sha(self, branch: str, short: bool = True) -> str | None:
-        """
-        Get the commit SHA of the remote branch.
-
-        Args:
-            branch: Branch name (without 'origin/' prefix)
-            short: If True, return short SHA (7 chars), else full SHA
-
-        Returns:
-            Commit SHA or None if remote branch doesn't exist
-        """
-        args = ["rev-parse"]
-        if short:
-            args.append("--short")
-        args.append(f"origin/{branch}")
-        result = self.git(*args, check=False)
-        if result.returncode != 0:
-            return None
-        return result.stdout.strip()
-
     def has_local_branch(self, branch: str) -> bool:
         """Check if a local branch exists."""
         result = self.git("rev-parse", "--verify", f"refs/heads/{branch}", check=False)
@@ -450,45 +426,13 @@ class RepoInfo:
         return self.path.name
 
 
-def discover_repos(
-    repo_root: Path,
-    exclude_paths: set[Path] | None = None,
-) -> list[RepoInfo]:
-    """
-    Discover all git repositories (main repo + submodules).
-
-    Args:
-        repo_root: Root directory of the main repository
-        exclude_paths: Absolute paths to skip (e.g. sync-group submodules)
-    """
-    repos = [RepoInfo(path=repo_root, repo_root=repo_root)]
-
-    # Find all submodule .git files
-    for git_file in repo_root.rglob(".git"):
-        # Skip node_modules
-        if "node_modules" in git_file.parts:
-            continue
-
-        # Submodules have .git as a file, not directory
-        if git_file.is_file():
-            submodule_path = git_file.parent
-
-            if exclude_paths and submodule_path in exclude_paths:
-                continue
-
-            repos.append(RepoInfo(path=submodule_path, repo_root=repo_root))
-
-    return repos
-
-
 def discover_repos_from_gitmodules(
     repo_root: Path,
     exclude_paths: set[Path] | None = None,
 ) -> list[RepoInfo]:
     """Discover repos by recursively walking ``.gitmodules`` files.
 
-    Unlike :func:`discover_repos` (which scans for ``.git`` files),
-    this builds parent–child relationships during discovery — each
+    Builds parent–child relationships during discovery — each
     returned :class:`RepoInfo` has its ``parent`` attribute set.
 
     Only initialized submodules (those with a ``.git`` entry on disk)
@@ -582,6 +526,36 @@ def print_status_table(repos: list[RepoInfo], show_behind: bool = False) -> None
     print()
 
 
+def get_state_path(repo_root: Path, filename: str) -> Path:
+    """Return the per-worktree state file path: ``<git-dir>/grove/<filename>``."""
+    return get_git_worktree_dir(repo_root) / "grove" / filename
+
+
+def log_to_journal(journal_path: Path, message: str) -> None:
+    """Append a timestamped entry to a journal file.
+
+    Creates parent directories if needed and uses file locking
+    for concurrent safety.
+    """
+    from grove.filelock import locked_open
+
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    journal_path.parent.mkdir(parents=True, exist_ok=True)
+    with locked_open(journal_path, "a") as f:
+        f.write(f"[{ts}] {message}\n")
+
+
+def run_test(path: Path, test_cmd: str) -> tuple[bool, float]:
+    """Run a shell test command in *path*.  Returns ``(passed, duration_seconds)``."""
+    start = time.monotonic()
+    result = subprocess.run(
+        test_cmd, shell=True, cwd=str(path),
+        capture_output=True, text=True,
+    )
+    duration = time.monotonic() - start
+    return (result.returncode == 0, duration)
+
+
 def find_repo_root(start: Path | None = None) -> Path:
     """Find the git repository root using ``git rev-parse --show-toplevel``.
 
@@ -591,8 +565,6 @@ def find_repo_root(start: Path | None = None) -> Path:
     Raises:
         FileNotFoundError: If not inside a git repository.
     """
-    import subprocess
-
     cwd = str((start or Path.cwd()).resolve())
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],

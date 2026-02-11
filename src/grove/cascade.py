@@ -9,8 +9,6 @@ updates.  Supports pause/resume on test failures and full rollback.
 from __future__ import annotations
 
 import json
-import subprocess
-import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,8 +27,10 @@ from grove.repo_utils import (
     discover_repos_from_gitmodules,
     find_repo_root,
     get_git_common_dir,
-    get_git_worktree_dir,
+    get_state_path,
+    log_to_journal,
     run_git,
+    run_test,
 )
 
 
@@ -118,7 +118,7 @@ class CascadeState:
 # ---------------------------------------------------------------------------
 
 def _get_state_path(repo_root: Path) -> Path:
-    return get_git_worktree_dir(repo_root) / "grove" / "cascade-state.json"
+    return get_state_path(repo_root, "cascade-state.json")
 
 
 def _get_journal_path(repo_root: Path) -> Path:
@@ -129,10 +129,7 @@ def _get_journal_path(repo_root: Path) -> Path:
 
 def _log(journal_path: Path, message: str) -> None:
     """Append a timestamped entry to the cascade journal."""
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-    journal_path.parent.mkdir(parents=True, exist_ok=True)
-    with locked_open(journal_path, "a") as f:
-        f.write(f"[{ts}] {message}\n")
+    log_to_journal(journal_path, message)
 
 
 # ---------------------------------------------------------------------------
@@ -141,13 +138,7 @@ def _log(journal_path: Path, message: str) -> None:
 
 def _run_test(path: Path, test_cmd: str) -> tuple[bool, float]:
     """Run a test command in a directory.  Returns (passed, duration_seconds)."""
-    start = time.monotonic()
-    result = subprocess.run(
-        test_cmd, shell=True, cwd=str(path),
-        capture_output=True, text=True,
-    )
-    duration = time.monotonic() - start
-    return (result.returncode == 0, duration)
+    return run_test(path, test_cmd)
 
 
 def _run_tier(
