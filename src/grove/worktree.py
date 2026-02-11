@@ -239,7 +239,12 @@ def add_worktree(args) -> int:
         print(f"{Colors.blue('Copying local git config')} to worktree...")
         _copy_local_config(repo_root, worktree_path)
 
-    if getattr(args, "copy_venv", False):
+    # Resolve copy-venv: CLI flag takes priority, then .grove.toml config
+    from grove.config import load_config
+    config = load_config(repo_root)
+    copy_venv = getattr(args, "copy_venv", False) or config.worktree.copy_venv
+
+    if copy_venv:
         print(f"{Colors.blue('Copying Python venv')} from main worktree...")
         if _copy_venv(repo_root, worktree_path):
             print(f"  {Colors.green('Venv copied and paths updated')}")

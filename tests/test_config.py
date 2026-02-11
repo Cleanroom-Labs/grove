@@ -238,6 +238,66 @@ class TestMergeConfig:
         assert config.merge.test_command == "pytest"
 
 
+class TestWorktreeConfig:
+    def test_default_worktree_config(self, tmp_path: Path):
+        """Missing [worktree] section should default to copy_venv=False."""
+        (tmp_path / CONFIG_FILENAME).write_text("# empty\n")
+        config = load_config(tmp_path)
+        assert config.worktree.copy_venv is False
+
+    def test_copy_venv_true(self, tmp_path: Path):
+        """copy-venv = true should be loaded."""
+        (tmp_path / CONFIG_FILENAME).write_text(
+            '[worktree]\n'
+            'copy-venv = true\n'
+        )
+        config = load_config(tmp_path)
+        assert config.worktree.copy_venv is True
+
+    def test_copy_venv_false(self, tmp_path: Path):
+        """Explicit copy-venv = false should remain False."""
+        (tmp_path / CONFIG_FILENAME).write_text(
+            '[worktree]\n'
+            'copy-venv = false\n'
+        )
+        config = load_config(tmp_path)
+        assert config.worktree.copy_venv is False
+
+    def test_non_boolean_copy_venv_raises(self, tmp_path: Path):
+        """Non-boolean copy-venv should raise ValueError."""
+        (tmp_path / CONFIG_FILENAME).write_text(
+            '[worktree]\n'
+            'copy-venv = "yes"\n'
+        )
+        with pytest.raises(ValueError, match="copy-venv"):
+            load_config(tmp_path)
+
+    def test_non_table_worktree_raises(self, tmp_path: Path):
+        """Non-table [worktree] should raise ValueError."""
+        (tmp_path / CONFIG_FILENAME).write_text(
+            'worktree = "bad"\n'
+        )
+        with pytest.raises(ValueError, match="expected a table"):
+            load_config(tmp_path)
+
+    def test_worktree_alongside_other_sections(self, tmp_path: Path):
+        """[worktree] should coexist with sync-groups and cascade."""
+        (tmp_path / CONFIG_FILENAME).write_text(
+            '[sync-groups.common]\n'
+            'url-match = "my-lib"\n'
+            '\n'
+            '[worktree]\n'
+            'copy-venv = true\n'
+            '\n'
+            '[cascade]\n'
+            'local-tests = "pytest"\n'
+        )
+        config = load_config(tmp_path)
+        assert "common" in config.sync_groups
+        assert config.worktree.copy_venv is True
+        assert config.cascade.local_tests == "pytest"
+
+
 class TestCascadeConfig:
     def test_default_cascade_config(self, tmp_path: Path):
         """Missing [cascade] section should return defaults."""

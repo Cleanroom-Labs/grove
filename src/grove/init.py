@@ -35,6 +35,11 @@ TEMPLATE = """\
 # "." = "npm run build"                                                 # Override for root repo
 # "submodule-name" = "make html"                                        # Override for a submodule
 # "skip-this" = ""                                                      # Empty string = skip tests
+
+# Worktree settings applied automatically to `grove worktree add`.
+#
+# [worktree]
+# copy-venv = true                                                      # Copy Python venv (auto-detects location, fixes paths)
 """
 
 

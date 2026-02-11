@@ -564,3 +564,46 @@ class TestRunDirenvAllow:
             _run_direnv_allow(tmp_path)
 
         mock_run.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Config-driven copy-venv
+# ---------------------------------------------------------------------------
+
+class TestConfigCopyVenv:
+    def test_config_copy_venv_applies_when_flag_not_passed(self, tmp_submodule_tree: Path):
+        """copy-venv = true in .grove.toml should trigger venv copy without CLI flag."""
+        # Create a fake venv in the repo root
+        _make_fake_venv(tmp_submodule_tree)
+
+        # Add [worktree] section to existing .grove.toml
+        existing_config = (tmp_submodule_tree / ".grove.toml").read_text()
+        (tmp_submodule_tree / ".grove.toml").write_text(
+            existing_config + "\n[worktree]\ncopy-venv = true\n"
+        )
+
+        wt_path = tmp_submodule_tree.parent / "cfg-venv-wt"
+        args = argparse.Namespace(branch="cfg-venv-branch", path=str(wt_path), checkout=False)
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = add_worktree(args)
+
+        assert result == 0
+        # Venv should have been copied (from config, not CLI flag)
+        assert (wt_path / ".venv" / "pyvenv.cfg").exists()
+
+    def test_cli_flag_works_without_config(self, tmp_submodule_tree: Path):
+        """--copy-venv CLI flag should work even without [worktree] in config."""
+        _make_fake_venv(tmp_submodule_tree)
+
+        wt_path = tmp_submodule_tree.parent / "cli-venv-wt"
+        args = argparse.Namespace(
+            branch="cli-venv-branch", path=str(wt_path), checkout=False,
+            copy_venv=True,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = add_worktree(args)
+
+        assert result == 0
+        assert (wt_path / ".venv" / "pyvenv.cfg").exists()
