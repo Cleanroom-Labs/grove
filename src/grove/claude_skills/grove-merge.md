@@ -50,6 +50,7 @@ If the merge pauses (exit code 1):
 
 **Conflict:**
 - Show which files have conflicts and in which repo.
+- If any conflicting files are submodule pointers, grove prints `git update-index --cacheinfo` commands for both sides (ours/theirs). Relay these to the user — standard `git checkout --ours/--theirs` does **not** work for submodule pointers.
 - Tell the user to resolve conflicts in the specified repo path.
 - After resolving: `/grove-merge --continue`
 
@@ -90,3 +91,17 @@ When merge finishes (exit code 0):
 - **"has uncommitted changes"**: commit or stash changes first
 - **State corruption**: suggest `--abort` to clean up and start fresh
 - **Structural divergence warnings**: non-blocking but flag for manual intervention
+
+## Submodule Pointer Conflicts
+
+Submodule entries are stored as gitlinks (mode `160000`) — just SHA pointers, not files. When these conflict:
+
+- `git checkout --ours/--theirs <submodule>` does **not** work (it tries to write file content, but there is none)
+- Grove prints the exact `git update-index --cacheinfo 160000,<sha>,<path>` commands for both sides
+
+**Resolution workflow:**
+1. Pick which submodule commit to keep (ours = current HEAD, theirs = branch being merged)
+2. Run the `git update-index --cacheinfo` command grove printed
+3. Run `/grove-merge --continue`
+
+**Common scenario:** The feature branch only exists in the root repo, not in submodules. During merge, submodule pointers conflict because main and the branch updated them independently. Choose whichever pointer is newer, or check with `git -C <submodule> log --oneline <sha1>..<sha2>` to compare.

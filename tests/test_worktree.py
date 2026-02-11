@@ -212,6 +212,28 @@ class TestRemoveWorktree:
         assert result == 0
         assert not wt_path.exists()
 
+    def test_removes_worktree_with_submodules(self, tmp_submodule_tree: Path):
+        """Worktree with initialized submodules should be removed successfully."""
+        wt_path = tmp_submodule_tree.parent / "test-wt"
+        args_add = argparse.Namespace(
+            branch="rm-sub-branch", path=str(wt_path), checkout=False,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            add_worktree(args_add)
+
+        # Confirm submodules are initialized in the worktree
+        assert (wt_path / "technical-docs" / ".git").exists()
+        assert (wt_path / "technical-docs" / "common" / ".git").exists()
+
+        args_rm = argparse.Namespace(path=str(wt_path), force=False)
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = remove_worktree(args_rm)
+
+        assert result == 0
+        assert not wt_path.exists()
+
 
 # ---------------------------------------------------------------------------
 # _copy_local_config

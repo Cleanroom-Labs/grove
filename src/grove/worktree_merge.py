@@ -207,6 +207,60 @@ def _auto_resolve_submodule_conflicts(
     return not bool(repo.get_unmerged_files())
 
 
+def _get_submodule_conflict_guidance(
+    repo: RepoInfo, conflicting_files: list[str]
+) -> list[str]:
+    """Generate resolution guidance for submodule pointer conflicts.
+
+    For each conflicting file that is a submodule, returns formatted
+    guidance showing ``git update-index --cacheinfo`` commands to
+    accept either side. Returns an empty list when no submodule
+    conflicts are found.
+    """
+    gitmodules_path = repo.path / ".gitmodules"
+    if not gitmodules_path.exists():
+        return []
+
+    submodule_paths = set()
+    for _name, sm_path, _url in parse_gitmodules(gitmodules_path):
+        submodule_paths.add(sm_path)
+
+    sm_conflicts = [f for f in conflicting_files if f in submodule_paths]
+    if not sm_conflicts:
+        return []
+
+    lines: list[str] = []
+    lines.append("")
+    lines.append(
+        f"  {Colors.yellow('Submodule pointer conflicts')} "
+        "(git checkout --ours/--theirs will NOT work):"
+    )
+
+    for sm_path in sm_conflicts:
+        result = repo.git("ls-files", "-u", "--", sm_path, check=False, capture=True)
+        ours_sha = theirs_sha = None
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 4:
+                stage = parts[2]
+                if stage == "2":
+                    ours_sha = parts[1]
+                elif stage == "3":
+                    theirs_sha = parts[1]
+
+        lines.append(f"    {Colors.blue(sm_path)}:")
+        if ours_sha:
+            lines.append(
+                f"      Accept ours:   git update-index --cacheinfo 160000,{ours_sha},{sm_path}"
+            )
+        if theirs_sha:
+            lines.append(
+                f"      Accept theirs: git update-index --cacheinfo 160000,{theirs_sha},{sm_path}"
+            )
+
+    return lines
+
+
 # ---------------------------------------------------------------------------
 # Sync-group helpers
 # ---------------------------------------------------------------------------
@@ -517,6 +571,8 @@ def _execute_merge_for_repo(
             _log(journal_path, f"PAUSED: conflict in {entry.rel_path}")
             print(f"  {Colors.red('CONFLICT')} in {entry.rel_path}")
             print(f"    Conflicting files: {', '.join(conflicting)}")
+            for line in _get_submodule_conflict_guidance(repo, conflicting):
+                print(line)
             print()
             print(f"  Resolve conflicts in: {repo.path}")
             print(f"  Then run: grove worktree merge --continue")
@@ -799,6 +855,8 @@ def continue_merge() -> int:
             print(Colors.red(f"Unresolved conflicts in {paused_entry.rel_path}:"))
             for f in unmerged:
                 print(f"  - {f}")
+            for line in _get_submodule_conflict_guidance(repo, unmerged):
+                print(line)
             print()
             print("Resolve conflicts, then run: grove worktree merge --continue")
             return 1
