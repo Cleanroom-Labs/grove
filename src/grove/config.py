@@ -29,6 +29,12 @@ class MergeConfig:
     test_overrides: dict[str, str] = field(default_factory=dict)
 
 
+@dataclass
+class WorktreeConfig:
+    """Configuration for ``grove worktree add``."""
+    copy_venv: bool = False
+
+
 # The four cascade test tiers, in execution order.
 CASCADE_TIERS = ("local-tests", "contract-tests", "integration-tests", "system-tests")
 
@@ -71,6 +77,7 @@ class GroveConfig:
     """Top-level configuration loaded from .grove.toml."""
     sync_groups: dict[str, SyncGroup] = field(default_factory=dict)
     merge: MergeConfig = field(default_factory=MergeConfig)
+    worktree: WorktreeConfig = field(default_factory=WorktreeConfig)
     cascade: CascadeConfig = field(default_factory=CascadeConfig)
 
 
@@ -217,10 +224,25 @@ def load_config(repo_root: Path) -> GroveConfig:
         test_overrides=dict(test_overrides_raw),
     )
 
+    # --- [worktree] section ---
+    worktree_raw = raw.get("worktree", {})
+    if not isinstance(worktree_raw, dict):
+        raise ValueError(
+            f"worktree: expected a table, got {type(worktree_raw).__name__}"
+        )
+    copy_venv = worktree_raw.get("copy-venv", False)
+    if not isinstance(copy_venv, bool):
+        raise ValueError(
+            f"worktree.copy-venv: expected a boolean, got {type(copy_venv).__name__}"
+        )
+    worktree_config = WorktreeConfig(copy_venv=copy_venv)
+
     # --- [cascade] section ---
     cascade = _parse_cascade_section(raw, merge)
 
-    return GroveConfig(sync_groups=sync_groups, merge=merge, cascade=cascade)
+    return GroveConfig(
+        sync_groups=sync_groups, merge=merge, worktree=worktree_config, cascade=cascade,
+    )
 
 
 def get_sync_group_exclude_paths(repo_root: Path, config: GroveConfig) -> set[Path]:

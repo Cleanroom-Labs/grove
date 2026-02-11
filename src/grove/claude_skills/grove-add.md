@@ -28,9 +28,19 @@ Extract `<branch-name>` and `<path>` from `$ARGUMENTS`.
 2. Check that the target path does not already exist.
    - If it exists, tell the user and stop.
 
+### Step 2.5: Determine worktree flags
+
+Check `.grove.toml` for a `[worktree]` section:
+- If `copy-venv = true` is configured, the CLI applies `--copy-venv` automatically. No extra flag needed in the command below.
+- If no `[worktree]` section exists, check the project for Python indicators:
+  - Directories: `.venv/`, `venv/`, `.direnv/python-*`
+  - Files: `pyproject.toml`, `setup.py`, `setup.cfg`, `requirements.txt`, `Pipfile`
+  - If indicators are found, add `--copy-venv` to the command in Step 3.
+  - Suggest adding `[worktree]` with `copy-venv = true` to `.grove.toml` for future runs.
+
 ### Step 3: Create the worktree
 
-Run the appropriate command:
+Run the appropriate command (add `--copy-venv` if determined in Step 2.5):
 
 - **New branch:** `grove worktree add --local-remotes <branch-name> <path>`
 - **Existing branch:** `grove worktree add --local-remotes --checkout <branch-name> <path>`
@@ -58,7 +68,13 @@ Summarize:
 
 ## Customization
 
-After installing with `grove claude install`, adjust the flags in the commands above to match your project. For example:
+Project-level defaults can be set in `.grove.toml` so they apply automatically without editing this skill:
 
-- Add `--copy-venv` if the project uses a Python virtual environment for development.
+```toml
+[worktree]
+copy-venv = true    # Auto-copy Python venv on worktree creation
+```
+
+Other flags can be adjusted in the commands above after installing with `grove claude install`. For example:
+
 - Remove `--local-remotes` if you want worktree submodules to push directly to upstream remotes.
