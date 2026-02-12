@@ -129,24 +129,24 @@ Git's `includeIf` directive lets you apply config based on the repository's loca
 # ~/.gitconfig
 
 [user]
-    name = Your Personal Name
-    email = personal@example.com
+    name = Andrew Franklin
+    email = andfranklin3@gmail.com
 
-[includeIf "gitdir:~/Projects/my-org/"]
-    path = ~/.gitconfig-my-org
+[includeIf "gitdir:~/Projects/cleanroom-labs/"]
+    path = ~/.gitconfig-cleanroom
 ```
 
 Then create the included file with the project identity:
 
 ```gitconfig
-# ~/.gitconfig-my-org
+# ~/.gitconfig-cleanroom
 
 [user]
-    name = Org Dev
-    email = dev@my-org.com
+    name = Lead Dev
+    email = lead@cleanroomlabs.dev
 ```
 
-Every repository under `~/Projects/my-org/` — including submodules at any nesting depth — will use the org identity. The `gitdir:` condition matches based on the resolved `.git` directory, so it works for submodules (which have their own `.git` directories or gitdir references) and worktrees alike.
+Every repository under `~/Projects/cleanroom-labs/` — including submodules at any nesting depth — will use the Cleanroom Labs identity. The `gitdir:` condition matches based on the resolved `.git` directory, so it works for submodules (which have their own `.git` directories or gitdir references) and worktrees alike.
 
 This is the cleanest solution for projects with submodules: one config change, applied automatically, no per-repo setup needed.
 
