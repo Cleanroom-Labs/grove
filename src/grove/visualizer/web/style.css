@@ -1,26 +1,43 @@
-/* Grove Visualizer - Styles */
+/*
+ * Grove Visualizer — Cleanroom Labs Design System
+ *
+ * Colors and fonts derived from common/css/grove-theme.css
+ * (canonical source: common/tokens/colors.js)
+ */
 
 :root {
-    --bg: #f5f5f5;
+    /* Backgrounds (light content area) */
+    --bg: #f8fafc;                  /* slate-50 */
     --surface: #ffffff;
-    --text-primary: #333333;
-    --text-secondary: #666666;
-    --text-muted: #999999;
-    --border: #e0e0e0;
-    --border-light: #eeeeee;
 
-    --status-ok: #4CAF50;
-    --status-up-to-date: #4CAF50;
-    --status-pending: #FFC107;
-    --status-behind: #FF9800;
-    --status-diverged: #F44336;
-    --status-uncommitted: #F44336;
-    --status-detached: #9E9E9E;
-    --status-no-remote: #9E9E9E;
+    /* Text (light theme — content area) */
+    --text-primary: #1e293b;        /* slate-800 */
+    --text-secondary: #334155;      /* slate-700 */
+    --text-muted: #64748b;          /* slate-500 */
 
-    --toolbar-bg: #2c2c2c;
-    --toolbar-text: #e0e0e0;
-    --tab-active: #4CAF50;
+    /* Borders */
+    --border: #e2e8f0;              /* slate-200 */
+    --border-light: #f1f5f9;        /* slate-100 */
+
+    /* Status colors (CL semantic palette) */
+    --status-ok: #10b981;           /* emerald */
+    --status-up-to-date: #10b981;   /* emerald */
+    --status-pending: #f59e0b;      /* warning */
+    --status-behind: #f59e0b;       /* warning */
+    --status-diverged: #ef4444;     /* danger */
+    --status-uncommitted: #ef4444;  /* danger */
+    --status-detached: #64748b;     /* slate-500 */
+    --status-no-remote: #64748b;    /* slate-500 */
+
+    /* Toolbar (dark CL chrome) */
+    --toolbar-bg: #111827;          /* slate-900 */
+    --toolbar-text: #f9fafb;        /* gray-50 */
+    --tab-active: #10b981;          /* emerald */
+
+    /* Accent */
+    --accent: #10b981;              /* emerald */
+    --accent-light: #34d399;        /* emerald-light */
+    --accent-glow: #10b98133;       /* emerald 20% */
 }
 
 * {
@@ -30,7 +47,7 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     background: var(--bg);
     color: var(--text-primary);
     display: flex;
@@ -61,21 +78,23 @@ body {
     font-weight: 700;
     font-size: 14px;
     margin-right: 12px;
-    color: var(--status-ok);
+    color: var(--accent);
 }
 
 #toolbar button {
-    background: rgba(255,255,255,0.1);
-    border: 1px solid rgba(255,255,255,0.15);
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.12);
     color: var(--toolbar-text);
     padding: 4px 10px;
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
+    transition: background 0.15s, border-color 0.15s;
 }
 
 #toolbar button:hover {
-    background: rgba(255,255,255,0.2);
+    background: rgba(16,185,129,0.12);
+    border-color: rgba(16,185,129,0.3);
 }
 
 .auto-refresh-toggle {
@@ -134,7 +153,7 @@ body {
     align-items: center;
     justify-content: center;
     background: var(--status-pending);
-    color: #333;
+    color: var(--text-primary);
     border-radius: 10px;
     min-width: 18px;
     height: 18px;
@@ -220,9 +239,9 @@ body {
     border-bottom: 1px solid var(--border-light);
 }
 
-.compare-same td { background: #f0fdf4; }
-.compare-diff td { background: #fffbeb; }
-.compare-only td { background: #fef2f2; }
+.compare-same td { background: #ecfdf5; }  /* emerald-50 */
+.compare-diff td { background: #fffbeb; }  /* amber-50 */
+.compare-only td { background: #fef2f2; }  /* red-50 */
 
 /* Details panel */
 #details-panel {
@@ -276,7 +295,7 @@ body {
 }
 
 #details-content .detail-changes-list {
-    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, monospace;
     font-size: 11px;
     line-height: 1.4;
 }
@@ -406,9 +425,14 @@ body {
 }
 
 #btn-checkout, #btn-run-compare {
-    background: var(--status-ok);
+    background: var(--accent);
     color: white;
-    border-color: var(--status-ok);
+    border-color: var(--accent);
+}
+
+#btn-checkout:hover:not(:disabled), #btn-run-compare:hover {
+    background: var(--accent-light);
+    border-color: var(--accent-light);
 }
 
 #btn-checkout:disabled {
@@ -428,7 +452,7 @@ body {
     padding: 6px 12px;
     cursor: pointer;
     font-size: 13px;
-    font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+    font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, monospace;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -439,12 +463,12 @@ body {
 }
 
 .branch-item.selected {
-    background: #e3f2fd;
+    background: #ecfdf5;   /* emerald-50 */
 }
 
 .branch-item.current::before {
     content: "*";
-    color: var(--status-ok);
+    color: var(--accent);
     font-weight: 700;
 }
 
@@ -488,31 +512,31 @@ body {
     fill: white;
     font-size: 11px;
     font-weight: 700;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .node-branch-text {
     fill: var(--text-primary);
     font-size: 11px;
     font-weight: 600;
-    font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+    font-family: Monaco, Menlo, 'Ubuntu Mono', Consolas, monospace;
 }
 
 .node-info-text {
     fill: var(--text-secondary);
     font-size: 10px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .node-status-text {
     fill: var(--text-primary);
     font-size: 10px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .edge-path {
     fill: none;
-    stroke: #aaaaaa;
+    stroke: #94a3b8;    /* slate-400 */
     stroke-width: 1.5;
 }
 

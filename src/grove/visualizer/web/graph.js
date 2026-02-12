@@ -7,15 +7,16 @@
  */
 
 const Graph = (() => {
+    // Cleanroom Labs semantic palette (common/tokens/colors.js)
     const STATUS_COLORS = {
-        OK: '#4CAF50',
-        UP_TO_DATE: '#4CAF50',
-        PENDING: '#FFC107',
-        BEHIND: '#FF9800',
-        DIVERGED: '#F44336',
-        UNCOMMITTED: '#F44336',
-        DETACHED: '#9E9E9E',
-        NO_REMOTE: '#9E9E9E',
+        OK: '#10b981',          // emerald
+        UP_TO_DATE: '#10b981',
+        PENDING: '#f59e0b',     // warning
+        BEHIND: '#f59e0b',
+        DIVERGED: '#ef4444',    // danger
+        UNCOMMITTED: '#ef4444',
+        DETACHED: '#64748b',    // slate-500
+        NO_REMOTE: '#64748b',
     };
 
     const STATUS_TEXT = {
@@ -126,7 +127,7 @@ const Graph = (() => {
         const left = layout.x - w / 2;
         const top = layout.y;
 
-        const statusColor = STATUS_COLORS[repo.status] || '#9E9E9E';
+        const statusColor = STATUS_COLORS[repo.status] || '#64748b';
         const statusText = STATUS_TEXT[repo.status] || repo.status;
         const isSelected = repo.path === selectedPath;
 
@@ -137,7 +138,7 @@ const Graph = (() => {
         // Background rect
         const bg = createRect(left, top, w, h, CORNER_RADIUS, {
             fill: '#ffffff',
-            stroke: repo.sync_group_color || (isSelected ? statusColor : '#cccccc'),
+            stroke: repo.sync_group_color || (isSelected ? statusColor : '#e2e8f0'),
             'stroke-width': isSelected ? 2.5 : (repo.sync_group_color ? 2 : 1),
             class: 'node-bg',
         });
@@ -226,7 +227,7 @@ const Graph = (() => {
         if (repo.sync_group) {
             const sgText = createText(left + w - PADDING, top + h - 6, repo.sync_group, 'node-info-text');
             sgText.setAttribute('text-anchor', 'end');
-            sgText.setAttribute('fill', repo.sync_group_color || '#999');
+            sgText.setAttribute('fill', repo.sync_group_color || '#64748b');
             sgText.setAttribute('font-size', '9');
             g.appendChild(sgText);
         }
