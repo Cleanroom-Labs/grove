@@ -31,12 +31,9 @@ def run(args) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    # Import here to avoid tkinter import on --help
-    from .app import SubmoduleVisualizerApp
+    from .server import start_server
 
-    app = SubmoduleVisualizerApp(repo_path)
-    app.run()
-    return 0
+    return start_server(repo_path)
 
 
 if __name__ == "__main__":

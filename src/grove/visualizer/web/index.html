@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grove - Submodule Visualizer</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <!-- Toolbar -->
+    <div id="toolbar">
+        <div class="toolbar-left">
+            <span class="toolbar-title">Grove</span>
+            <button id="btn-refresh" title="Refresh (Ctrl+R)">Refresh</button>
+            <button id="btn-zoom-fit" title="Zoom to fit">Fit</button>
+            <button id="btn-zoom-in" title="Zoom in">+</button>
+            <button id="btn-zoom-out" title="Zoom out">&minus;</button>
+        </div>
+        <div class="toolbar-right">
+            <label class="auto-refresh-toggle">
+                <input type="checkbox" id="auto-refresh-checkbox">
+                Auto-refresh
+            </label>
+        </div>
+    </div>
+
+    <!-- Worktree tab bar -->
+    <div id="worktree-bar">
+        <div id="worktree-tabs"></div>
+        <button id="btn-compare" class="compare-btn" title="Compare worktrees">Compare</button>
+    </div>
+
+    <!-- Main graph area -->
+    <div id="graph-container">
+        <svg id="graph-svg">
+            <defs>
+                <pattern id="detached-hatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+                    <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(0,0,0,0.08)" stroke-width="3"/>
+                </pattern>
+            </defs>
+            <g id="graph-group"></g>
+        </svg>
+    </div>
+
+    <!-- Comparison view (hidden by default) -->
+    <div id="compare-view" class="hidden">
+        <div class="compare-header">
+            <h3 id="compare-title">Worktree Comparison</h3>
+            <button id="btn-close-compare">Close</button>
+        </div>
+        <div id="compare-content"></div>
+    </div>
+
+    <!-- Details panel -->
+    <div id="details-panel">
+        <div id="details-content">Select a repository to view details</div>
+    </div>
+
+    <!-- Status bar -->
+    <div id="status-bar">
+        <span id="status-text">Loading...</span>
+    </div>
+
+    <!-- Context menu (hidden) -->
+    <div id="context-menu" class="hidden">
+        <div class="context-menu-items"></div>
+    </div>
+
+    <!-- Branch picker modal (hidden) -->
+    <div id="branch-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Checkout Branch</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h4>Local Branches</h4>
+                <div id="local-branches" class="branch-list"></div>
+                <h4>Remote Branches</h4>
+                <div id="remote-branches" class="branch-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-checkout" disabled>Checkout</button>
+                <button id="btn-cancel-checkout">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compare picker modal (hidden) -->
+    <div id="compare-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Compare Worktrees</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="compare-selectors">
+                    <div>
+                        <label>Base worktree:</label>
+                        <select id="compare-base"></select>
+                    </div>
+                    <div>
+                        <label>Compare with:</label>
+                        <select id="compare-other"></select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-run-compare">Compare</button>
+                <button id="btn-cancel-compare">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/layout.js"></script>
+    <script src="/graph.js"></script>
+    <script src="/actions.js"></script>
+    <script src="/worktree.js"></script>
+    <script src="/app.js"></script>
+</body>
+</html>

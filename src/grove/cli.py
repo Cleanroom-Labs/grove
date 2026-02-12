@@ -192,9 +192,9 @@ examples:
     # --- grove visualize ---
     viz_parser = subparsers.add_parser(
         "visualize",
-        help="Open interactive submodule visualizer GUI",
-        description="Launch a tkinter GUI that visualizes the git repository "
-        "hierarchy and submodule relationships.",
+        help="Open interactive submodule visualizer in browser",
+        description="Launch a browser-based visualizer that displays the git "
+        "repository hierarchy and submodule relationships.",
     )
     viz_parser.add_argument(
         "path",
