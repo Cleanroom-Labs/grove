@@ -34,6 +34,7 @@ include = ["grove", "grove.*"]
 
 [tool.setuptools.package-data]
 "grove.claude_skills" = ["*.md"]
+"grove.visualizer.web" = ["*.html", "*.css", "*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
