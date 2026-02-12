@@ -1,0 +1,3 @@
+[submodule "cleanroom-website-common"]
+	path = common
+	url = https://github.com/Cleanroom-Labs/cleanroom-website-common.git
