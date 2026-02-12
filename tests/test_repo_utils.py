@@ -231,11 +231,13 @@ class TestRepoInfoHelpers:
         assert info.has_uncommitted_changes() is False
 
     def test_has_uncommitted_changes_dirty(self, tmp_git_repo: Path):
-        (tmp_git_repo / "new.txt").write_text("new\n")
-        info = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
-        # Untracked files don't show up in git diff, but staged or modified tracked files do.
-        # Let's modify a tracked file instead.
         (tmp_git_repo / "README.md").write_text("modified\n")
+        info = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
+        assert info.has_uncommitted_changes() is True
+
+    def test_has_uncommitted_changes_untracked(self, tmp_git_repo: Path):
+        (tmp_git_repo / "untracked.txt").write_text("new\n")
+        info = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
         assert info.has_uncommitted_changes() is True
 
     def test_get_commit_sha(self, tmp_git_repo: Path):
@@ -264,6 +266,37 @@ class TestRepoInfoHelpers:
     def test_has_remote_false(self, tmp_git_repo: Path):
         info = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
         assert info.has_remote() is False
+
+    def test_get_commit_message(self, tmp_git_repo: Path):
+        info = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
+        msg = info.get_commit_message()
+        assert isinstance(msg, str)
+        assert len(msg) > 0
+
+    def test_get_changed_files_clean(self, tmp_git_repo: Path):
+        info = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
+        assert info.get_changed_files() == []
+
+    def test_get_changed_files_modified(self, tmp_git_repo: Path):
+        (tmp_git_repo / "README.md").write_text("modified\n")
+        info = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
+        files = info.get_changed_files()
+        assert len(files) >= 1
+        assert any("README.md" in f for f in files)
+
+    def test_get_changed_files_untracked(self, tmp_git_repo: Path):
+        (tmp_git_repo / "newfile.txt").write_text("new\n")
+        info = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
+        files = info.get_changed_files()
+        assert any("newfile.txt" in f for f in files)
+
+    def test_get_changed_files_excludes_submodules(self, tmp_submodule_tree: Path):
+        """Submodule paths should be excluded by default."""
+        info = RepoInfo(path=tmp_submodule_tree, repo_root=tmp_submodule_tree)
+        files = info.get_changed_files()
+        # None of the returned files should be a submodule path
+        for f in files:
+            assert "technical-docs" not in f
 
 
 # ---------------------------------------------------------------------------

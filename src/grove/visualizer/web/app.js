@@ -65,6 +65,12 @@ const App = (() => {
             if (data.repos) {
                 Graph.setRepos(data.repos);
 
+                // Set tab title to "Grove - <project name>"
+                if (data.repo_root) {
+                    const projectName = data.repo_root.split('/').pop();
+                    document.title = `Grove - ${projectName}`;
+                }
+
                 // Zoom to fit on initial load
                 requestAnimationFrame(() => Graph.zoomToFit());
 
@@ -120,7 +126,7 @@ const App = (() => {
 
         const name = document.createElement('div');
         name.className = 'detail-name';
-        name.textContent = repo.is_root ? `${repo.name} (root)` : repo.name;
+        name.textContent = repo.name;
         panel.appendChild(name);
 
         const info = document.createElement('div');
@@ -132,7 +138,6 @@ const App = (() => {
             `Status: ${repo.status}`,
         ];
         if (repo.sync_group) details.push(`Sync group: ${repo.sync_group}`);
-        if (repo.error) details.push(`Error: ${repo.error}`);
 
         for (const detail of details) {
             const span = document.createElement('span');
@@ -141,6 +146,36 @@ const App = (() => {
             info.appendChild(span);
         }
         panel.appendChild(info);
+
+        // Commit message
+        if (repo.commit_message) {
+            const msg = document.createElement('div');
+            msg.className = 'detail-commit-message';
+            msg.textContent = repo.commit_message;
+            panel.appendChild(msg);
+        }
+
+        // Changed files (only shown when uncommitted)
+        if (repo.changed_files && repo.changed_files.length > 0) {
+            const section = document.createElement('div');
+            section.className = 'detail-changes';
+
+            const header = document.createElement('div');
+            header.className = 'detail-changes-header';
+            header.textContent = `Changes (${repo.changed_files.length})`;
+            section.appendChild(header);
+
+            const list = document.createElement('div');
+            list.className = 'detail-changes-list';
+            for (const file of repo.changed_files) {
+                const row = document.createElement('div');
+                row.className = 'detail-change-row';
+                row.textContent = file;
+                list.appendChild(row);
+            }
+            section.appendChild(list);
+            panel.appendChild(section);
+        }
     }
 
     function setStatus(message) {

@@ -192,10 +192,44 @@ class RepoInfo:
         return run_git(self.path, *args, check=check, capture=capture)
 
     def has_uncommitted_changes(self) -> bool:
-        """Check if repo has uncommitted changes."""
+        """Check if repo has uncommitted changes or untracked files."""
         diff_result = self.git("diff", "--quiet", check=False)
         cached_result = self.git("diff", "--cached", "--quiet", check=False)
-        return diff_result.returncode != 0 or cached_result.returncode != 0
+        untracked = self.git("ls-files", "--others", "--exclude-standard", check=False)
+        return (diff_result.returncode != 0
+                or cached_result.returncode != 0
+                or bool(untracked.stdout.strip()))
+
+    def get_commit_message(self) -> str:
+        """Get the subject line of the most recent commit."""
+        result = self.git("log", "-1", "--format=%s", check=False)
+        return result.stdout.strip() if result.returncode == 0 else ""
+
+    def get_changed_files(self, exclude_submodules: bool = True) -> list[str]:
+        """Get list of changed/untracked files in porcelain format.
+
+        Returns lines like 'M  README.md' or '?? newfile.txt'.
+        When *exclude_submodules* is True, paths that correspond to
+        submodule entries in .gitmodules are omitted.
+        """
+        result = self.git("status", "--porcelain", check=False)
+        if result.returncode != 0:
+            return []
+        lines = []
+        for line in result.stdout.strip().split("\n"):
+            if not line.strip():
+                continue
+            if exclude_submodules and self._is_submodule_path(line[3:]):
+                continue
+            lines.append(line.strip())
+        return lines
+
+    def _is_submodule_path(self, rel_path: str) -> bool:
+        """Check whether *rel_path* is listed as a submodule in .gitmodules."""
+        gitmodules = self.path / ".gitmodules"
+        if not gitmodules.exists():
+            return False
+        return f"path = {rel_path}" in gitmodules.read_text()
 
     def get_branch(self) -> str | None:
         """Get current branch name, or None if detached HEAD."""
