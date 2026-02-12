@@ -160,7 +160,7 @@ const Graph = (() => {
         g.appendChild(headerClip);
 
         // Repo name (in header)
-        const name = repo.is_root ? `${repo.name} (root)` : repo.name;
+        const name = repo.name;
         const nameText = createText(left + PADDING, top + HEADER_HEIGHT / 2 + 1, name, 'node-header-text');
         nameText.setAttribute('dominant-baseline', 'central');
         g.appendChild(nameText);

@@ -230,7 +230,7 @@ body {
     border-top: 1px solid var(--border);
     padding: 8px 16px;
     min-height: 36px;
-    max-height: 120px;
+    max-height: 200px;
     overflow-y: auto;
     flex-shrink: 0;
 }
@@ -250,6 +250,41 @@ body {
 #details-content .detail-row {
     display: inline-block;
     margin-right: 16px;
+}
+
+#details-content .detail-commit-message {
+    font-style: italic;
+    color: var(--text-secondary);
+    opacity: 0.8;
+    margin: 4px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#details-content .detail-changes {
+    margin-top: 6px;
+    border-top: 1px solid var(--border);
+    padding-top: 4px;
+}
+
+#details-content .detail-changes-header {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 12px;
+    margin-bottom: 2px;
+}
+
+#details-content .detail-changes-list {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+#details-content .detail-change-row {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Status bar */
