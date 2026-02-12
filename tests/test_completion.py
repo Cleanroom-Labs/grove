@@ -65,7 +65,7 @@ class TestExtractStructure:
     def test_worktree_add_flags(self):
         add_flags = self.structure["commands"]["worktree"]["commands"]["add"]["flags"]
         assert "--checkout" in add_flags
-        assert "--no-copy-config" in add_flags
+        assert "--no-local-remotes" in add_flags
 
     def test_completion_subcommands(self):
         comp = self.structure["commands"]["completion"]

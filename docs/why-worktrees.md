@@ -83,7 +83,7 @@ For a simple project with one level of submodules, these are annoyances. For a d
 Grove creates the worktree and recursively initializes all submodules using the main worktree's existing checkout as a reference. No network access required. Submodule URLs are temporarily rewritten to point to the main worktree's local clones, then restored to their original values after initialization.
 
 ```bash
-grove worktree add --local-remotes feature-x ../my-project-feature-x
+grove worktree add feature-x ../my-project-feature-x
 ```
 
 What this does:
@@ -91,11 +91,11 @@ What this does:
 - Creates the worktree with `git worktree add`
 - Recursively initializes submodules at every nesting level
 - Uses local references (no network round-trips)
-- Copies local git config (user.name, user.email, signing settings) from the main worktree's submodules
+- Keeps submodule remotes pointing to the main worktree's local copies (local remotes)
 - Optionally copies the Python venv (`--copy-venv`) with path fixups
 - Runs `direnv allow` if an `.envrc` is present
 
-The `--local-remotes` flag is key: it keeps submodule remotes in the new worktree pointing to the main worktree's local copies. This means `git push` inside a worktree submodule stays on-machine. Nothing reaches the upstream remote until you explicitly push from the main checkout. This enforces the merge-hub pattern by construction.
+Local remotes are the key default: submodule remotes in the new worktree point to the main worktree's local copies. This means `git push` inside a worktree submodule stays on-machine. Nothing reaches the upstream remote until you explicitly push from the main checkout. This enforces the merge-hub pattern by construction. Pass `--no-local-remotes` if you need worktree submodules to push directly to upstream.
 
 ### Merging: `grove worktree merge`
 
@@ -143,7 +143,7 @@ This matters because:
 - **The main checkout is always deployable.** After each merge + push cycle, main represents a tested, integrated state.
 - **Worktrees inherit a stable base.** When you create a new worktree, it branches from the latest integrated state, not from a half-merged in-progress state.
 
-The `--local-remotes` flag reinforces this: pushes from worktree submodules go to the main worktree's local clones, not to the upstream remote. The only path to upstream is through the main checkout. This prevents accidental pushes from feature worktrees and ensures that all upstream changes go through the integration point.
+Local remotes (the default) reinforce this: pushes from worktree submodules go to the main worktree's local clones, not to the upstream remote. The only path to upstream is through the main checkout. This prevents accidental pushes from feature worktrees and ensures that all upstream changes go through the integration point.
 
 ## When Worktrees Shine
 

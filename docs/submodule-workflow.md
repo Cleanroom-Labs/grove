@@ -87,27 +87,27 @@ A common scenario: you're working on a documentation update and need to check so
 
 Git worktrees solve this by letting you check out multiple branches simultaneously in separate directories. Each worktree shares the same `.git` object store, so it's lightweight. But there's a catch: `git worktree add` doesn't initialize submodules. You'd need to manually run `git submodule update --init --recursive` in the new worktree, which can fail or require unnecessary network round-trips.
 
-The `grove worktree add` command handles this. It creates the worktree, then recursively initializes submodules using the main worktree's existing checkout as a reference, avoiding redundant fetches. Original submodule URLs are restored afterward.
+The `grove worktree add` command handles this. It creates the worktree, then recursively initializes submodules using the main worktree's existing checkout as a reference, avoiding redundant fetches. Submodule remotes are kept pointing to the main worktree's local copies by default.
 
 Creating a new worktree with a new branch:
 
 ```bash
-grove worktree add --local-remotes my-feature ../my-project-my-feature
+grove worktree add my-feature ../my-project-my-feature
 ```
 
 Creating a worktree on an existing branch (without `-b`):
 
 ```bash
-grove worktree add --local-remotes --checkout existing-branch ../my-project-wt2
+grove worktree add --checkout existing-branch ../my-project-wt2
 ```
 
-### Why `--local-remotes` Is the Default for Feature Worktrees
+### Local Remotes (Default Behavior)
 
-The `--local-remotes` flag keeps submodule remotes in the new worktree pointing to the main worktree's local copies rather than the upstream remote (e.g., GitHub). This means any `git push` inside a worktree submodule stays on-machine — changes propagate between worktrees through the shared local filesystem, not through the network.
+By default, submodule remotes in the new worktree point to the main worktree's local copies rather than the upstream remote (e.g., GitHub). This means any `git push` inside a worktree submodule stays on-machine — changes propagate between worktrees through the shared local filesystem, not through the network.
 
-This matches the intended workflow: develop in a feature worktree, merge back into main locally with `grove worktree merge`, and only then push everything upstream with `grove push` from the main worktree. Without `--local-remotes`, a `git push` inside a worktree submodule would go directly to GitHub, bypassing the merge-then-push workflow.
+This matches the intended workflow: develop in a feature worktree, merge back into main locally with `grove worktree merge`, and only then push everything upstream with `grove push` from the main worktree. Without local remotes, a `git push` inside a worktree submodule would go directly to GitHub, bypassing the merge-then-push workflow.
 
-If you need worktree submodules to push directly to upstream (e.g., for CI integration from a worktree), omit the flag.
+If you need worktree submodules to push directly to upstream (e.g., for CI integration from a worktree), pass `--no-local-remotes`.
 
 Removing a worktree (also runs `git worktree prune`):
 
