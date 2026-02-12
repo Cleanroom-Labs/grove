@@ -298,6 +298,14 @@ class TestRepoInfoHelpers:
         for f in files:
             assert "technical-docs" not in f
 
+    def test_get_remote_url_none(self, tmp_git_repo: Path):
+        info = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
+        assert info.get_remote_url() is None
+
+    def test_get_commit_tag_none(self, tmp_git_repo: Path):
+        info = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
+        assert info.get_commit_tag() is None
+
 
 # ---------------------------------------------------------------------------
 # find_repo_root

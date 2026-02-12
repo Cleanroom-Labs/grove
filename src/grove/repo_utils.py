@@ -242,6 +242,11 @@ class RepoInfo:
         result = self.git("remote", "get-url", "origin", check=False)
         return result.returncode == 0
 
+    def get_remote_url(self) -> str | None:
+        """Get the origin remote URL (may be a URL or local path)."""
+        result = self.git("remote", "get-url", "origin", check=False)
+        return result.stdout.strip() if result.returncode == 0 else None
+
     def get_ahead_behind_count(self, branch: str) -> tuple[str, str]:
         """
         Get count of commits ahead/behind remote.
@@ -416,6 +421,11 @@ class RepoInfo:
         if result.returncode != 0:
             return "unknown"
         return result.stdout.strip()
+
+    def get_commit_tag(self) -> str | None:
+        """Get the tag pointing at HEAD, or None if untagged."""
+        result = self.git("describe", "--tags", "--exact-match", "HEAD", check=False)
+        return result.stdout.strip() if result.returncode == 0 else None
 
     def has_local_branch(self, branch: str) -> bool:
         """Check if a local branch exists."""

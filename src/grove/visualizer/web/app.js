@@ -133,10 +133,11 @@ const App = (() => {
         const details = [
             `Path: ${repo.rel_path}`,
             `Branch: ${repo.branch || 'detached HEAD'}`,
-            `Commit: ${repo.commit}`,
+            `Commit: ${repo.commit}${repo.commit_tag ? ` (${repo.commit_tag})` : ''}`,
             `Ahead: ${repo.ahead}, Behind: ${repo.behind}`,
             `Status: ${repo.status}`,
         ];
+        if (repo.remote_url) details.push(`Remote: ${repo.remote_url}`);
         if (repo.sync_group) details.push(`Sync group: ${repo.sync_group}`);
 
         for (const detail of details) {
