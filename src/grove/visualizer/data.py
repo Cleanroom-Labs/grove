@@ -44,6 +44,8 @@ def repo_to_dict(repo: RepoInfo) -> dict:
         "parent_path": str(repo.parent.path) if repo.parent else None,
         "sync_group": repo.sync_group,
         "sync_group_color": repo.sync_group_color,
+        "remote_url": repo.get_remote_url(),
+        "commit_tag": repo.get_commit_tag(),
         "commit_message": repo.get_commit_message(),
         "changed_files": repo.get_changed_files() if repo.status and repo.status.name == "UNCOMMITTED" else [],
         "local_branches": repo.get_local_branches(),
