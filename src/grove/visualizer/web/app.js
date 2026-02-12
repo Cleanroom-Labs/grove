@@ -1,13 +1,10 @@
 /**
- * Application bootstrap, state management, and auto-refresh.
+ * Application bootstrap and state management.
  *
- * Initializes all modules, loads initial data, and manages
- * the auto-refresh polling loop.
+ * Initializes all modules and loads initial data.
  */
 
 const App = (() => {
-    let autoRefreshInterval = null;
-    let lastDataHash = null;
 
     function init() {
         // Initialize modules
@@ -29,16 +26,6 @@ const App = (() => {
         document.getElementById('btn-zoom-fit').addEventListener('click', () => Graph.zoomToFit());
         document.getElementById('btn-zoom-in').addEventListener('click', () => Graph.zoomIn());
         document.getElementById('btn-zoom-out').addEventListener('click', () => Graph.zoomOut());
-
-        // Auto-refresh toggle
-        const checkbox = document.getElementById('auto-refresh-checkbox');
-        checkbox.addEventListener('change', () => {
-            if (checkbox.checked) {
-                startAutoRefresh();
-            } else {
-                stopAutoRefresh();
-            }
-        });
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -75,7 +62,6 @@ const App = (() => {
                 requestAnimationFrame(() => Graph.zoomToFit());
 
                 setStatus(`Loaded ${data.repos.length} repositories`);
-                lastDataHash = hashData(data);
             } else {
                 setStatus('No repositories found');
             }
@@ -101,7 +87,6 @@ const App = (() => {
             if (data.repos) {
                 Graph.setRepos(data.repos);
                 setStatus(`Refreshed ${data.repos.length} repositories`);
-                lastDataHash = hashData(data);
             }
         } catch (err) {
             setStatus(`Refresh error: ${err.message}`);
@@ -181,38 +166,6 @@ const App = (() => {
 
     function setStatus(message) {
         document.getElementById('status-text').textContent = message;
-    }
-
-    function startAutoRefresh() {
-        stopAutoRefresh();
-        autoRefreshInterval = setInterval(async () => {
-            try {
-                const response = await fetch('/api/repos');
-                const data = await response.json();
-                const hash = hashData(data);
-
-                if (hash !== lastDataHash && data.repos) {
-                    Graph.setRepos(data.repos);
-                    lastDataHash = hash;
-                    setStatus(`Auto-refreshed (${data.repos.length} repos)`);
-                }
-            } catch (_) {
-                // Silent fail for auto-refresh
-            }
-        }, 10000);
-    }
-
-    function stopAutoRefresh() {
-        if (autoRefreshInterval) {
-            clearInterval(autoRefreshInterval);
-            autoRefreshInterval = null;
-        }
-    }
-
-    function hashData(data) {
-        // Simple hash based on repo statuses and commits
-        if (!data.repos) return '';
-        return data.repos.map(r => `${r.path}:${r.status}:${r.commit}:${r.branch}`).join('|');
     }
 
     // Start the app when DOM is ready

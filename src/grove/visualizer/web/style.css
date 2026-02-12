@@ -97,14 +97,6 @@ body {
     border-color: rgba(16,185,129,0.3);
 }
 
-.auto-refresh-toggle {
-    font-size: 12px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
 /* Worktree bar */
 #worktree-bar {
     display: flex;
