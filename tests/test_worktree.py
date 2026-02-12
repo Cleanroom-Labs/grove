@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 from grove.repo_utils import parse_gitmodules
 from grove.worktree import (
-    _copy_local_config,
     _copy_venv,
     _detect_venv,
     _fixup_venv_paths,
@@ -129,11 +128,11 @@ class TestAddWorktree:
         assert result == 0
         assert wt_path.exists()
 
-    def test_local_remotes_keeps_local_urls(self, tmp_submodule_tree: Path):
-        """--local-remotes should keep submodule origins pointing to the main worktree."""
+    def test_local_remotes_is_default(self, tmp_submodule_tree: Path):
+        """Default behavior keeps submodule origins pointing to the main worktree."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
         args = argparse.Namespace(
-            branch="local-branch", path=str(wt_path), checkout=False, local_remotes=True,
+            branch="local-branch", path=str(wt_path), checkout=False,
         )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
@@ -152,10 +151,12 @@ class TestAddWorktree:
         )
         assert out.stdout.strip() == str(tmp_submodule_tree / "technical-docs" / "common")
 
-    def test_default_restores_upstream_urls(self, tmp_submodule_tree: Path):
-        """Without --local-remotes, submodule origins should be restored to upstream URLs."""
+    def test_no_local_remotes_restores_upstream_urls(self, tmp_submodule_tree: Path):
+        """--no-local-remotes should restore submodule origins to upstream URLs."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
-        args = argparse.Namespace(branch="upstream-branch", path=str(wt_path), checkout=False)
+        args = argparse.Namespace(
+            branch="upstream-branch", path=str(wt_path), checkout=False, no_local_remotes=True,
+        )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
             result = add_worktree(args)
@@ -233,86 +234,6 @@ class TestRemoveWorktree:
 
         assert result == 0
         assert not wt_path.exists()
-
-
-# ---------------------------------------------------------------------------
-# _copy_local_config
-# ---------------------------------------------------------------------------
-
-class TestCopyLocalConfig:
-    def test_copies_config_between_repos(self, tmp_git_repo: Path, tmp_path: Path):
-        """_copy_local_config should copy non-structural keys between repos."""
-        target = tmp_path / "target"
-        target.mkdir()
-        _git(target, "init")
-
-        _git(tmp_git_repo, "config", "--local", "user.signingkey", "ABCD1234")
-        _copy_local_config(tmp_git_repo, target)
-
-        out = _git(target, "config", "--local", "user.signingkey")
-        assert out.stdout.strip() == "ABCD1234"
-
-    def test_copies_submodule_config(self, tmp_submodule_tree: Path):
-        """Custom config in a submodule should be copied to the worktree's submodule."""
-        sub = tmp_submodule_tree / "technical-docs"
-        _git(sub, "config", "--local", "user.signingkey", "SUB_KEY_99")
-
-        wt_path = tmp_submodule_tree.parent / "test-wt"
-        args = argparse.Namespace(
-            branch="subcfg-branch", path=str(wt_path), checkout=False, no_copy_config=False,
-        )
-
-        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
-            result = add_worktree(args)
-
-        assert result == 0
-        wt_sub = wt_path / "technical-docs"
-        out = _git(wt_sub, "config", "--local", "user.signingkey")
-        assert out.stdout.strip() == "SUB_KEY_99"
-
-    def test_no_copy_config_flag_skips(self, tmp_submodule_tree: Path):
-        """--no-copy-config should prevent submodule config from being copied."""
-        sub = tmp_submodule_tree / "technical-docs"
-        _git(sub, "config", "--local", "user.signingkey", "SHOULD_NOT_COPY")
-
-        wt_path = tmp_submodule_tree.parent / "test-wt"
-        args = argparse.Namespace(
-            branch="nocopy-branch", path=str(wt_path), checkout=False, no_copy_config=True,
-        )
-
-        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
-            result = add_worktree(args)
-
-        assert result == 0
-        wt_sub = wt_path / "technical-docs"
-        # Key should not exist in the worktree's submodule
-        out = subprocess.run(
-            ["git", "-C", str(wt_sub), "config", "--local", "--get", "user.signingkey"],
-            capture_output=True, text=True,
-        )
-        assert out.returncode != 0
-
-    def test_excludes_structural_keys(self, tmp_git_repo: Path, tmp_path: Path):
-        """Structural keys (remote.*, core.*, etc.) should not be copied."""
-        target = tmp_path / "target"
-        target.mkdir()
-        _git(target, "init")
-
-        _git(tmp_git_repo, "config", "--local", "remote.origin.pushurl", "git@example.com:test.git")
-        _git(tmp_git_repo, "config", "--local", "user.signingkey", "GOOD_KEY")
-
-        _copy_local_config(tmp_git_repo, target)
-
-        # Structural key should NOT be copied
-        out = subprocess.run(
-            ["git", "-C", str(target), "config", "--local", "--get", "remote.origin.pushurl"],
-            capture_output=True, text=True,
-        )
-        assert out.returncode != 0
-
-        # Non-structural key should be copied
-        out = _git(target, "config", "--local", "user.signingkey")
-        assert out.stdout.strip() == "GOOD_KEY"
 
 
 # ---------------------------------------------------------------------------

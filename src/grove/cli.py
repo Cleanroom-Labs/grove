@@ -231,8 +231,9 @@ examples:
         "add",
         help="Create a new worktree with submodules initialized",
         description="Create a git worktree on a new or existing branch, then "
-        "recursively initialize all submodules with URLs pointing to the main "
-        "worktree's copies.",
+        "recursively initialize all submodules using the main worktree's "
+        "copies as references.  Submodule remotes are kept pointing to the "
+        "main worktree by default (use --no-local-remotes to restore upstream URLs).",
     )
     worktree_add_parser.add_argument(
         "branch",
@@ -248,19 +249,14 @@ examples:
         help="Checkout an existing branch instead of creating a new one",
     )
     worktree_add_parser.add_argument(
-        "--no-copy-config",
-        action="store_true",
-        help="Skip copying local git config from the main worktree",
-    )
-    worktree_add_parser.add_argument(
         "--copy-venv",
         action="store_true",
         help="Copy Python venv from the main worktree (auto-detects location, fixes paths)",
     )
     worktree_add_parser.add_argument(
-        "--local-remotes",
+        "--no-local-remotes",
         action="store_true",
-        help="Keep submodule remotes pointing to the main worktree (pushes stay local)",
+        help="Point submodule remotes to upstream instead of the main worktree",
     )
 
     worktree_remove_parser = worktree_subparsers.add_parser(

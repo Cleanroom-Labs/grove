@@ -119,7 +119,7 @@ Git submodules are independent repositories. Each one resolves its user identity
 
 This means if your global `~/.gitconfig` has a personal identity and you set a project-specific identity with `git config --local` in the parent repo, commits made inside submodules will still use the global (personal) identity — not the one you configured in the parent.
 
-Grove's `worktree add` handles this for worktrees by copying local git config from the main worktree's submodules into the new worktree's submodules. But for the main checkout itself, you need a different solution.
+The recommended solution is Git's conditional includes, which apply config based on repository location and work across submodules, worktrees, and the main checkout uniformly.
 
 ### Git Conditional Includes
 
@@ -156,7 +156,7 @@ Pulling it all together, the recommended development cycle:
 
 1. **Create a worktree** for the task:
    ```bash
-   grove worktree add --local-remotes my-feature ../my-project-my-feature
+   grove worktree add my-feature ../my-project-my-feature
    ```
 
 2. **Develop** in the worktree. Make changes, write tests, iterate.

@@ -13,30 +13,6 @@ from pathlib import Path
 
 from grove.repo_utils import Colors, find_repo_root, parse_gitmodules, run_git
 
-# Prefixes of git config keys that are structural and should not be copied.
-_CONFIG_EXCLUDE_PREFIXES = (
-    "core.",
-    "remote.",
-    "submodule.",
-    "extensions.",
-    "gc.",
-)
-
-
-def _copy_local_config(source: Path, target: Path) -> None:
-    """Copy local git config entries from *source* to *target*, skipping structural keys."""
-    result = run_git(source, "config", "--local", "--list", check=False)
-    if result.returncode != 0:
-        return
-
-    for line in result.stdout.splitlines():
-        if "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        if any(key.startswith(prefix) for prefix in _CONFIG_EXCLUDE_PREFIXES):
-            continue
-        run_git(target, "config", key, value, check=False)
-
 
 def _detect_venv(root: Path) -> Path | None:
     """Find a Python venv inside *root*, checking common locations.
@@ -147,8 +123,7 @@ def _init_submodules(
     worktree_path: Path,
     ref_worktree: Path,
     *,
-    copy_config: bool = True,
-    local_remotes: bool = False,
+    local_remotes: bool = True,
 ) -> bool:
     """Recursively initialize submodules using the main worktree as reference.
 
@@ -191,10 +166,8 @@ def _init_submodules(
     for _name, subpath, _url in entries:
         sub_worktree = worktree_path / subpath
         sub_ref = ref_worktree / subpath
-        if not _init_submodules(sub_worktree, sub_ref, copy_config=copy_config, local_remotes=local_remotes):
+        if not _init_submodules(sub_worktree, sub_ref, local_remotes=local_remotes):
             return False
-        if copy_config and sub_ref.exists() and sub_worktree.exists():
-            _copy_local_config(sub_ref, sub_worktree)
 
     if not local_remotes:
         # Restore original remote URLs at all levels
@@ -233,12 +206,6 @@ def add_worktree(args) -> int:
         print(f"{Colors.red('Failed to create worktree')}")
         return 1
 
-    copy_config = not getattr(args, "no_copy_config", False)
-
-    if copy_config:
-        print(f"{Colors.blue('Copying local git config')} to worktree...")
-        _copy_local_config(repo_root, worktree_path)
-
     # Resolve copy-venv: CLI flag takes priority, then .grove.toml config
     from grove.config import load_config
     config = load_config(repo_root)
@@ -251,19 +218,19 @@ def add_worktree(args) -> int:
         else:
             print(f"  {Colors.yellow('Warning')}: no Python venv found in {repo_root}")
 
-    local_remotes = getattr(args, "local_remotes", False)
+    local_remotes = not getattr(args, "no_local_remotes", False)
 
     print(f"{Colors.blue('Initializing submodules')} (using main worktree as reference)...")
 
-    if not _init_submodules(worktree_path, repo_root, copy_config=copy_config, local_remotes=local_remotes):
+    if not _init_submodules(worktree_path, repo_root, local_remotes=local_remotes):
         print(f"\n{Colors.yellow('Warning')}: worktree created but submodule initialization failed.")
         print(f"  Path:   {worktree_path}")
         print(f"  Branch: {branch}")
         print("  You may need to initialize submodules manually.")
         return 1
 
-    if local_remotes:
-        print(f"{Colors.blue('Local remotes')}: submodule pushes will go to the main worktree")
+    if not local_remotes:
+        print(f"{Colors.blue('Upstream remotes')}: submodule pushes will go directly to upstream")
 
     _run_direnv_allow(worktree_path)
 

@@ -20,7 +20,7 @@ For well-defined workflows, delegate to the specific skill listed below rather t
 | `grove push` | Push committed changes bottom-up through submodules | `--dry-run`, `--sync-group`, `--cascade`, paths |
 | `grove sync` | Synchronize sync-group instances to same commit | `--remote`, `--dry-run`, `--no-push`, `--continue/--abort` |
 | `grove cascade` | Propagate leaf change upward with tiered testing | `--quick`, `--system`, `--push`, `--sync-group`, `--dry-run` |
-| `grove worktree add` | Create feature worktree with submodule init | `--local-remotes`, `--copy-venv`, `--checkout` |
+| `grove worktree add` | Create feature worktree with submodule init | `--no-local-remotes`, `--copy-venv`, `--checkout` |
 | `grove worktree remove` | Remove a worktree and prune stale entries | `--force` |
 | `grove worktree merge` | Merge feature branch bottom-up across submodules | `--dry-run`, `--no-test`, `--continue/--abort` |
 | `grove claude install` | Install/update Claude Code skills | `--user`, `--check` |
@@ -186,7 +186,7 @@ When the same dependency appears in multiple places (e.g., a shared theme in eve
 
 ### Worktrees
 
-All development happens in worktrees (created with `grove worktree add`), not the main checkout. The main checkout is the merge hub — feature branches merge back into it, and `grove push` distributes from there. `--local-remotes` keeps worktree pushes on-machine until you merge back.
+All development happens in worktrees (created with `grove worktree add`), not the main checkout. The main checkout is the merge hub — feature branches merge back into it, and `grove push` distributes from there. Local remotes (the default) keep worktree pushes on-machine until you merge back.
 
 ### Cascade
 

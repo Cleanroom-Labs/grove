@@ -42,10 +42,10 @@ Check `.grove.toml` for a `[worktree]` section:
 
 Run the appropriate command (add `--copy-venv` if determined in Step 2.5):
 
-- **New branch:** `grove worktree add --local-remotes <branch-name> <path>`
-- **Existing branch:** `grove worktree add --local-remotes --checkout <branch-name> <path>`
+- **New branch:** `grove worktree add <branch-name> <path>`
+- **Existing branch:** `grove worktree add --checkout <branch-name> <path>`
 
-This creates the worktree and recursively initializes all submodules using the main worktree as a reference. It also copies local git config (user.name, user.email, signing settings). The `--local-remotes` flag keeps submodule remotes pointing to the main worktree so pushes stay on-machine until you merge back and push from the main worktree.
+This creates the worktree and recursively initializes all submodules using the main worktree as a reference. By default, submodule remotes point to the main worktree so pushes stay on-machine until you merge back and push from the main worktree.
 
 If the command fails:
 - Report the error output.
@@ -77,4 +77,4 @@ copy-venv = true    # Auto-copy Python venv on worktree creation
 
 Other flags can be adjusted in the commands above after installing with `grove claude install`. For example:
 
-- Remove `--local-remotes` if you want worktree submodules to push directly to upstream remotes.
+- Add `--no-local-remotes` if you want worktree submodules to push directly to upstream remotes.
