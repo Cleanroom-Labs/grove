@@ -113,6 +113,43 @@ A common evolution:
 
 You don't need to adopt everything at once. Each capability layer adds value independently. A project with just `grove push` and `grove check` is already better off than one managing submodules manually. Add sync groups, cascade, and worktrees as the need arises.
 
+## Author Identity Across Submodules
+
+Git submodules are independent repositories. Each one resolves its user identity by walking its own config chain: submodule local config → global `~/.gitconfig` → system config. A parent repo's local `user.name` and `user.email` settings do not propagate into its submodules.
+
+This means if your global `~/.gitconfig` has a personal identity and you set a project-specific identity with `git config --local` in the parent repo, commits made inside submodules will still use the global (personal) identity — not the one you configured in the parent.
+
+Grove's `worktree add` handles this for worktrees by copying local git config from the main worktree's submodules into the new worktree's submodules. But for the main checkout itself, you need a different solution.
+
+### Git Conditional Includes
+
+Git's `includeIf` directive lets you apply config based on the repository's location on disk. Set it in your global `~/.gitconfig`:
+
+```gitconfig
+# ~/.gitconfig
+
+[user]
+    name = Your Personal Name
+    email = personal@example.com
+
+[includeIf "gitdir:~/Projects/my-org/"]
+    path = ~/.gitconfig-my-org
+```
+
+Then create the included file with the project identity:
+
+```gitconfig
+# ~/.gitconfig-my-org
+
+[user]
+    name = Org Dev
+    email = dev@my-org.com
+```
+
+Every repository under `~/Projects/my-org/` — including submodules at any nesting depth — will use the org identity. The `gitdir:` condition matches based on the resolved `.git` directory, so it works for submodules (which have their own `.git` directories or gitdir references) and worktrees alike.
+
+This is the cleanest solution for projects with submodules: one config change, applied automatically, no per-repo setup needed.
+
 ## Recommended Workflow
 
 Pulling it all together, the recommended development cycle:
