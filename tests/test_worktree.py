@@ -90,7 +90,7 @@ class TestAddWorktree:
     def test_creates_worktree_directory(self, tmp_submodule_tree: Path):
         """Worktree directory should exist after add."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
-        args = argparse.Namespace(branch="test-branch", path=str(wt_path), checkout=False)
+        args = argparse.Namespace(branch="test-branch", path=str(wt_path), create_branch=True)
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
             result = add_worktree(args)
@@ -102,7 +102,7 @@ class TestAddWorktree:
     def test_initializes_nested_submodules(self, tmp_submodule_tree: Path):
         """Nested submodules should be checked out in the new worktree."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
-        args = argparse.Namespace(branch="test-branch", path=str(wt_path), checkout=False)
+        args = argparse.Namespace(branch="test-branch", path=str(wt_path), create_branch=True)
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
             result = add_worktree(args)
@@ -120,7 +120,7 @@ class TestAddWorktree:
         _git(tmp_submodule_tree, "branch", "existing-branch")
 
         wt_path = tmp_submodule_tree.parent / "test-wt"
-        args = argparse.Namespace(branch="existing-branch", path=str(wt_path), checkout=True)
+        args = argparse.Namespace(branch="existing-branch", path=str(wt_path), create_branch=False)
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
             result = add_worktree(args)
@@ -132,7 +132,7 @@ class TestAddWorktree:
         """Default behavior keeps submodule origins pointing to the main worktree."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
         args = argparse.Namespace(
-            branch="local-branch", path=str(wt_path), checkout=False,
+            branch="local-branch", path=str(wt_path), create_branch=True,
         )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
@@ -155,7 +155,7 @@ class TestAddWorktree:
         """--no-local-remotes should restore submodule origins to upstream URLs."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
         args = argparse.Namespace(
-            branch="upstream-branch", path=str(wt_path), checkout=False, no_local_remotes=True,
+            branch="upstream-branch", path=str(wt_path), create_branch=True, no_local_remotes=True,
         )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
@@ -172,7 +172,7 @@ class TestAddWorktree:
         wt_path = tmp_submodule_tree.parent / "test-wt"
         wt_path.mkdir()  # pre-create
 
-        args = argparse.Namespace(branch="test-branch", path=str(wt_path), checkout=False)
+        args = argparse.Namespace(branch="test-branch", path=str(wt_path), create_branch=True)
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
             result = add_worktree(args)
@@ -217,7 +217,7 @@ class TestRemoveWorktree:
         """Worktree with initialized submodules should be removed successfully."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
         args_add = argparse.Namespace(
-            branch="rm-sub-branch", path=str(wt_path), checkout=False,
+            branch="rm-sub-branch", path=str(wt_path), create_branch=True,
         )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
@@ -526,7 +526,7 @@ class TestConfigCopyVenv:
         )
 
         wt_path = tmp_submodule_tree.parent / "cfg-venv-wt"
-        args = argparse.Namespace(branch="cfg-venv-branch", path=str(wt_path), checkout=False)
+        args = argparse.Namespace(branch="cfg-venv-branch", path=str(wt_path), create_branch=True)
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
             result = add_worktree(args)
@@ -541,7 +541,7 @@ class TestConfigCopyVenv:
 
         wt_path = tmp_submodule_tree.parent / "cli-venv-wt"
         args = argparse.Namespace(
-            branch="cli-venv-branch", path=str(wt_path), checkout=False,
+            branch="cli-venv-branch", path=str(wt_path), create_branch=True,
             copy_venv=True,
         )
 

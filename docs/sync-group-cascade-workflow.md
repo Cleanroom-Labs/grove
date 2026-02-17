@@ -114,10 +114,10 @@ grove ship   # health check + push all
 During prototyping, you may want to cascade even when instances are out of sync:
 
 ```bash
-grove cascade libs/common --force
+grove cascade libs/common --skip-checks
 ```
 
-This proceeds with a warning. Use `--force` only during development — for production workflows, sync first.
+This proceeds with a warning. Use `--skip-checks` only during development — for production workflows, sync first.
 
 ### Cascade without sync
 
@@ -125,7 +125,7 @@ If you're only working in one instance and don't need horizontal consistency:
 
 ```bash
 # Just cascade from one instance (linear chain)
-grove cascade frontend/libs/common --force
+grove cascade frontend/libs/common --skip-checks
 ```
 
 This cascades only through `frontend → root`, skipping the other instances. Not recommended for final integration, but useful for quick iteration.
@@ -158,4 +158,4 @@ If intermediate sync-group instances have diverged (different developers committ
 
 - **Clean divergence**: auto-merged before cascade starts
 - **Merge conflict**: cascade pauses; resolve, then `grove cascade --continue`
-- **Force**: `--force` skips divergence resolution (for prototyping)
+- **Force**: `--skip-checks` skips divergence resolution (for prototyping)

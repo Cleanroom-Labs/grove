@@ -17,12 +17,12 @@ For well-defined workflows, delegate to the specific skill listed below rather t
 |---------|---------|-----------|
 | `grove init` | Generate template `.grove.toml` | `--force` |
 | `grove check` | Verify submodule health and sync-group consistency | `-v` for details |
-| `grove push` | Push committed changes bottom-up through submodules | `--dry-run`, `--sync-group`, `--cascade`, paths |
-| `grove sync` | Synchronize sync-group instances to same commit | `--remote`, `--dry-run`, `--no-push`, `--continue/--abort` |
-| `grove cascade` | Propagate leaf change upward with tiered testing | `--quick`, `--system`, `--push`, `--sync-group`, `--dry-run` |
-| `grove worktree add` | Create feature worktree with submodule init | `--no-local-remotes`, `--copy-venv`, `--checkout` |
+| `grove push` | Push committed changes bottom-up through submodules | `-n`/`--dry-run`, `-f`/`--skip-checks`, `--sync-group`, `--cascade`, paths |
+| `grove sync` | Synchronize sync-group instances to same commit | `--commit SHA`, `--remote`, `-n`/`--dry-run`, `-f`/`--skip-checks`, `--no-push`, `--continue/--abort` |
+| `grove cascade` | Propagate leaf change upward with tiered testing | `--quick`, `--system`, `--push`, `--sync-group`, `-n`/`--dry-run`, `-f`/`--skip-checks` |
+| `grove worktree add` | Create feature worktree with submodule init | `-b` (create new branch), `--no-local-remotes`, `--copy-venv` |
 | `grove worktree remove` | Remove a worktree and prune stale entries | `--force` |
-| `grove worktree merge` | Merge feature branch bottom-up across submodules | `--dry-run`, `--no-test`, `--continue/--abort` |
+| `grove worktree merge` | Merge feature branch bottom-up across submodules | `-n`/`--dry-run`, `--no-test`, `--continue/--abort` |
 | `grove worktree checkout-branches` | Put submodules onto named branches (fix detached HEAD) | `--branch` |
 | `grove claude install` | Install/update Claude Code skills | `--user`, `--check` |
 | `grove visualize` | Open interactive submodule visualizer GUI | |
@@ -179,7 +179,7 @@ Example: `grove wm --status` expands to `grove worktree merge --status`.
 ### Push rejected
 
 **Symptom**: `grove push` fails on one or more repos.
-**Fix**: Check remote connectivity (`git remote -v`), authentication (`ssh -T git@github.com`), or if someone pushed to the remote since your last pull. Use `--force` only for recovery.
+**Fix**: Check remote connectivity (`git remote -v`), authentication (`ssh -T git@github.com`), or if someone pushed to the remote since your last pull. Use `-f`/`--skip-checks` only for recovery.
 
 ### Merge conflicts in worktree merge
 

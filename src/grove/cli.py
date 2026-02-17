@@ -32,11 +32,13 @@ examples:
   grove push --dry-run     Preview what would be pushed
   grove sync               Sync all groups to latest
   grove sync common        Sync just "common" group
-  grove sync common abc123 Sync "common" to specific commit
+  grove sync common --commit abc123  Sync "common" to specific commit
   grove init               Generate template .grove.toml in current directory
   grove init ../other-repo  Generate template .grove.toml at specified path
   grove visualize          Open interactive submodule visualizer
-  grove worktree add my-feature ../website-wt1
+  grove worktree add ../website-wt1 my-feature
+  grove worktree add ../website-wt2 existing-branch
+  grove worktree add -b ../website-wt3 new-feature
   grove worktree remove ../website-wt1
 """,
     )
@@ -61,7 +63,7 @@ examples:
         help="Directory to write .grove.toml to (default: current directory)",
     )
     init_parser.add_argument(
-        "--force",
+        "--force", "-f",
         action="store_true",
         help="Overwrite an existing .grove.toml",
     )
@@ -105,14 +107,20 @@ examples:
         help="Specific repo paths to push (exact match on relative path)",
     )
     push_parser.add_argument(
-        "--dry-run",
+        "--dry-run", "-n",
         action="store_true",
         help="Show what would be pushed without pushing",
     )
     push_parser.add_argument(
-        "--force",
+        "--skip-checks", "-f",
         action="store_true",
+        dest="skip_checks",
         help="Skip validation (for recovery scenarios)",
+    )
+    push_parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Show additional details during push",
     )
     push_parser.add_argument(
         "--sync-group",
@@ -136,7 +144,7 @@ examples:
 examples:
   grove sync                       Sync all groups (local-first)
   grove sync common                Sync just "common" group
-  grove sync common abc1234        Sync "common" to specific commit
+  grove sync common --commit abc1234  Sync "common" to specific commit
   grove sync --remote              Resolve target from remote
   grove sync --dry-run             Preview what would happen
   grove sync --no-push             Commit only, skip pushing
@@ -148,8 +156,8 @@ examples:
         help="Sync group name (syncs all groups if omitted)",
     )
     sync_parser.add_argument(
-        "commit",
-        nargs="?",
+        "--commit",
+        metavar="SHA",
         help="Target commit SHA (defaults to most advanced local instance)",
     )
     sync_parser.add_argument(
@@ -158,7 +166,7 @@ examples:
         help="Resolve target from remote instead of local instances",
     )
     sync_parser.add_argument(
-        "--dry-run",
+        "--dry-run", "-n",
         action="store_true",
         help="Preview changes without making them",
     )
@@ -168,9 +176,15 @@ examples:
         help="Commit only, skip pushing (push is default)",
     )
     sync_parser.add_argument(
-        "--force",
+        "--skip-checks", "-f",
         action="store_true",
+        dest="skip_checks",
         help="Skip remote sync validation",
+    )
+    sync_parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Show additional details during sync",
     )
     sync_parser.add_argument(
         "--continue",
@@ -212,8 +226,8 @@ examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 examples:
-  grove worktree add my-feature ../my-project-wt1
-  grove worktree add --checkout existing-branch ../wt2
+  grove worktree add ../my-project-wt1 my-feature
+  grove worktree add -b ../wt2 new-feature
   grove worktree remove ../my-project-wt1
   grove worktree remove --force ../my-project-wt1
   grove worktree merge my-feature
@@ -236,17 +250,18 @@ examples:
         "main worktree by default (use --no-local-remotes to restore upstream URLs).",
     )
     worktree_add_parser.add_argument(
-        "branch",
-        help="Branch name to create (or checkout with --checkout)",
-    )
-    worktree_add_parser.add_argument(
         "path",
         help="Path where the worktree should be created",
     )
     worktree_add_parser.add_argument(
-        "--checkout",
+        "branch",
+        help="Branch name to checkout (or create with -b)",
+    )
+    worktree_add_parser.add_argument(
+        "-b",
         action="store_true",
-        help="Checkout an existing branch instead of creating a new one",
+        dest="create_branch",
+        help="Create a new branch instead of checking out an existing one",
     )
     worktree_add_parser.add_argument(
         "--copy-venv",
@@ -269,7 +284,7 @@ examples:
         help="Path to the worktree to remove",
     )
     worktree_remove_parser.add_argument(
-        "--force",
+        "--force", "-f",
         action="store_true",
         help="Force removal even if the worktree has uncommitted changes",
     )
@@ -302,9 +317,14 @@ examples:
         help="Show current merge progress",
     )
     worktree_merge_parser.add_argument(
-        "--dry-run",
+        "--dry-run", "-n",
         action="store_true",
         help="Show what would happen without merging",
+    )
+    worktree_merge_parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Show additional details during merge",
     )
     worktree_merge_parser.add_argument(
         "--no-recurse",
@@ -383,9 +403,14 @@ examples:
         help="Show current cascade progress",
     )
     cascade_parser.add_argument(
-        "--dry-run",
+        "--dry-run", "-n",
         action="store_true",
         help="Preview the cascade chain and test plan without making changes",
+    )
+    cascade_parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Show additional details during cascade",
     )
     cascade_system = cascade_parser.add_mutually_exclusive_group()
     cascade_system.add_argument(
@@ -404,8 +429,9 @@ examples:
         help="Run only local-tests and contract-tests everywhere (fastest)",
     )
     cascade_parser.add_argument(
-        "--force",
+        "--skip-checks", "-f",
         action="store_true",
+        dest="skip_checks",
         help="Skip sync-group consistency check (proceed even if instances differ)",
     )
     cascade_parser.add_argument(
@@ -497,12 +523,12 @@ examples:
         help="Check if completions are already installed",
     )
     completion_install_parser.add_argument(
-        "--dry-run",
+        "--dry-run", "-n",
         action="store_true",
         help="Preview changes without modifying any files",
     )
     completion_install_parser.add_argument(
-        "--force",
+        "--force", "-f",
         action="store_true",
         help="Re-write the completion block even if already installed",
     )

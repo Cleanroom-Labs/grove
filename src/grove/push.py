@@ -177,14 +177,14 @@ def run(args) -> int:
         print_status_table(repos)
 
     # Handle validation failures
-    if validation_failed and not args.force:
+    if validation_failed and not args.skip_checks:
         print(Colors.red(
-            "Validation failed. Fix the issues above or use --force to skip validation.",
+            "Validation failed. Fix the issues above or use --skip-checks to skip validation.",
         ))
         return 1
 
-    if validation_failed and args.force:
-        print(Colors.yellow("Warning: Proceeding despite validation failures (--force)"))
+    if validation_failed and args.skip_checks:
+        print(Colors.yellow("Warning: Proceeding despite validation failures (--skip-checks)"))
         print()
 
     # Sync-group consistency check (skip when filters are active —
@@ -193,16 +193,16 @@ def run(args) -> int:
         print(Colors.blue("Checking sync-group consistency..."))
         print()
         sync_ok = check_sync_groups(repo_root, verbose=False)
-        if not sync_ok and not args.force:
+        if not sync_ok and not args.skip_checks:
             print()
             print(Colors.red(
-                "Sync groups are out of sync. Run 'grove sync' first or use --force to skip.",
+                "Sync groups are out of sync. Run 'grove sync' first or use --skip-checks to skip.",
             ))
             return 1
-        if not sync_ok and args.force:
+        if not sync_ok and args.skip_checks:
             print()
             print(Colors.yellow(
-                "Warning: Proceeding despite sync-group inconsistency (--force)",
+                "Warning: Proceeding despite sync-group inconsistency (--skip-checks)",
             ))
             print()
 

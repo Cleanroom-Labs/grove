@@ -580,7 +580,7 @@ def _check_sync_group_consistency(
     # Inconsistent
     if force:
         print(Colors.yellow(
-            f"Warning: Sync group '{group_name}' has inconsistent instances (--force)."
+            f"Warning: Sync group '{group_name}' has inconsistent instances (--skip-checks)."
         ))
         for rel, sha in sorted(commits.items()):
             print(f"  {rel}: {sha[:8] if sha else '(none)'}")
@@ -594,7 +594,7 @@ def _check_sync_group_consistency(
         print(f"  {rel}: {sha[:8] if sha else '(none)'}")
     print()
     print(f"Run {Colors.blue(f'grove sync {group_name}')} first, "
-          f"or use {Colors.blue('--force')} to skip this check.")
+          f"or use {Colors.blue('--skip-checks')} to skip this check.")
     return False
 
 
@@ -1509,6 +1509,6 @@ def run(args) -> int:
         dry_run=getattr(args, "dry_run", False),
         system_mode=system_mode,
         quick=getattr(args, "quick", False),
-        force=getattr(args, "force", False),
+        force=getattr(args, "skip_checks", False),
         push=getattr(args, "push", False),
     )

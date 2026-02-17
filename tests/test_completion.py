@@ -54,17 +54,17 @@ class TestExtractStructure:
         sync_flags = self.structure["commands"]["sync"]["flags"]
         assert "--dry-run" in sync_flags
         assert "--no-push" in sync_flags
-        assert "--force" in sync_flags
+        assert "--skip-checks" in sync_flags
 
     def test_worktree_merge_flags(self):
         merge_flags = self.structure["commands"]["worktree"]["commands"]["merge"]["flags"]
         expected = {"--continue", "--abort", "--status", "--dry-run",
-                    "--no-recurse", "--no-ff", "--no-test"}
+                    "--no-recurse", "--no-ff", "--no-test", "--verbose"}
         assert expected.issubset(set(merge_flags))
 
     def test_worktree_add_flags(self):
         add_flags = self.structure["commands"]["worktree"]["commands"]["add"]["flags"]
-        assert "--checkout" in add_flags
+        assert "-b" in add_flags
         assert "--no-local-remotes" in add_flags
 
     def test_completion_subcommands(self):
@@ -99,7 +99,7 @@ class TestBashCompletion:
             assert cmd in self.script
 
     def test_contains_flags(self):
-        for flag in ["--no-color", "--dry-run", "--force", "--verbose"]:
+        for flag in ["--no-color", "--dry-run", "--force", "--skip-checks", "--verbose"]:
             assert flag in self.script
 
     def test_init_completion_fallback(self):
@@ -129,7 +129,7 @@ class TestZshCompletion:
             assert cmd in self.script
 
     def test_contains_flags(self):
-        for flag in ["--no-color", "--dry-run", "--force", "--verbose"]:
+        for flag in ["--no-color", "--dry-run", "--force", "--skip-checks", "--verbose"]:
             assert flag in self.script
 
 

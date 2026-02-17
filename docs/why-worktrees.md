@@ -27,9 +27,9 @@ AI coding agents need isolated environments. If you're running multiple agents â
 Worktrees give each agent a complete, independent checkout. Three agents, three worktrees, three terminals, zero interference:
 
 ```bash
-grove worktree add --local-remotes feature-a   ../my-project-feature-a
-grove worktree add --local-remotes refactor-b  ../my-project-refactor-b
-grove worktree add --local-remotes fix-theme   ../my-project-fix-theme
+grove worktree add --local-remotes ../my-project-feature-a  feature-a
+grove worktree add --local-remotes ../my-project-refactor-b refactor-b
+grove worktree add --local-remotes ../my-project-fix-theme  fix-theme
 ```
 
 Each agent operates in its own directory with its own branch, its own submodule state, and its own index. When they finish, you review each worktree's changes and merge them sequentially from the main checkout. The main checkout is the integration point â€” it's where parallel work becomes serial, deliberate, and tested.
@@ -43,7 +43,7 @@ Your team is mid-feature when a production bug surfaces. Without worktrees, you'
 With worktrees:
 
 ```bash
-grove worktree add --checkout release-1.2 ../my-project-hotfix
+grove worktree add ../my-project-hotfix release-1.2
 cd ../my-project-hotfix
 # fix the bug, test, commit
 cd ../my-project
@@ -83,7 +83,7 @@ For a simple project with one level of submodules, these are annoyances. For a d
 Grove creates the worktree and recursively initializes all submodules using the main worktree's existing checkout as a reference. No network access required. Submodule URLs are temporarily rewritten to point to the main worktree's local clones, then restored to their original values after initialization.
 
 ```bash
-grove worktree add feature-x ../my-project-feature-x
+grove worktree add ../my-project-feature-x feature-x
 ```
 
 What this does:

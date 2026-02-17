@@ -42,35 +42,54 @@ class TestCliCheckSubcommand:
 
 
 class TestCliPushSubcommand:
-    def test_parse_push_dry_run_force(self):
-        """'push --dry-run --force' should set both flags."""
+    def test_parse_push_dry_run_skip_checks(self):
+        """'push --dry-run --skip-checks' should set both flags."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.push.run", mock_run):
-            result = main(["push", "--dry-run", "--force"])
+            result = main(["push", "--dry-run", "--skip-checks"])
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
         assert args.command == "push"
         assert args.dry_run is True
-        assert args.force is True
+        assert args.skip_checks is True
 
     def test_parse_push_defaults(self):
-        """'push' with no flags should have dry_run=False, force=False."""
+        """'push' with no flags should have dry_run=False, skip_checks=False."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.push.run", mock_run):
             main(["push"])
 
         args = mock_run.call_args[0][0]
         assert args.dry_run is False
-        assert args.force is False
+        assert args.skip_checks is False
+
+    def test_parse_push_short_flags(self):
+        """'push -n -f' should set dry_run and skip_checks via short flags."""
+        mock_run = MagicMock(return_value=0)
+        with patch("grove.push.run", mock_run):
+            main(["push", "-n", "-f"])
+
+        args = mock_run.call_args[0][0]
+        assert args.dry_run is True
+        assert args.skip_checks is True
+
+    def test_parse_push_verbose(self):
+        """'push -v' should set verbose=True."""
+        mock_run = MagicMock(return_value=0)
+        with patch("grove.push.run", mock_run):
+            main(["push", "-v"])
+
+        args = mock_run.call_args[0][0]
+        assert args.verbose is True
 
 
 class TestCliSyncSubcommand:
     def test_parse_sync_full(self):
-        """'sync common abc1234 --dry-run --no-push --force' should parse correctly."""
+        """'sync common --commit abc1234 --dry-run --no-push --skip-checks' should parse correctly."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.sync.run", mock_run):
-            main(["sync", "common", "abc1234", "--dry-run", "--no-push", "--force"])
+            main(["sync", "common", "--commit", "abc1234", "--dry-run", "--no-push", "--skip-checks"])
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
@@ -79,7 +98,7 @@ class TestCliSyncSubcommand:
         assert args.commit == "abc1234"
         assert args.dry_run is True
         assert args.no_push is True
-        assert args.force is True
+        assert args.skip_checks is True
 
     def test_parse_sync_defaults(self):
         """'sync' with no arguments should have sensible defaults."""
@@ -92,7 +111,7 @@ class TestCliSyncSubcommand:
         assert args.commit is None
         assert args.dry_run is False
         assert args.no_push is False
-        assert args.force is False
+        assert args.skip_checks is False
 
     def test_parse_sync_group_only(self):
         """'sync common' should set group='common' and commit=None."""
@@ -105,14 +124,24 @@ class TestCliSyncSubcommand:
         assert args.commit is None
 
     def test_parse_sync_group_and_commit(self):
-        """'sync common abc1234' should set both group and commit."""
+        """'sync common --commit abc1234' should set both group and commit."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.sync.run", mock_run):
-            main(["sync", "common", "abc1234"])
+            main(["sync", "common", "--commit", "abc1234"])
 
         args = mock_run.call_args[0][0]
         assert args.group == "common"
         assert args.commit == "abc1234"
+
+    def test_parse_sync_short_flags(self):
+        """'sync -n -f' should set dry_run and skip_checks via short flags."""
+        mock_run = MagicMock(return_value=0)
+        with patch("grove.sync.run", mock_run):
+            main(["sync", "-n", "-f"])
+
+        args = mock_run.call_args[0][0]
+        assert args.dry_run is True
+        assert args.skip_checks is True
 
 
 class TestCliVisualizeSubcommand:
@@ -171,27 +200,29 @@ class TestCliWorktreeSubcommand:
         assert result == 2
 
     def test_parse_worktree_add(self):
-        """'worktree add my-branch ../path' should parse correctly."""
+        """'worktree add ../path my-branch' should parse correctly (path first, branch second)."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.worktree.run", mock_run):
-            result = main(["worktree", "add", "my-branch", "../path"])
+            result = main(["worktree", "add", "../path", "my-branch"])
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
         assert args.command == "worktree"
         assert args.worktree_command == "add"
-        assert args.branch == "my-branch"
         assert args.path == "../path"
-        assert args.checkout is False
+        assert args.branch == "my-branch"
+        assert args.create_branch is False
 
-    def test_parse_worktree_add_checkout(self):
-        """'worktree add --checkout' should set the checkout flag."""
+    def test_parse_worktree_add_create_branch(self):
+        """'worktree add -b ../path new-branch' should set the create_branch flag."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.worktree.run", mock_run):
-            main(["worktree", "add", "--checkout", "my-branch", "../path"])
+            main(["worktree", "add", "-b", "../path", "new-branch"])
 
         args = mock_run.call_args[0][0]
-        assert args.checkout is True
+        assert args.create_branch is True
+        assert args.path == "../path"
+        assert args.branch == "new-branch"
 
     def test_parse_worktree_remove(self):
         """'worktree remove ../path' should parse correctly."""
@@ -276,6 +307,16 @@ class TestCliWorktreeMergeSubcommand:
         assert args.no_recurse is True
         assert args.no_ff is True
         assert args.no_test is True
+
+    def test_parse_worktree_merge_short_flags(self):
+        """'worktree merge my-feature -n -v' should set dry_run and verbose."""
+        mock_run = MagicMock(return_value=0)
+        with patch("grove.worktree_merge.run", mock_run):
+            main(["worktree", "merge", "my-feature", "-n", "-v"])
+
+        args = mock_run.call_args[0][0]
+        assert args.dry_run is True
+        assert args.verbose is True
 
     def test_worktree_merge_no_args(self):
         """'worktree merge' with no branch should still dispatch."""

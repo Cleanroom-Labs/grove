@@ -156,7 +156,7 @@ Pulling it all together, the recommended development cycle:
 
 1. **Create a worktree** for the task:
    ```bash
-   grove worktree add my-feature ../my-project-my-feature
+   grove worktree add ../my-project-my-feature my-feature
    ```
 
 2. **Develop** in the worktree. Make changes, write tests, iterate.
