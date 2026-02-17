@@ -102,4 +102,5 @@ For a deeper discussion of why submodules over package registries, see [Why Subm
 - [Monorepos and the Fallacy of Scale](https://www.youtube.com/watch?v=_uDvhXK4T3M) — Philomatics video covering the dependency management tradeoffs discussed in this document
 - [Why Submodules?](why-submodules.md) — The case for submodule-based decomposition
 - [Alternatives and Rationale](alternatives.md) — Survey of existing tools and where grove fills gaps
+- [Taming Git Submodules](taming-submodules.md) — Configuring git to reduce submodule friction, and where grove picks up
 - [Submodule Workflow](submodule-workflow.md) — How grove's worktree-based development model works in practice

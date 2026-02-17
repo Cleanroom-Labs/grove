@@ -130,3 +130,5 @@ They're less suited when:
 - **You're consuming many third-party open-source packages.** These are better managed by package registries. Submodules are for code you own or co-develop.
 - **Your dependency graph is wide and shallow.** Submodules shine with deep, narrow trees. A project with 200 leaf dependencies is better served by a lockfile.
 - **You need zero tooling overhead.** Vanilla git submodule commands are clumsy. Grove mitigates this, but there's still a learning curve.
+
+For practical advice on configuring git to reduce submodule friction — and where grove's tooling picks up where git configs leave off — see [Taming Git Submodules](taming-submodules.md).
