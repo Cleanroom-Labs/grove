@@ -322,6 +322,18 @@ examples:
         help="Skip running test commands",
     )
 
+    worktree_checkout_parser = worktree_subparsers.add_parser(
+        "checkout-branches",
+        help="Put submodules onto named branches (fix detached HEAD)",
+        description="Create or checkout a branch in each non-sync-group "
+        "submodule, matching the parent worktree's current branch. "
+        "Use this to fix worktrees where submodules are in detached HEAD.",
+    )
+    worktree_checkout_parser.add_argument(
+        "--branch",
+        help="Branch name to use (default: current branch of root worktree)",
+    )
+
     # --- grove cascade ---
     cascade_parser = subparsers.add_parser(
         "cascade",

@@ -56,6 +56,7 @@ If the command fails:
 
 1. `git -C <path> branch --show-current` -- confirm correct branch.
 2. `git -C <path> submodule status --recursive` -- confirm all submodules initialized (no `-` prefixes).
+3. Verify submodules are on named branches (not detached HEAD). Non-sync-group submodules should be on the same branch as the worktree root. If any are detached, run `grove worktree checkout-branches` inside the worktree.
 
 ### Step 5: Report status
 
