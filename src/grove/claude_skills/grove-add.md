@@ -45,7 +45,7 @@ Run the appropriate command (add `--copy-venv` if determined in Step 2.5):
 - **New branch:** `grove worktree add <branch-name> <path>`
 - **Existing branch:** `grove worktree add --checkout <branch-name> <path>`
 
-This creates the worktree and recursively initializes all submodules using the main worktree as a reference. By default, submodule remotes point to the main worktree so pushes stay on-machine until you merge back and push from the main worktree.
+This creates the worktree, recursively initializes all submodules using the main worktree as a reference, and puts non-sync-group submodules onto a named branch matching the worktree branch. By default, submodule remotes point to the main worktree so pushes stay on-machine until you merge back and push from the main worktree.
 
 If the command fails:
 - Report the error output.

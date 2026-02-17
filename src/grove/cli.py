@@ -517,9 +517,33 @@ examples:
     return parser
 
 
+def _expand_aliases(argv: list[str]) -> list[str]:
+    """Expand the first token of *argv* if it matches a configured alias."""
+    if not argv:
+        return argv
+
+    try:
+        from grove.config import load_config
+        from grove.repo_utils import find_repo_root
+        repo_root = find_repo_root()
+        config = load_config(repo_root)
+    except (FileNotFoundError, ValueError):
+        return argv
+
+    alias_value = config.aliases.mapping.get(argv[0])
+    if alias_value is None:
+        return argv
+
+    return alias_value.split() + argv[1:]
+
+
 def main(argv=None):
     parser = build_parser()
-    args = parser.parse_args(argv)
+
+    effective_argv = list(argv) if argv is not None else sys.argv[1:]
+    effective_argv = _expand_aliases(effective_argv)
+
+    args = parser.parse_args(effective_argv)
 
     # Handle --no-color and NO_COLOR env var
     if args.no_color or os.environ.get("NO_COLOR") is not None:

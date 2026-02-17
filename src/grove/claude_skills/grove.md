@@ -23,6 +23,7 @@ For well-defined workflows, delegate to the specific skill listed below rather t
 | `grove worktree add` | Create feature worktree with submodule init | `--no-local-remotes`, `--copy-venv`, `--checkout` |
 | `grove worktree remove` | Remove a worktree and prune stale entries | `--force` |
 | `grove worktree merge` | Merge feature branch bottom-up across submodules | `--dry-run`, `--no-test`, `--continue/--abort` |
+| `grove worktree checkout-branches` | Put submodules onto named branches (fix detached HEAD) | `--branch` |
 | `grove claude install` | Install/update Claude Code skills | `--user`, `--check` |
 | `grove visualize` | Open interactive submodule visualizer GUI | |
 | `grove completion install` | Install shell tab completion | `--shell`, `--check` |
@@ -132,6 +133,21 @@ system-tests = "pytest tests/system"            # No mocking
 local-tests = "npm test -- --unit"
 ```
 
+### [aliases]
+
+Command aliases map short names to full subcommand strings. The first token is expanded before parsing.
+
+```toml
+[aliases]
+wm = "worktree merge"
+wa = "worktree add"
+c = "check"
+s = "sync"
+p = "push"
+```
+
+Example: `grove wm --status` expands to `grove worktree merge --status`.
+
 ## First-Time Setup
 
 1. **Initialize config**: `grove init` creates a template `.grove.toml`
@@ -144,9 +160,9 @@ local-tests = "npm test -- --unit"
 
 ### Detached HEAD in submodules
 
-**Symptom**: `grove check` reports submodules with detached HEAD.
-**Cause**: Normal after `git submodule update`. Submodules check out commits, not branches.
-**Fix**: `cd <submodule> && git checkout main` (or the appropriate branch). Only needed before making changes in that submodule.
+**Symptom**: `grove check` reports submodules with detached HEAD, or `grove worktree merge` blocks with "detached HEAD (not on a branch)".
+**Cause**: Submodules not on named branches. `grove worktree add` automatically creates branches for non-sync-group submodules, but this can occur in older worktrees or after manual `git submodule update`.
+**Fix**: Run `grove worktree checkout-branches` to put all non-sync-group submodules onto a named branch matching the worktree's current branch. Sync-group submodules are expected to be detached and are excluded.
 
 ### Sync group out of sync
 

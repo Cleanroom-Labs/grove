@@ -40,6 +40,16 @@ TEMPLATE = """\
 #
 # [worktree]
 # copy-venv = true                                                      # Copy Python venv (auto-detects location, fixes paths)
+
+# Command aliases map short names to full subcommand strings.
+# Example: `grove wm --status` expands to `grove worktree merge --status`.
+#
+# [aliases]
+# wm = "worktree merge"
+# wa = "worktree add"
+# c = "check"
+# s = "sync"
+# p = "push"
 """
 
 

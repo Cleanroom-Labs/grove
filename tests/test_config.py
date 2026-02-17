@@ -490,3 +490,38 @@ class TestGetSyncGroupExcludePaths:
         config = load_config(tmp_git_repo)
         paths = get_sync_group_exclude_paths(tmp_git_repo, config)
         assert paths == set()
+
+
+class TestAliasConfig:
+    def test_default_empty_aliases(self, tmp_path: Path):
+        """Missing [aliases] section should default to empty mapping."""
+        (tmp_path / CONFIG_FILENAME).write_text("# empty\n")
+        config = load_config(tmp_path)
+        assert config.aliases.mapping == {}
+
+    def test_aliases_parsed(self, tmp_path: Path):
+        """[aliases] section should be parsed into mapping dict."""
+        (tmp_path / CONFIG_FILENAME).write_text(
+            '[aliases]\n'
+            'wm = "worktree merge"\n'
+            'c = "check"\n'
+        )
+        config = load_config(tmp_path)
+        assert config.aliases.mapping == {"wm": "worktree merge", "c": "check"}
+
+    def test_non_string_value_raises(self, tmp_path: Path):
+        """Non-string alias value should raise ValueError."""
+        (tmp_path / CONFIG_FILENAME).write_text(
+            '[aliases]\n'
+            'bad = 42\n'
+        )
+        with pytest.raises(ValueError, match="aliases.bad"):
+            load_config(tmp_path)
+
+    def test_non_table_aliases_raises(self, tmp_path: Path):
+        """Non-table [aliases] should raise ValueError."""
+        (tmp_path / CONFIG_FILENAME).write_text(
+            'aliases = "bad"\n'
+        )
+        with pytest.raises(ValueError, match="expected a table"):
+            load_config(tmp_path)

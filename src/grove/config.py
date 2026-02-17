@@ -73,12 +73,19 @@ class CascadeConfig:
 
 
 @dataclass
+class AliasConfig:
+    """Command aliases mapping short names to full command strings."""
+    mapping: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class GroveConfig:
     """Top-level configuration loaded from .grove.toml."""
     sync_groups: dict[str, SyncGroup] = field(default_factory=dict)
     merge: MergeConfig = field(default_factory=MergeConfig)
     worktree: WorktreeConfig = field(default_factory=WorktreeConfig)
     cascade: CascadeConfig = field(default_factory=CascadeConfig)
+    aliases: AliasConfig = field(default_factory=AliasConfig)
 
 
 # ---------------------------------------------------------------------------
@@ -240,8 +247,22 @@ def load_config(repo_root: Path) -> GroveConfig:
     # --- [cascade] section ---
     cascade = _parse_cascade_section(raw, merge)
 
+    # --- [aliases] section ---
+    aliases_raw = raw.get("aliases", {})
+    if not isinstance(aliases_raw, dict):
+        raise ValueError(
+            f"aliases: expected a table, got {type(aliases_raw).__name__}"
+        )
+    for key, val in aliases_raw.items():
+        if not isinstance(val, str):
+            raise ValueError(
+                f"aliases.{key}: expected a string, got {type(val).__name__}"
+            )
+    aliases = AliasConfig(mapping=dict(aliases_raw))
+
     return GroveConfig(
-        sync_groups=sync_groups, merge=merge, worktree=worktree_config, cascade=cascade,
+        sync_groups=sync_groups, merge=merge, worktree=worktree_config,
+        cascade=cascade, aliases=aliases,
     )
 
 
