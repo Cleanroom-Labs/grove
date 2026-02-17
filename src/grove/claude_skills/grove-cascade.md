@@ -14,7 +14,7 @@ Propagate a change from a leaf submodule upward through intermediate parents to 
 - `--abort` -- rollback all cascade commits
 - `--status` -- show current cascade progress
 
-Optional flags: `--quick`, `--system`, `--no-system`, `--force`, `--push`, `--dry-run`
+Optional flags: `--quick`, `--system`, `--no-system`, `-f`/`--skip-checks`, `--push`, `-n`/`--dry-run`
 
 When the leaf is a **sync-group submodule** (multiple instances sharing the same URL), cascade automatically builds a DAG covering all instances and their parent chains, deduplicating shared ancestors.
 
@@ -33,13 +33,13 @@ If the leaf belongs to a sync group, grove verifies all instances are at the sam
 
 - **All in sync**: cascade proceeds normally (DAG mode with all instances)
 - **Out of sync**: cascade fails with a suggestion to run `grove sync <group>` first
-- **Out of sync + `--force`**: cascade proceeds with a warning (useful during prototyping)
+- **Out of sync + `-f`/`--skip-checks`**: cascade proceeds with a warning (useful during prototyping)
 
 If the leaf is NOT in a sync group, this check is skipped and cascade runs as a linear chain.
 
 ### Step 3: Dry-run preview
 
-Run `grove cascade <path> --dry-run`.
+Run `grove cascade <path> -n`.
 
 Report:
 - The cascade chain (leaf → intermediates → root)
@@ -109,9 +109,9 @@ When cascade finishes (exit code 0):
 - **`--system`**: before releases or after major changes, system-tests at every level
 - **`--no-system`**: when experimental sibling changes would break system tests
 - **`--sync-group NAME`**: cascade all instances of a sync group by name (alternative to specifying a path)
-- **`--force`**: skip sync-group consistency check (for prototyping when instances are out of sync)
+- **`-f`/`--skip-checks`**: skip sync-group consistency check (for prototyping when instances are out of sync)
 - **`--push`**: push all cascade repos after successful completion (persisted through pause/resume)
-- **`--dry-run`**: preview cascade chain and test plan without executing
+- **`-n`/`--dry-run`**: preview cascade chain and test plan without executing
 
 ## Sync-Group Cascade Workflow
 
@@ -148,7 +148,7 @@ If intermediate sync-group instances have **diverged**:
 - **"A cascade is already in progress"**: direct to `--continue`, `--abort`, or `--status`
 - **"not a recognized repository"**: verify the path points to a submodule in the grove
 - **"at least a leaf and one parent"**: cascade needs a submodule, not the root itself
-- **"instances are not in sync"**: run `grove sync <group>` first, or use `--force` to bypass
+- **"instances are not in sync"**: run `grove sync <group>` first, or use `-f`/`--skip-checks` to bypass
 - **"Merge conflict syncing <peer>"**: resolve conflicts in the specified path, then `--continue`
 - **"Divergence could not be auto-resolved"**: group will be resolved dynamically during cascade
 - **No test tiers configured**: cascade will commit without testing (with warning)

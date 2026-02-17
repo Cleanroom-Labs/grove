@@ -1,6 +1,6 @@
 # Validation Design
 
-Grove commands perform "flight prechecks" before mutating repository state. The philosophy: check early, fail clearly, and provide `--force` for external/remote checks but never for local safety checks.
+Grove commands perform "flight prechecks" before mutating repository state. The philosophy: check early, fail clearly, and provide `--skip-checks` (or `--force` where appropriate) for external/remote checks but never for local safety checks.
 
 ## Validation Matrix
 
@@ -16,21 +16,22 @@ Grove commands perform "flight prechecks" before mutating repository state. The 
 | Topology divergence | - | - | - | - | - | warn | - |
 | Config exists | - | - | x | - | - | - | x |
 
-**Legend:** **x** = blocks (unless `--force`), **report** = diagnostic output only, **warn** = non-blocking warning, **skip** = silently skips affected repo, **allow** = permits the condition, **-** = not checked.
+**Legend:** **x** = blocks (unless `--skip-checks` / `--force`), **report** = diagnostic output only, **warn** = non-blocking warning, **skip** = silently skips affected repo, **allow** = permits the condition, **-** = not checked.
 
-## The `--force` Contract
+## The `--skip-checks` / `--force` Contract
 
-`--force` bypasses remote and external checks. It never bypasses local safety checks that could cause data loss.
+`--skip-checks` (on push, sync, cascade) and `--force` (on init, worktree remove) bypass remote and external checks. They never bypass local safety checks that could cause data loss.
 
-| Command | `--force` bypasses |
-|---------|--------------------|
-| `push --force` | uncommitted changes, sync group consistency |
-| `sync --force` | parent repo divergence, uncommitted changes |
-| `init --force` | existing config file |
-| `worktree remove --force` | uncommitted changes in worktree |
-| `worktree merge` | **no `--force` flag** -- must fix issues directly |
+| Command | Flag | Bypasses |
+|---------|------|----------|
+| `push --skip-checks` | `--skip-checks` | uncommitted changes, sync group consistency |
+| `sync --skip-checks` | `--skip-checks` | parent repo divergence, uncommitted changes |
+| `cascade --skip-checks` | `--skip-checks` | sync-group consistency check |
+| `init --force` | `--force` | existing config file |
+| `worktree remove --force` | `--force` | uncommitted changes in worktree |
+| `worktree merge` | *(none)* | **no skip flag** -- must fix issues directly |
 
-`worktree merge` intentionally omits `--force` because it mutates multiple repos atomically. Partial state from a forced merge would be harder to recover from than fixing the precheck issue.
+`worktree merge` intentionally omits a skip flag because it mutates multiple repos atomically. Partial state from a forced merge would be harder to recover from than fixing the precheck issue.
 
 ## Shared Infrastructure
 
@@ -46,7 +47,7 @@ These functions implement the validation checks. Reuse them when adding new comm
 
 1. **Check uncommitted changes before mutating working trees.** This is the most common source of lost work. Every command that modifies files should check this.
 
-2. **`--force` bypasses remote/external checks, never local safety.** Remote divergence, sync consistency, and "file already exists" are external conditions that an informed user can override. Uncommitted changes in `push` are overridable because push itself doesn't modify the working tree.
+2. **`--skip-checks` / `--force` bypasses remote/external checks, never local safety.** Remote divergence, sync consistency, and "file already exists" are external conditions that an informed user can override. Uncommitted changes in `push` are overridable because push itself doesn't modify the working tree.
 
 3. **Dry-run should show exactly what the real run would do.** Same discovery, same validation, same output -- just skip the final mutation step.
 

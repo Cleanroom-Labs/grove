@@ -239,7 +239,7 @@ def add_worktree(args) -> int:
 
     # Build git worktree add command
     git_args = ["worktree", "add"]
-    if not args.checkout:
+    if args.create_branch:
         git_args.extend(["-b", branch, str(worktree_path)])
     else:
         git_args.extend([str(worktree_path), branch])

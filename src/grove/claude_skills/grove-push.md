@@ -18,7 +18,7 @@ Push committed changes through nested submodules bottom-up, with optional filter
 
 ### Step 1: Dry-run preview
 
-Run `grove push $ARGUMENTS --dry-run` to preview what would be pushed.
+Run `grove push $ARGUMENTS -n` to preview what would be pushed.
 
 Report to the user:
 - How many repos discovered, how many targeted by filters
@@ -40,7 +40,7 @@ Run `grove push $ARGUMENTS`.
 
 If validation fails (uncommitted changes, etc.):
 - Report the specific repos and issues
-- Suggest `--force` only for recovery scenarios
+- Suggest `-f`/`--skip-checks` only for recovery scenarios
 
 ### Step 4: Post-push verification
 
@@ -60,4 +60,4 @@ Guide the user based on their workflow:
 - **Unknown path**: list available repos from discovery
 - **Unknown sync group**: list available groups from `.grove.toml`
 - **Invalid cascade path**: verify the path points to a recognized repo
-- **Validation failures**: suggest fixing issues or `--force` for recovery
+- **Validation failures**: suggest fixing issues or `-f`/`--skip-checks` for recovery

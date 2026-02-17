@@ -77,7 +77,7 @@ class TestPushRun:
         from grove.push import run
         import argparse
 
-        args = argparse.Namespace(dry_run=False, force=False)
+        args = argparse.Namespace(dry_run=False, skip_checks=False)
         with patch("grove.push.find_repo_root", return_value=tmp_submodule_tree):
             result = run(args)
         # No remotes set up, so repos validate as up-to-date or no-remote
@@ -88,7 +88,7 @@ class TestPushRun:
         from grove.push import run
         import argparse
 
-        args = argparse.Namespace(dry_run=True, force=False)
+        args = argparse.Namespace(dry_run=True, skip_checks=False)
         with patch("grove.push.find_repo_root", return_value=tmp_submodule_tree):
             result = run(args)
         assert result == 0
@@ -98,7 +98,7 @@ class TestPushRun:
         from grove.push import run
         import argparse
 
-        args = argparse.Namespace(dry_run=False, force=False)
+        args = argparse.Namespace(dry_run=False, skip_checks=False)
         with (
             patch("grove.push.find_repo_root", return_value=tmp_submodule_tree),
             patch("grove.push.check_sync_groups", return_value=False),
@@ -106,11 +106,11 @@ class TestPushRun:
             result = run(args)
         assert result == 1
 
-    def test_force_bypasses_sync_check(self, tmp_submodule_tree: Path):
-        """--force should allow push even when sync groups are out of sync."""
+    def test_skip_checks_bypasses_sync_check(self, tmp_submodule_tree: Path):
+        """--skip-checks should allow push even when sync groups are out of sync."""
         from grove.push import run
 
-        args = argparse.Namespace(dry_run=False, force=True)
+        args = argparse.Namespace(dry_run=False, skip_checks=True)
         with (
             patch("grove.push.find_repo_root", return_value=tmp_submodule_tree),
             patch("grove.push.check_sync_groups", return_value=False),
@@ -248,7 +248,7 @@ class TestPushRunWithFilters:
         """Without filters, push should work exactly as before."""
         from grove.push import run
 
-        args = argparse.Namespace(dry_run=False, force=False)
+        args = argparse.Namespace(dry_run=False, skip_checks=False)
         with patch("grove.push.find_repo_root", return_value=tmp_submodule_tree):
             result = run(args)
         assert result == 0
@@ -258,7 +258,7 @@ class TestPushRunWithFilters:
         from grove.push import run
 
         args = argparse.Namespace(
-            dry_run=True, force=False,
+            dry_run=True, skip_checks=False,
             paths=["frontend"], sync_group=None, cascade=None,
         )
         with patch("grove.push.find_repo_root", return_value=tmp_sync_group_multi_instance):
@@ -273,7 +273,7 @@ class TestPushRunWithFilters:
         from grove.push import run
 
         args = argparse.Namespace(
-            dry_run=False, force=False,
+            dry_run=False, skip_checks=False,
             paths=["nonexistent"], sync_group=None, cascade=None,
         )
         with patch("grove.push.find_repo_root", return_value=tmp_sync_group_multi_instance):

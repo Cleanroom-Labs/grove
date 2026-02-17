@@ -24,7 +24,7 @@ Run `grove worktree merge --status`.
 
 ### Step 2: Dry-run prediction
 
-Run `grove worktree merge <branch> --dry-run`.
+Run `grove worktree merge <branch> -n`.
 
 Report:
 - How many repositories discovered

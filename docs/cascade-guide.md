@@ -71,7 +71,7 @@ Alternatively, cascade directly by sync-group name:
 grove cascade --sync-group common
 ```
 
-If instances are out of sync, cascade fails with a suggestion to run `grove sync` first. Use `--force` to bypass this check during prototyping.
+If instances are out of sync, cascade fails with a suggestion to run `grove sync` first. Use `--skip-checks` to bypass this check during prototyping.
 
 ### Handling test failures
 
@@ -181,7 +181,7 @@ test-command = "pytest -x"
 | `--system` | Before releases or after major changes. Runs system-tests at every level. |
 | `--no-system` | When experimental changes in sibling repos would break system tests. |
 | `--sync-group NAME` | Cascade all instances of a sync group by name (alternative to specifying a path). |
-| `--force` | Skip sync-group consistency check. Use when prototyping with out-of-sync instances. |
+| `--skip-checks` | Skip sync-group consistency check. Use when prototyping with out-of-sync instances. |
 | `--push` | Push all cascade repos after successful completion. Persisted through pause/resume. |
 | `--dry-run` | Preview cascade chain and test plan without executing anything. |
 

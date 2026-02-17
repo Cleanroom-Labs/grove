@@ -7,7 +7,7 @@ description: Sync submodule sync groups with dry-run preview and verification
 
 Synchronize submodule sync groups with a preview, confirmation, and verification cycle.
 
-`$ARGUMENTS` may contain `[group] [commit]` and/or flags. Both positional args are optional.
+`$ARGUMENTS` may contain `[group]` and/or flags. The group is optional.
 
 By default, sync resolves the target from the most advanced **local** submodule instance (local-first). Use `--remote` to resolve from the remote instead.
 
@@ -16,7 +16,7 @@ When instances have **diverged** (no linear ordering), sync automatically attemp
 Example usages:
 - `/grove-sync` -- sync all groups to most advanced local instance
 - `/grove-sync common` -- sync just the "common" group
-- `/grove-sync common abc1234` -- sync "common" to a specific commit
+- `/grove-sync common --commit abc1234` -- sync "common" to a specific commit
 - `/grove-sync --remote` -- sync all groups to remote HEAD
 - `/grove-sync --continue` -- resume after resolving merge conflicts
 - `/grove-sync --abort` -- cancel an in-progress merge
@@ -26,7 +26,7 @@ Example usages:
 
 ### Step 1: Dry-run preview
 
-Run `grove sync $ARGUMENTS --dry-run` to preview what would happen.
+Run `grove sync $ARGUMENTS -n` to preview what would happen.
 
 Report to the user:
 - Target commit SHA and source
@@ -38,7 +38,7 @@ If no sync groups are configured, tell the user `.grove.toml` needs sync group c
 
 If validation failures occur (parent repos out of sync with remotes), warn and suggest:
 - Pull latest in affected repos first
-- Use `--force` only for recovery scenarios
+- Use `-f`/`--skip-checks` only for recovery scenarios
 
 If all submodules are already at target, report "Nothing to sync" and stop.
 
@@ -88,6 +88,6 @@ When sync detects diverged instances (different commits with no linear ordering)
 - **Unknown sync group**: list available groups from `.grove.toml`
 - **Diverged local instances**: sync now auto-merges. If merge conflicts, guide user through `--continue`/`--abort`
 - **"A sync merge is already in progress"**: direct to `--continue`, `--abort`, or `--status`
-- **Validation failures**: suggest `git pull` or `grove sync --force`
+- **Validation failures**: suggest `git pull` or `grove sync -f`
 - **Push failures**: suggest `grove push --sync-group <name>` as follow-up
 - **Network errors** (with `--remote`): suggest dropping `--remote` to use local-first, or providing a specific commit SHA

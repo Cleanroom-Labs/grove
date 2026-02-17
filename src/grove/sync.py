@@ -13,7 +13,7 @@ Usage (via entry point):
     grove sync --remote               # Resolve target from remote
     grove sync --dry-run              # Preview changes
     grove sync --no-push              # Commit only, skip pushing
-    grove sync --force                # Skip remote sync validation
+    grove sync --skip-checks                # Skip remote sync validation
 
 This module:
 1. Discovers all matching submodule locations for each sync group
@@ -519,7 +519,7 @@ def _sync_group(
         print_status_table(parent_repos, show_behind=True)
 
     if validation_failed and not force:
-        print(Colors.red("Validation failed. Fix the issues above or use --force to skip."))
+        print(Colors.red("Validation failed. Fix the issues above or use --skip-checks to skip."))
         if not quiet:
             print()
             print(Colors.blue("Common fixes:"))
@@ -528,7 +528,7 @@ def _sync_group(
         return 1
 
     if validation_failed and force and not quiet:
-        print(Colors.yellow("Warning: Proceeding despite validation failures (--force)"))
+        print(Colors.yellow("Warning: Proceeding despite validation failures (--skip-checks)"))
         print()
 
     if dry_run and not quiet:
@@ -749,7 +749,7 @@ def run(args) -> int:
             commit_arg,
             dry_run=args.dry_run,
             no_push=args.no_push,
-            force=args.force,
+            force=args.skip_checks,
             remote=args.remote,
         )
         if result != 0:

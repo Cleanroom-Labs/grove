@@ -122,7 +122,7 @@ Before building the cascade chain, grove checks if the target submodule belongs 
 
 - **All consistent**: cascade proceeds in DAG mode (all instances)
 - **Inconsistent**: cascade fails, suggesting `grove sync <group>` first
-- **Inconsistent + `--force`**: cascade proceeds with a warning
+- **Inconsistent + `--skip-checks`**: cascade proceeds with a warning
 
 ### DAG Cascading
 

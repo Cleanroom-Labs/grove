@@ -7,24 +7,24 @@ description: Create a feature branch worktree with submodule initialization
 
 Create a new worktree for a feature branch with full submodule initialization.
 
-`$ARGUMENTS` should contain `<branch-name> <path>`. If only a branch name is provided, default the path to `../<branch-name>-wt`. If no arguments are provided, ask the user for the branch name.
+`$ARGUMENTS` should contain `<path> <branch-name>`. If only a branch name is provided, default the path to `../<branch-name>-wt`. If no arguments are provided, ask the user for the branch name.
 
-Example usage: `/grove-add my-feature ../my-feature-wt`
+Example usage: `/grove-add ../my-feature-wt my-feature`
 
 ## Workflow
 
 ### Step 1: Parse arguments
 
-Extract `<branch-name>` and `<path>` from `$ARGUMENTS`.
+Extract `<path>` and `<branch-name>` from `$ARGUMENTS`.
 
-- Two arguments: use as branch and path.
+- Two arguments: use as path and branch.
 - One argument: use as branch, default path to `../<branch-name>-wt`.
 - No arguments: ask the user for the branch name.
 
 ### Step 2: Pre-flight checks
 
 1. Run `git branch --list <branch-name>` to check if the branch already exists locally.
-   - If it exists, inform the user and ask whether to use `--checkout` (check out the existing branch) instead of creating a new one.
+   - If it exists, inform the user that the default behavior is to check out the existing branch. Ask whether they want to create a new branch instead (using `-b`).
 2. Check that the target path does not already exist.
    - If it exists, tell the user and stop.
 
@@ -42,8 +42,8 @@ Check `.grove.toml` for a `[worktree]` section:
 
 Run the appropriate command (add `--copy-venv` if determined in Step 2.5):
 
-- **New branch:** `grove worktree add <branch-name> <path>`
-- **Existing branch:** `grove worktree add --checkout <branch-name> <path>`
+- **New branch:** `grove worktree add -b <path> <branch-name>`
+- **Existing branch (default):** `grove worktree add <path> <branch-name>`
 
 This creates the worktree, recursively initializes all submodules using the main worktree as a reference, and puts non-sync-group submodules onto a named branch matching the worktree branch. By default, submodule remotes point to the main worktree so pushes stay on-machine until you merge back and push from the main worktree.
 

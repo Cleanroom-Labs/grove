@@ -89,16 +89,16 @@ Git worktrees solve this by letting you check out multiple branches simultaneous
 
 The `grove worktree add` command handles this. It creates the worktree, then recursively initializes submodules using the main worktree's existing checkout as a reference, avoiding redundant fetches. Submodule remotes are kept pointing to the main worktree's local copies by default.
 
-Creating a new worktree with a new branch:
+Creating a worktree that checks out an existing branch (the default):
 
 ```bash
-grove worktree add my-feature ../my-project-my-feature
+grove worktree add ../my-project-my-feature my-feature
 ```
 
-Creating a worktree on an existing branch (without `-b`):
+Creating a worktree with a new branch (using `-b`):
 
 ```bash
-grove worktree add --checkout existing-branch ../my-project-wt2
+grove worktree add -b ../my-project-wt2 new-branch
 ```
 
 ### Local Remotes (Default Behavior)
@@ -133,7 +133,7 @@ grove push --dry-run
 grove push
 
 # Skip validation for recovery scenarios
-grove push --force
+grove push --skip-checks
 ```
 
 The topological ordering matters because pushing a parent before its children would create a state where the parent references commits that don't exist on the remote yet.
@@ -243,9 +243,9 @@ The setup is simple. You have three independent tasks—say, updating component 
 
 ```bash
 cd ~/Projects/my-project
-grove worktree add --local-remotes update-deploy-docs   ../my-project-wt1
-grove worktree add --local-remotes expand-whisper-docs  ../my-project-wt2
-grove worktree add --local-remotes fix-theme-spacing    ../my-project-wt3
+grove worktree add --local-remotes ../my-project-wt1 update-deploy-docs
+grove worktree add --local-remotes ../my-project-wt2 expand-whisper-docs
+grove worktree add --local-remotes ../my-project-wt3 fix-theme-spacing
 ```
 
 Each worktree has its own fully initialized checkout with all submodules at every level. Now you launch a coding agent in each one—three separate terminal sessions, three instances of Claude Code, each pointed at a different directory:

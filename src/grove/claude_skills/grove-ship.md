@@ -28,7 +28,7 @@ If all checks passed, proceed to Step 3.
 
 ### Step 3: Dry-run push preview
 
-Run `grove push --dry-run` to preview what would be pushed.
+Run `grove push -n` to preview what would be pushed.
 
 - If nothing to push, report that to the user and stop.
 - Otherwise, show the user what repositories will be pushed and how many commits each has ahead.
@@ -41,7 +41,7 @@ Run `grove push` to push all committed changes bottom-up through the submodule h
 - If the push fails (exit code 1), report the failure and suggest:
   - Check remote connectivity: `git remote -v`
   - Check authentication: `ssh -T git@github.com`
-  - Try `grove push --force` only for recovery scenarios.
+  - Try `grove push -f` only for recovery scenarios.
 
 ### Step 5: Post-push verification
 
