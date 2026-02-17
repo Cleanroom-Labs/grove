@@ -11,7 +11,14 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from grove.repo_utils import Colors, find_repo_root, parse_gitmodules, run_git
+from grove.config import get_sync_group_exclude_paths, load_config
+from grove.repo_utils import (
+    Colors,
+    discover_repos_from_gitmodules,
+    find_repo_root,
+    parse_gitmodules,
+    run_git,
+)
 
 
 def _detect_venv(root: Path) -> Path | None:
@@ -176,6 +183,44 @@ def _init_submodules(
     return True
 
 
+def _checkout_submodule_branches(worktree_path: Path, branch: str) -> int:
+    """Create matching branches in non-sync-group submodules.
+
+    After ``_init_submodules`` leaves submodules in detached HEAD, this puts
+    each non-sync-group submodule onto a named branch matching the parent
+    worktree's branch.
+
+    Returns the number of submodules checked out onto branches.
+    """
+    config = load_config(worktree_path)
+    exclude_paths = get_sync_group_exclude_paths(worktree_path, config)
+
+    repos = discover_repos_from_gitmodules(
+        worktree_path, exclude_paths=exclude_paths or None,
+    )
+
+    count = 0
+    for repo in repos:
+        if repo.path == worktree_path:
+            continue  # skip root — already on the branch
+
+        rel = str(repo.path.relative_to(worktree_path))
+
+        result = run_git(repo.path, "checkout", "-b", branch, check=False)
+        if result.returncode != 0:
+            # Branch may already exist — try a plain checkout
+            result = run_git(repo.path, "checkout", branch, check=False)
+            if result.returncode != 0:
+                print(
+                    f"  {Colors.yellow('Warning')}: could not create branch "
+                    f"'{branch}' in {rel}"
+                )
+                continue
+        count += 1
+
+    return count
+
+
 def add_worktree(args) -> int:
     """Create a git worktree and recursively initialize submodules."""
     try:
@@ -207,7 +252,6 @@ def add_worktree(args) -> int:
         return 1
 
     # Resolve copy-venv: CLI flag takes priority, then .grove.toml config
-    from grove.config import load_config
     config = load_config(repo_root)
     copy_venv = getattr(args, "copy_venv", False) or config.worktree.copy_venv
 
@@ -231,6 +275,14 @@ def add_worktree(args) -> int:
 
     if not local_remotes:
         print(f"{Colors.blue('Upstream remotes')}: submodule pushes will go directly to upstream")
+
+    # Put non-sync-group submodules on matching branches
+    print(f"{Colors.blue('Creating branches')} in submodules...")
+    branched = _checkout_submodule_branches(worktree_path, branch)
+    if branched:
+        print(f"  {Colors.green(f'{branched} submodule(s) checked out')} onto branch {Colors.green(branch)}")
+    else:
+        print(f"  {Colors.yellow('No submodules needed branch creation')}")
 
     _run_direnv_allow(worktree_path)
 
@@ -276,11 +328,45 @@ def remove_worktree(args) -> int:
     return 0
 
 
+def checkout_branches(args) -> int:
+    """Put non-sync-group submodules onto a named branch matching the parent worktree."""
+    try:
+        repo_root = find_repo_root()
+    except FileNotFoundError as e:
+        print(Colors.red(str(e)))
+        return 1
+
+    # Determine target branch
+    branch = getattr(args, "branch", None)
+    if not branch:
+        result = run_git(repo_root, "branch", "--show-current", check=False)
+        branch = result.stdout.strip()
+        if not branch:
+            print(Colors.red("Root worktree is in detached HEAD state. "
+                             "Use --branch to specify a branch name."))
+            return 1
+
+    print(f"{Colors.blue('Checking out branches')} in submodules "
+          f"(target: {Colors.green(branch)})...")
+
+    count = _checkout_submodule_branches(repo_root, branch)
+
+    if count:
+        print(f"\n{Colors.green(f'{count} submodule(s)')} checked out "
+              f"onto branch {Colors.green(branch)}")
+    else:
+        print(f"\n{Colors.yellow('No submodules needed branch checkout')}")
+
+    return 0
+
+
 def run(args) -> int:
     """Entry point for the worktree subcommand."""
     if args.worktree_command == "add":
         return add_worktree(args)
     if args.worktree_command == "remove":
         return remove_worktree(args)
+    if args.worktree_command == "checkout-branches":
+        return checkout_branches(args)
     # Should not be reached (argparse handles unknown subcommands)
     return 2

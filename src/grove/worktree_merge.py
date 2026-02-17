@@ -643,12 +643,13 @@ def start_merge(
             has_errors = True
             continue
 
-        # Check detached HEAD
+        # Check detached HEAD — sync-group submodules are already excluded
+        # by exclude_paths above, so any detached HEAD here is unexpected.
         current_branch = repo.get_branch()
         if not current_branch:
-            entry = RepoMergeEntry(rel_path=rel, status="skipped", reason="detached-head")
-            entries.append(entry)
-            print(f"  {Colors.yellow('·')} {rel}: skipped (detached HEAD)")
+            print(f"  {Colors.red('✗')} {rel}: detached HEAD (not on a branch)")
+            print(f"      Fix: grove worktree checkout-branches")
+            has_errors = True
             continue
 
         # Check if branch exists

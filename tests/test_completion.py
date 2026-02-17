@@ -44,7 +44,7 @@ class TestExtractStructure:
 
     def test_worktree_subcommands(self):
         wt = self.structure["commands"]["worktree"]
-        assert {"add", "remove", "merge"} == set(wt["commands"].keys())
+        assert {"add", "remove", "merge", "checkout-branches"} == set(wt["commands"].keys())
 
     def test_claude_subcommands(self):
         cl = self.structure["commands"]["claude"]

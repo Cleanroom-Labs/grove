@@ -89,6 +89,7 @@ When merge finishes (exit code 0):
 
 - **"A merge is already in progress"**: direct to `--continue`, `--abort`, or `--status`
 - **"has uncommitted changes"**: commit or stash changes first
+- **"detached HEAD (not on a branch)"**: a submodule is not on a named branch. Run `grove worktree checkout-branches` in the worktree to fix, then retry the merge.
 - **State corruption**: suggest `--abort` to clean up and start fresh
 - **Structural divergence warnings**: non-blocking but flag for manual intervention
 
