@@ -288,6 +288,72 @@ class TestCliWorktreeMergeSubcommand:
         assert args.branch is None
 
 
+class TestCliAliasExpansion:
+    def test_alias_expands_single_token(self):
+        """An alias like c = 'check' should expand 'c' to 'check'."""
+        from grove.cli import _expand_aliases
+        from grove.config import AliasConfig, GroveConfig
+
+        config = GroveConfig(aliases=AliasConfig(mapping={"c": "check"}))
+        with patch("grove.repo_utils.find_repo_root", return_value="/fake"), \
+             patch("grove.config.load_config", return_value=config):
+            result = _expand_aliases(["c", "-v"])
+        assert result == ["check", "-v"]
+
+    def test_alias_expands_multi_token(self):
+        """An alias like wm = 'worktree merge' should expand to two tokens."""
+        from grove.cli import _expand_aliases
+        from grove.config import AliasConfig, GroveConfig
+
+        config = GroveConfig(aliases=AliasConfig(mapping={"wm": "worktree merge"}))
+        with patch("grove.repo_utils.find_repo_root", return_value="/fake"), \
+             patch("grove.config.load_config", return_value=config):
+            result = _expand_aliases(["wm", "--status"])
+        assert result == ["worktree", "merge", "--status"]
+
+    def test_no_alias_match_passes_through(self):
+        """Non-matching commands should pass through unchanged."""
+        from grove.cli import _expand_aliases
+        from grove.config import AliasConfig, GroveConfig
+
+        config = GroveConfig(aliases=AliasConfig(mapping={"c": "check"}))
+        with patch("grove.repo_utils.find_repo_root", return_value="/fake"), \
+             patch("grove.config.load_config", return_value=config):
+            result = _expand_aliases(["push", "--dry-run"])
+        assert result == ["push", "--dry-run"]
+
+    def test_no_repo_root_passes_through(self):
+        """When not in a git repo, aliases should be skipped gracefully."""
+        from grove.cli import _expand_aliases
+
+        with patch("grove.repo_utils.find_repo_root", side_effect=FileNotFoundError):
+            result = _expand_aliases(["wm"])
+        assert result == ["wm"]
+
+    def test_empty_argv_passes_through(self):
+        """Empty argv should pass through unchanged."""
+        from grove.cli import _expand_aliases
+
+        result = _expand_aliases([])
+        assert result == []
+
+    def test_alias_integration_with_main(self):
+        """An alias should resolve through main() to the correct command handler."""
+        from grove.config import AliasConfig, GroveConfig
+
+        config = GroveConfig(aliases=AliasConfig(mapping={"c": "check"}))
+        mock_run = MagicMock(return_value=0)
+        with patch("grove.repo_utils.find_repo_root", return_value="/fake"), \
+             patch("grove.config.load_config", return_value=config), \
+             patch("grove.check.run", mock_run):
+            result = main(["c", "-v"])
+
+        mock_run.assert_called_once()
+        args = mock_run.call_args[0][0]
+        assert args.command == "check"
+        assert args.verbose is True
+
+
 class TestCliInvalidSubcommand:
     def test_unknown_subcommand_exits(self):
         """An unrecognised subcommand should cause argparse to exit with code 2."""
