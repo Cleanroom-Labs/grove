@@ -8,13 +8,15 @@ description: Propagate a submodule change upward through the dependency tree wit
 Propagate a change from a leaf submodule upward through intermediate parents to the root, running tests at each level and committing submodule pointer updates.
 
 `$ARGUMENTS` should contain one of:
-- `<path>` -- start a new cascade from a leaf submodule
+- `<path> [path2 ...]` -- start a new cascade from one or more leaf submodules
 - `--sync-group <name>` -- cascade all instances of a sync group by name
 - `--continue` -- resume after fixing a test failure
 - `--abort` -- rollback all cascade commits
 - `--status` -- show current cascade progress
 
 Optional flags: `--quick`, `--system`, `--no-system`, `-f`/`--skip-checks`, `--push`, `-n`/`--dry-run`
+
+When **multiple paths** are given, cascade builds a combined DAG, deduplicates shared ancestors, and creates a single commit at each shared level — minimizing intermediate commits. Example: `grove cascade technical-docs/whisper technical-docs/deploy` produces one commit in `technical-docs` (staging both pointers) instead of two.
 
 When the leaf is a **sync-group submodule** (multiple instances sharing the same URL), cascade automatically builds a DAG covering all instances and their parent chains, deduplicating shared ancestors.
 

@@ -252,6 +252,61 @@ def _init_repo(path: Path) -> None:
 
 
 @pytest.fixture()
+def tmp_sibling_submodules(tmp_path: Path) -> Path:
+    """Create a root repo with two independent sibling submodules.
+
+    Layout::
+
+        root/                       (main repo -- project root)
+        +-- docs-a/                 (submodule → docs_a_origin)
+        +-- docs-b/                 (submodule → docs_b_origin)
+        +-- .grove.toml
+
+    The two siblings share no ancestry — their cascade chains both converge
+    at root.  Useful for testing multi-path cascades.
+
+    Returns the *root* repository path.
+    """
+    # ---- docs_a_origin ----
+    docs_a = tmp_path / "docs_a_origin"
+    _init_repo(docs_a)
+    (docs_a / "content.txt").write_text("docs-a content\n")
+    _git(docs_a, "add", "content.txt")
+    _git(docs_a, "commit", "-m", "Add docs-a content")
+
+    # ---- docs_b_origin ----
+    docs_b = tmp_path / "docs_b_origin"
+    _init_repo(docs_b)
+    (docs_b / "content.txt").write_text("docs-b content\n")
+    _git(docs_b, "add", "content.txt")
+    _git(docs_b, "commit", "-m", "Add docs-b content")
+
+    # ---- root repo ----
+    root = tmp_path / "root"
+    _init_repo(root)
+
+    (root / ".grove.toml").write_text(
+        '[cascade]\n'
+        'local-tests = "true"\n'
+    )
+    _git(root, "add", ".grove.toml")
+    _git(root, "commit", "-m", "Add grove config")
+
+    _git(root, "submodule", "add", str(docs_a), "docs-a")
+    _git(root, "submodule", "add", str(docs_b), "docs-b")
+    _git(root, "commit", "-m", "Add docs-a and docs-b submodules")
+
+    _git(root, "submodule", "update", "--init", "--recursive")
+
+    for sub_dir in [root / "docs-a", root / "docs-b"]:
+        if (sub_dir / ".git").exists():
+            _git(sub_dir, "config", "user.email", "test@example.com")
+            _git(sub_dir, "config", "user.name", "Test User")
+
+    return root
+
+
+@pytest.fixture()
 def tmp_sync_group_multi_instance(tmp_path: Path) -> Path:
     """Create a tree with a sync-group submodule in three separate parents.
 
