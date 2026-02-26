@@ -19,6 +19,7 @@ from grove.cascade import (
     CascadeState,
     RepoCascadeEntry,
     _build_linear_entries,
+    _build_multi_path_plan,
     _build_unified_cascade_plan,
     _check_sync_group_consistency,
     _determine_tiers,
@@ -790,6 +791,175 @@ class TestBuildUnifiedCascadePlan:
         assert len([e for e in entries if e.role == "leaf"]) == 3
         assert len([e for e in entries if e.role == "intermediate"]) == 3
         assert len([e for e in entries if e.role == "root"]) == 1
+
+
+class TestBuildMultiPathPlan:
+    """Tests for _build_multi_path_plan() — explicit multi-leaf DAG construction."""
+
+    def test_two_siblings_produce_single_root_entry(self, tmp_sibling_submodules: Path):
+        """Two sibling leaves sharing only the root should yield one root entry."""
+        root = tmp_sibling_submodules
+        repos = discover_repos_from_gitmodules(root)
+        leaf_a = root / "docs-a"
+        leaf_b = root / "docs-b"
+
+        _chain, entries, _isg = _build_multi_path_plan(
+            [leaf_a, leaf_b], repos, root,
+        )
+
+        root_entries = [e for e in entries if e.role == "root"]
+        assert len(root_entries) == 1
+        assert root_entries[0].rel_path == "."
+
+    def test_two_siblings_both_marked_as_leaves(self, tmp_sibling_submodules: Path):
+        """Both input paths should be assigned role='leaf'."""
+        root = tmp_sibling_submodules
+        repos = discover_repos_from_gitmodules(root)
+        leaf_a = root / "docs-a"
+        leaf_b = root / "docs-b"
+
+        _chain, entries, _isg = _build_multi_path_plan(
+            [leaf_a, leaf_b], repos, root,
+        )
+
+        leaf_entries = [e for e in entries if e.role == "leaf"]
+        leaf_rels = {e.rel_path for e in leaf_entries}
+        assert len(leaf_entries) == 2
+        assert "docs-a" in leaf_rels
+        assert "docs-b" in leaf_rels
+
+    def test_root_child_rel_paths_includes_both_siblings(self, tmp_sibling_submodules: Path):
+        """Root entry should have child_rel_paths listing both sibling submodules."""
+        root = tmp_sibling_submodules
+        repos = discover_repos_from_gitmodules(root)
+        leaf_a = root / "docs-a"
+        leaf_b = root / "docs-b"
+
+        _chain, entries, _isg = _build_multi_path_plan(
+            [leaf_a, leaf_b], repos, root,
+        )
+
+        root_entry = next(e for e in entries if e.role == "root")
+        assert root_entry.child_rel_paths is not None
+        assert "docs-a" in root_entry.child_rel_paths
+        assert "docs-b" in root_entry.child_rel_paths
+
+    def test_depth_ordering(self, tmp_sibling_submodules: Path):
+        """Leaves should appear before root in the plan."""
+        root = tmp_sibling_submodules
+        repos = discover_repos_from_gitmodules(root)
+        leaf_a = root / "docs-a"
+        leaf_b = root / "docs-b"
+
+        _chain, entries, _isg = _build_multi_path_plan(
+            [leaf_a, leaf_b], repos, root,
+        )
+
+        roles = [e.role for e in entries]
+        leaf_indices = [i for i, r in enumerate(roles) if r == "leaf"]
+        root_indices = [i for i, r in enumerate(roles) if r == "root"]
+        assert max(leaf_indices) < min(root_indices)
+
+    def test_single_path_matches_linear_chain(self, tmp_submodule_tree: Path):
+        """Single-path multi-path plan should match linear chain output."""
+        root = tmp_submodule_tree
+        repos = discover_repos_from_gitmodules(root)
+        leaf = root / "technical-docs"
+
+        _chain, multi_entries, _isg = _build_multi_path_plan([leaf], repos, root)
+        linear_chain = _discover_cascade_chain(leaf, repos)
+        linear_entries = _build_linear_entries(linear_chain, root)
+
+        assert len(multi_entries) == len(linear_entries)
+        for m, l in zip(multi_entries, linear_entries):
+            assert m.rel_path == l.rel_path
+            assert m.role == l.role
+            assert m.child_rel_paths == l.child_rel_paths
+
+    def test_invalid_path_raises(self, tmp_sibling_submodules: Path):
+        """An unrecognized path should raise ValueError."""
+        root = tmp_sibling_submodules
+        repos = discover_repos_from_gitmodules(root)
+        bad_path = root / "does-not-exist"
+
+        with pytest.raises(ValueError, match="not a recognized repository"):
+            _build_multi_path_plan([bad_path], repos, root)
+
+
+class TestMultiPathCascadeExecution:
+    """Integration tests for multi-path cascade execution."""
+
+    def test_multi_path_dry_run_shows_two_leaves(
+        self, tmp_sibling_submodules: Path, capsys,
+    ):
+        """Dry-run with two paths should report both as leaves without making changes."""
+        root = tmp_sibling_submodules
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade(
+                submodule_paths=["docs-a", "docs-b"], dry_run=True,
+            )
+        assert result == 0
+
+        out = capsys.readouterr().out
+        assert "docs-a" in out
+        assert "docs-b" in out
+
+    def _make_sibling_changes(self, root: Path) -> None:
+        """Commit a change in each sibling submodule so cascade has work to do."""
+        for sub_name in ["docs-a", "docs-b"]:
+            sub = root / sub_name
+            # Submodules are in detached HEAD after submodule update; put on main
+            result = subprocess.run(
+                ["git", "-C", str(sub), "checkout", "main"],
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                _git(sub, "checkout", "-b", "main")
+            (sub / "new.txt").write_text(f"update in {sub_name}\n")
+            _git(sub, "add", "new.txt")
+            _git(sub, "commit", "-m", f"update {sub_name}")
+
+    def test_multi_path_cascade_creates_one_root_commit(
+        self, tmp_sibling_submodules: Path,
+    ):
+        """Cascading two siblings should create exactly one commit at root, not two."""
+        root = tmp_sibling_submodules
+        self._make_sibling_changes(root)
+
+        root_commits_before = int(subprocess.run(
+            ["git", "-C", str(root), "rev-list", "--count", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip())
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            result = run_cascade(submodule_paths=["docs-a", "docs-b"])
+
+        assert result == 0
+
+        root_commits_after = int(subprocess.run(
+            ["git", "-C", str(root), "rev-list", "--count", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip())
+        # Exactly one new commit at root (both pointer updates in one commit)
+        assert root_commits_after == root_commits_before + 1
+
+    def test_multi_path_root_commit_stages_both_pointers(
+        self, tmp_sibling_submodules: Path,
+    ):
+        """The single root commit should contain both submodule pointer updates."""
+        root = tmp_sibling_submodules
+        self._make_sibling_changes(root)
+
+        with patch("grove.cascade.find_repo_root", return_value=root):
+            run_cascade(submodule_paths=["docs-a", "docs-b"])
+
+        # The HEAD commit diff should touch both submodule paths
+        diff = subprocess.run(
+            ["git", "-C", str(root), "diff", "HEAD~1", "HEAD", "--name-only"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+        assert "docs-a" in diff
+        assert "docs-b" in diff
 
 
 class TestCascadeDAGExecution:

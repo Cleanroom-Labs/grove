@@ -372,6 +372,7 @@ examples:
 examples:
   grove cascade libs/common               Start cascade from a leaf submodule
   grove cascade libs/common --dry-run     Preview cascade chain and test plan
+  grove cascade path1 path2               Cascade from multiple leaves (shared ancestors deduplicated)
   grove cascade --status                  Show current cascade state
   grove cascade --continue                Resume after fixing a test failure
   grove cascade --abort                   Rollback all pointer commits
@@ -383,8 +384,8 @@ examples:
     )
     cascade_parser.add_argument(
         "path",
-        nargs="?",
-        help="Path to the leaf submodule to cascade from",
+        nargs="*",
+        help="Path(s) to leaf submodule(s) to cascade from (1 or more)",
     )
     cascade_parser.add_argument(
         "--continue",
