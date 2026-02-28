@@ -19,6 +19,7 @@ from grove.repo_utils import (
 # Colors
 # ---------------------------------------------------------------------------
 
+
 class TestColors:
     def setup_method(self):
         """Ensure colors are enabled for testing (pytest stdout is not a TTY)."""
@@ -26,7 +27,7 @@ class TestColors:
 
     def teardown_method(self):
         """Re-detect TTY state after each test."""
-        Colors._enabled = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
+        Colors._enabled = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
     def test_red_formatting(self):
         result = Colors.red("hello")
@@ -60,6 +61,7 @@ class TestColors:
 # RepoStatus
 # ---------------------------------------------------------------------------
 
+
 class TestRepoStatus:
     def test_expected_members(self):
         expected = {
@@ -89,6 +91,7 @@ class TestRepoStatus:
 # ---------------------------------------------------------------------------
 # RepoInfo.rel_path
 # ---------------------------------------------------------------------------
+
 
 class TestRepoInfoRelPath:
     def test_non_root_repo(self, tmp_git_repo: Path):
@@ -136,7 +139,8 @@ class TestDiscoverReposFromGitmodules:
         """Excluded paths should be skipped."""
         common_path = tmp_submodule_tree / "technical-docs" / "common"
         repos = discover_repos_from_gitmodules(
-            tmp_submodule_tree, exclude_paths={common_path},
+            tmp_submodule_tree,
+            exclude_paths={common_path},
         )
         paths = {r.path for r in repos}
 
@@ -161,6 +165,7 @@ class TestDiscoverReposFromGitmodules:
 # topological_sort_repos
 # ---------------------------------------------------------------------------
 
+
 class TestTopologicalSort:
     def test_children_before_parents(self, tmp_submodule_tree: Path):
         """After topological sort, children must appear before their parents."""
@@ -184,6 +189,7 @@ class TestTopologicalSort:
 # ---------------------------------------------------------------------------
 # RepoInfo.validate
 # ---------------------------------------------------------------------------
+
 
 class TestValidate:
     def test_clean_repo(self, tmp_git_repo: Path):
@@ -217,6 +223,7 @@ class TestValidate:
 # ---------------------------------------------------------------------------
 # RepoInfo helper methods
 # ---------------------------------------------------------------------------
+
 
 class TestRepoInfoHelpers:
     def test_get_branch(self, tmp_git_repo: Path):
@@ -311,6 +318,7 @@ class TestRepoInfoHelpers:
 # find_repo_root
 # ---------------------------------------------------------------------------
 
+
 class TestFindRepoRoot:
     def test_finds_root_from_subdirectory(self, tmp_submodule_tree: Path):
         """Should find the repo root from a plain subdirectory."""
@@ -327,6 +335,7 @@ class TestFindRepoRoot:
     def test_raises_when_not_found(self, tmp_path: Path):
         """Should raise FileNotFoundError when no git repo exists."""
         import pytest
+
         with pytest.raises(FileNotFoundError, match="Could not find"):
             find_repo_root(start=tmp_path)
 
@@ -343,6 +352,7 @@ class TestFindRepoRoot:
 # ---------------------------------------------------------------------------
 # RepoInfo merge-related methods (Phase 3)
 # ---------------------------------------------------------------------------
+
 
 class TestHasLocalBranch:
     def test_existing_branch(self, tmp_submodule_tree_with_branches: Path):
@@ -362,7 +372,9 @@ class TestIsAncestor:
         repo = RepoInfo(path=tmp_git_repo, repo_root=tmp_git_repo)
         assert repo.is_ancestor("HEAD") is True
 
-    def test_branch_not_ancestor_when_diverged(self, tmp_submodule_tree_with_branches: Path):
+    def test_branch_not_ancestor_when_diverged(
+        self, tmp_submodule_tree_with_branches: Path
+    ):
         repo = RepoInfo(
             path=tmp_submodule_tree_with_branches,
             repo_root=tmp_submodule_tree_with_branches,
@@ -403,6 +415,7 @@ class TestHasMergeHead:
 # ---------------------------------------------------------------------------
 # Git dir resolution
 # ---------------------------------------------------------------------------
+
 
 class TestGetGitCommonDir:
     def test_returns_git_dir(self, tmp_git_repo: Path):

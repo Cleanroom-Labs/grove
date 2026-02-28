@@ -12,6 +12,7 @@ Provides:
 - topological_sort_repos(): Sort repos for bottom-up operations
 - print_status_table(): Formatted status output
 """
+
 from __future__ import annotations
 
 import re
@@ -26,14 +27,14 @@ from graphlib import TopologicalSorter
 from pathlib import Path
 
 
-
 class Colors:
     """ANSI color codes for terminal output."""
-    RED = '\033[0;31m'
-    GREEN = '\033[0;32m'
-    YELLOW = '\033[1;33m'
-    BLUE = '\033[0;34m'
-    NC = '\033[0m'  # No Color
+
+    RED = "\033[0;31m"
+    GREEN = "\033[0;32m"
+    YELLOW = "\033[1;33m"
+    BLUE = "\033[0;34m"
+    NC = "\033[0m"  # No Color
     _enabled: bool = True
 
     @classmethod
@@ -59,12 +60,13 @@ class Colors:
 
 
 # Auto-detect TTY for color output
-if not (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()):
+if not (hasattr(sys.stdout, "isatty") and sys.stdout.isatty()):
     Colors.disable()
 
 
 class RepoStatus(Enum):
     """Validation status for a repository."""
+
     OK = "ok"
     PENDING = "pending"
     UP_TO_DATE = "up-to-date"
@@ -75,7 +77,9 @@ class RepoStatus(Enum):
     DIVERGED = "diverged"
 
 
-def run_git(path: Path, *args: str, check: bool = True, capture: bool = True) -> subprocess.CompletedProcess:
+def run_git(
+    path: Path, *args: str, check: bool = True, capture: bool = True
+) -> subprocess.CompletedProcess:
     """Run a git command in the given directory."""
     cmd = ["git", "-C", str(path)] + list(args)
     return subprocess.run(cmd, capture_output=capture, text=True, check=check)
@@ -160,6 +164,7 @@ def parse_gitmodules(
 @dataclass
 class RepoInfo:
     """Information about a git repository."""
+
     path: Path
     repo_root: Path
 
@@ -187,7 +192,9 @@ class RepoInfo:
         """Get directory depth for sorting."""
         return len(self.path.parts)
 
-    def git(self, *args: str, check: bool = True, capture: bool = True) -> subprocess.CompletedProcess:
+    def git(
+        self, *args: str, check: bool = True, capture: bool = True
+    ) -> subprocess.CompletedProcess:
         """Run a git command in this repository."""
         return run_git(self.path, *args, check=check, capture=capture)
 
@@ -196,9 +203,11 @@ class RepoInfo:
         diff_result = self.git("diff", "--quiet", check=False)
         cached_result = self.git("diff", "--cached", "--quiet", check=False)
         untracked = self.git("ls-files", "--others", "--exclude-standard", check=False)
-        return (diff_result.returncode != 0
-                or cached_result.returncode != 0
-                or bool(untracked.stdout.strip()))
+        return (
+            diff_result.returncode != 0
+            or cached_result.returncode != 0
+            or bool(untracked.stdout.strip())
+        )
 
     def get_commit_message(self) -> str:
         """Get the subject line of the most recent commit."""
@@ -256,7 +265,9 @@ class RepoInfo:
         # Check if upstream is configured
         result = self.git("rev-parse", "--abbrev-ref", "@{upstream}", check=False)
         if result.returncode == 0:
-            count_result = self.git("rev-list", "--count", "--left-right", "@{upstream}...HEAD", check=False)
+            count_result = self.git(
+                "rev-list", "--count", "--left-right", "@{upstream}...HEAD", check=False
+            )
             if count_result.returncode == 0:
                 parts = count_result.stdout.strip().split()
                 if len(parts) == 2:
@@ -266,7 +277,13 @@ class RepoInfo:
         # No upstream - check if remote branch exists
         ls_result = self.git("ls-remote", "--heads", "origin", branch, check=False)
         if f"refs/heads/{branch}" in ls_result.stdout:
-            count_result = self.git("rev-list", "--count", "--left-right", f"origin/{branch}...HEAD", check=False)
+            count_result = self.git(
+                "rev-list",
+                "--count",
+                "--left-right",
+                f"origin/{branch}...HEAD",
+                check=False,
+            )
             if count_result.returncode == 0:
                 parts = count_result.stdout.strip().split()
                 if len(parts) == 2:
@@ -292,14 +309,18 @@ class RepoInfo:
         # Check for uncommitted changes
         if self.has_uncommitted_changes():
             self.status = RepoStatus.UNCOMMITTED
-            self.error_message = f"Has uncommitted changes. Run: cd {self.rel_path} && git status"
+            self.error_message = (
+                f"Has uncommitted changes. Run: cd {self.rel_path} && git status"
+            )
             return False
 
         # Check for detached HEAD
         self.branch = self.get_branch()
         if not self.branch:
             self.status = RepoStatus.DETACHED
-            self.error_message = f"Detached HEAD state. Run: cd {self.rel_path} && git checkout <branch>"
+            self.error_message = (
+                f"Detached HEAD state. Run: cd {self.rel_path} && git checkout <branch>"
+            )
             # Detached HEAD is normal for submodules pinned to a commit. It's only
             # fatal if the caller intends to push from this repo.
             return allow_detached
@@ -343,9 +364,13 @@ class RepoInfo:
             raise RuntimeError("Cannot push without a branch (call validate() first)")
 
         if self.ahead_count == "new-branch":
-            print(f"  {Colors.blue('Pushing')} {self.rel_path} {Colors.yellow(f'(new branch: {self.branch})')}")
+            print(
+                f"  {Colors.blue('Pushing')} {self.rel_path} {Colors.yellow(f'(new branch: {self.branch})')}"
+            )
         else:
-            print(f"  {Colors.blue('Pushing')} {self.rel_path} {Colors.green(f'({self.ahead_count} commits on {self.branch})')}")
+            print(
+                f"  {Colors.blue('Pushing')} {self.rel_path} {Colors.green(f'({self.ahead_count} commits on {self.branch})')}"
+            )
 
         if dry_run:
             return True
@@ -353,7 +378,9 @@ class RepoInfo:
         # Try regular push first, then with -u if needed
         result = self.git("push", check=False, capture=False)
         if result.returncode != 0:
-            result = self.git("push", "-u", "origin", self.branch, check=False, capture=False)
+            result = self.git(
+                "push", "-u", "origin", self.branch, check=False, capture=False
+            )
 
         return result.returncode == 0
 
@@ -388,7 +415,9 @@ class RepoInfo:
         result = self.git("branch", "--format=%(refname:short)", check=False)
         if result.returncode != 0:
             return []
-        return [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
+        return [
+            line.strip() for line in result.stdout.strip().split("\n") if line.strip()
+        ]
 
     def get_remote_branches(self) -> list[str]:
         """Get list of remote tracking branch names (without 'origin/' prefix)."""
@@ -396,11 +425,11 @@ class RepoInfo:
         if result.returncode != 0:
             return []
         branches = []
-        for line in result.stdout.strip().split('\n'):
+        for line in result.stdout.strip().split("\n"):
             line = line.strip()
-            if line and not line.endswith('/HEAD'):
+            if line and not line.endswith("/HEAD"):
                 # Remove 'origin/' prefix
-                if line.startswith('origin/'):
+                if line.startswith("origin/"):
                     branches.append(line[7:])
                 else:
                     branches.append(line)
@@ -542,7 +571,9 @@ def print_status_table(repos: list[RepoInfo], show_behind: bool = False) -> None
     print("  " + "─" * 70)
 
     if show_behind:
-        print(f"  {'Repository':<40} {'Branch':<10} {'Ahead':<8} {'Behind':<8} {'Status':<12}")
+        print(
+            f"  {'Repository':<40} {'Branch':<10} {'Ahead':<8} {'Behind':<8} {'Status':<12}"
+        )
     else:
         print(f"  {'Repository':<45} {'Branch':<12} {'Ahead':<10} {'Status':<12}")
 
@@ -562,9 +593,13 @@ def print_status_table(repos: list[RepoInfo], show_behind: bool = False) -> None
             status_colored = Colors.red(status_str)
 
         if show_behind:
-            print(f"  {repo.rel_path:<40} {branch_str:<10} {ahead_str:<8} {behind_str:<8} {status_colored}")
+            print(
+                f"  {repo.rel_path:<40} {branch_str:<10} {ahead_str:<8} {behind_str:<8} {status_colored}"
+            )
         else:
-            print(f"  {repo.rel_path:<45} {branch_str:<12} {ahead_str:<10} {status_colored}")
+            print(
+                f"  {repo.rel_path:<45} {branch_str:<12} {ahead_str:<10} {status_colored}"
+            )
 
     print("  " + "─" * 70)
     print()
@@ -593,8 +628,11 @@ def run_test(path: Path, test_cmd: str) -> tuple[bool, float]:
     """Run a shell test command in *path*.  Returns ``(passed, duration_seconds)``."""
     start = time.monotonic()
     result = subprocess.run(
-        test_cmd, shell=True, cwd=str(path),
-        capture_output=True, text=True,
+        test_cmd,
+        shell=True,
+        cwd=str(path),
+        capture_output=True,
+        text=True,
     )
     duration = time.monotonic() - start
     return (result.returncode == 0, duration)
@@ -612,11 +650,12 @@ def find_repo_root(start: Path | None = None) -> Path:
     cwd = str((start or Path.cwd()).resolve())
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
     )
     if result.returncode != 0:
         raise FileNotFoundError(
-            f"Could not find git repository root.\n"
-            f"Searched from: {cwd}"
+            f"Could not find git repository root.\nSearched from: {cwd}"
         )
     return Path(result.stdout.strip())

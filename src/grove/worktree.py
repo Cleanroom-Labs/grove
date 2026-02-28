@@ -5,6 +5,7 @@ Create and remove git worktrees with automatic submodule initialization.
 Ports the zsh add-worktree/init_submodules_from_worktree helper (documented in
 docs/submodule-workflow.md) to Python so it works from any shell.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -77,7 +78,9 @@ def _fixup_venv_paths(venv_dir: Path, old_prefix: str, new_prefix: str) -> None:
     targets.extend(venv_dir.glob("lib/python*/site-packages/__editable__*.pth"))
 
     # direct_url.json in .dist-info dirs
-    targets.extend(venv_dir.glob("lib/python*/site-packages/*.dist-info/direct_url.json"))
+    targets.extend(
+        venv_dir.glob("lib/python*/site-packages/*.dist-info/direct_url.json")
+    )
 
     for path in targets:
         if not path.exists():
@@ -159,7 +162,9 @@ def _init_submodules(
         if ref_path.exists():
             run_git(
                 worktree_path,
-                "config", f"submodule.{name}.url", str(ref_path),
+                "config",
+                f"submodule.{name}.url",
+                str(ref_path),
                 check=False,
             )
 
@@ -196,7 +201,8 @@ def _checkout_submodule_branches(worktree_path: Path, branch: str) -> int:
     exclude_paths = get_sync_group_exclude_paths(worktree_path, config)
 
     repos = discover_repos_from_gitmodules(
-        worktree_path, exclude_paths=exclude_paths or None,
+        worktree_path,
+        exclude_paths=exclude_paths or None,
     )
 
     count = 0
@@ -244,7 +250,9 @@ def add_worktree(args) -> int:
     else:
         git_args.extend([str(worktree_path), branch])
 
-    print(f"{Colors.blue('Creating worktree')} at {worktree_path} on branch {Colors.green(branch)}...")
+    print(
+        f"{Colors.blue('Creating worktree')} at {worktree_path} on branch {Colors.green(branch)}..."
+    )
 
     result = run_git(repo_root, *git_args, check=False, capture=False)
     if result.returncode != 0:
@@ -264,23 +272,31 @@ def add_worktree(args) -> int:
 
     local_remotes = not getattr(args, "no_local_remotes", False)
 
-    print(f"{Colors.blue('Initializing submodules')} (using main worktree as reference)...")
+    print(
+        f"{Colors.blue('Initializing submodules')} (using main worktree as reference)..."
+    )
 
     if not _init_submodules(worktree_path, repo_root, local_remotes=local_remotes):
-        print(f"\n{Colors.yellow('Warning')}: worktree created but submodule initialization failed.")
+        print(
+            f"\n{Colors.yellow('Warning')}: worktree created but submodule initialization failed."
+        )
         print(f"  Path:   {worktree_path}")
         print(f"  Branch: {branch}")
         print("  You may need to initialize submodules manually.")
         return 1
 
     if not local_remotes:
-        print(f"{Colors.blue('Upstream remotes')}: submodule pushes will go directly to upstream")
+        print(
+            f"{Colors.blue('Upstream remotes')}: submodule pushes will go directly to upstream"
+        )
 
     # Put non-sync-group submodules on matching branches
     print(f"{Colors.blue('Creating branches')} in submodules...")
     branched = _checkout_submodule_branches(worktree_path, branch)
     if branched:
-        print(f"  {Colors.green(f'{branched} submodule(s) checked out')} onto branch {Colors.green(branch)}")
+        print(
+            f"  {Colors.green(f'{branched} submodule(s) checked out')} onto branch {Colors.green(branch)}"
+        )
     else:
         print(f"  {Colors.yellow('No submodules needed branch creation')}")
 
@@ -314,7 +330,9 @@ def remove_worktree(args) -> int:
         if "submodules" in result.stderr:
             # git worktree remove refuses when submodules are present.
             # Fall back to manual removal + prune.
-            print(f"  {Colors.yellow('Worktree contains submodules')}; removing manually...")
+            print(
+                f"  {Colors.yellow('Worktree contains submodules')}; removing manually..."
+            )
             shutil.rmtree(worktree_path)
         else:
             print(result.stderr.rstrip())
@@ -342,18 +360,26 @@ def checkout_branches(args) -> int:
         result = run_git(repo_root, "branch", "--show-current", check=False)
         branch = result.stdout.strip()
         if not branch:
-            print(Colors.red("Root worktree is in detached HEAD state. "
-                             "Use --branch to specify a branch name."))
+            print(
+                Colors.red(
+                    "Root worktree is in detached HEAD state. "
+                    "Use --branch to specify a branch name."
+                )
+            )
             return 1
 
-    print(f"{Colors.blue('Checking out branches')} in submodules "
-          f"(target: {Colors.green(branch)})...")
+    print(
+        f"{Colors.blue('Checking out branches')} in submodules "
+        f"(target: {Colors.green(branch)})..."
+    )
 
     count = _checkout_submodule_branches(repo_root, branch)
 
     if count:
-        print(f"\n{Colors.green(f'{count} submodule(s)')} checked out "
-              f"onto branch {Colors.green(branch)}")
+        print(
+            f"\n{Colors.green(f'{count} submodule(s)')} checked out "
+            f"onto branch {Colors.green(branch)}"
+        )
     else:
         print(f"\n{Colors.yellow('No submodules needed branch checkout')}")
 

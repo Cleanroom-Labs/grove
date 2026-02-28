@@ -25,6 +25,7 @@ from grove.completion import (
 # extract_structure
 # ---------------------------------------------------------------------------
 
+
 class TestExtractStructure:
     """Verify the introspection captures all commands and flags."""
 
@@ -34,8 +35,16 @@ class TestExtractStructure:
 
     def test_top_level_commands(self):
         expected = {
-            "init", "check", "checkout", "push", "sync", "visualize",
-            "worktree", "claude", "cascade", "completion",
+            "init",
+            "check",
+            "checkout",
+            "push",
+            "sync",
+            "visualize",
+            "worktree",
+            "claude",
+            "cascade",
+            "completion",
         }
         assert expected == set(self.structure["commands"].keys())
 
@@ -44,7 +53,9 @@ class TestExtractStructure:
 
     def test_worktree_subcommands(self):
         wt = self.structure["commands"]["worktree"]
-        assert {"add", "remove", "merge", "checkout-branches"} == set(wt["commands"].keys())
+        assert {"add", "remove", "merge", "checkout-branches"} == set(
+            wt["commands"].keys()
+        )
 
     def test_claude_subcommands(self):
         cl = self.structure["commands"]["claude"]
@@ -57,9 +68,19 @@ class TestExtractStructure:
         assert "--skip-checks" in sync_flags
 
     def test_worktree_merge_flags(self):
-        merge_flags = self.structure["commands"]["worktree"]["commands"]["merge"]["flags"]
-        expected = {"--continue", "--abort", "--status", "--dry-run",
-                    "--no-recurse", "--no-ff", "--no-test", "--verbose"}
+        merge_flags = self.structure["commands"]["worktree"]["commands"]["merge"][
+            "flags"
+        ]
+        expected = {
+            "--continue",
+            "--abort",
+            "--status",
+            "--dry-run",
+            "--no-recurse",
+            "--no-ff",
+            "--no-test",
+            "--verbose",
+        }
         assert expected.issubset(set(merge_flags))
 
     def test_worktree_add_flags(self):
@@ -77,6 +98,7 @@ class TestExtractStructure:
 # Bash completion
 # ---------------------------------------------------------------------------
 
+
 class TestBashCompletion:
     def setup_method(self):
         parser = build_parser()
@@ -90,8 +112,16 @@ class TestBashCompletion:
         assert "complete -o default -F _grove_completion grove" in self.script
 
     def test_contains_all_subcommands(self):
-        for cmd in ["init", "check", "push", "sync", "visualize",
-                     "worktree", "claude", "completion"]:
+        for cmd in [
+            "init",
+            "check",
+            "push",
+            "sync",
+            "visualize",
+            "worktree",
+            "claude",
+            "completion",
+        ]:
             assert cmd in self.script
 
     def test_contains_nested_subcommands(self):
@@ -99,7 +129,13 @@ class TestBashCompletion:
             assert cmd in self.script
 
     def test_contains_flags(self):
-        for flag in ["--no-color", "--dry-run", "--force", "--skip-checks", "--verbose"]:
+        for flag in [
+            "--no-color",
+            "--dry-run",
+            "--force",
+            "--skip-checks",
+            "--verbose",
+        ]:
             assert flag in self.script
 
     def test_init_completion_fallback(self):
@@ -110,6 +146,7 @@ class TestBashCompletion:
 # ---------------------------------------------------------------------------
 # Zsh completion
 # ---------------------------------------------------------------------------
+
 
 class TestZshCompletion:
     def setup_method(self):
@@ -124,18 +161,33 @@ class TestZshCompletion:
         assert "compadd" in self.script
 
     def test_contains_all_subcommands(self):
-        for cmd in ["init", "check", "push", "sync", "visualize",
-                     "worktree", "claude", "completion"]:
+        for cmd in [
+            "init",
+            "check",
+            "push",
+            "sync",
+            "visualize",
+            "worktree",
+            "claude",
+            "completion",
+        ]:
             assert cmd in self.script
 
     def test_contains_flags(self):
-        for flag in ["--no-color", "--dry-run", "--force", "--skip-checks", "--verbose"]:
+        for flag in [
+            "--no-color",
+            "--dry-run",
+            "--force",
+            "--skip-checks",
+            "--verbose",
+        ]:
             assert flag in self.script
 
 
 # ---------------------------------------------------------------------------
 # Fish completion
 # ---------------------------------------------------------------------------
+
 
 class TestFishCompletion:
     def setup_method(self):
@@ -147,8 +199,16 @@ class TestFishCompletion:
         assert "complete -c grove" in self.script
 
     def test_contains_all_subcommands(self):
-        for cmd in ["init", "check", "push", "sync", "visualize",
-                     "worktree", "claude", "completion"]:
+        for cmd in [
+            "init",
+            "check",
+            "push",
+            "sync",
+            "visualize",
+            "worktree",
+            "claude",
+            "completion",
+        ]:
             assert f"-a '{cmd}'" in self.script
 
     def test_contains_long_flags(self):
@@ -167,27 +227,32 @@ class TestFishCompletion:
 # CLI integration
 # ---------------------------------------------------------------------------
 
+
 class TestCompletionCLI:
     def test_bash_returns_0(self, capsys):
         from grove.cli import main
+
         result = main(["completion", "bash"])
         assert result == 0
         assert "_grove_completion" in capsys.readouterr().out
 
     def test_zsh_returns_0(self, capsys):
         from grove.cli import main
+
         result = main(["completion", "zsh"])
         assert result == 0
         assert "#compdef grove" in capsys.readouterr().out
 
     def test_fish_returns_0(self, capsys):
         from grove.cli import main
+
         result = main(["completion", "fish"])
         assert result == 0
         assert "complete -c grove" in capsys.readouterr().out
 
     def test_invalid_shell_exits_2(self):
         from grove.cli import main
+
         with pytest.raises(SystemExit) as exc_info:
             main(["completion", "powershell"])
         assert exc_info.value.code == 2
@@ -196,6 +261,7 @@ class TestCompletionCLI:
 # ---------------------------------------------------------------------------
 # Regression guard — ensures every flag/command appears in generated scripts
 # ---------------------------------------------------------------------------
+
 
 class TestCompletionCoversAllTokens:
     """If a new flag or command is added to the parser, the generated scripts
@@ -241,6 +307,7 @@ class TestCompletionCoversAllTokens:
 # ---------------------------------------------------------------------------
 # Completion install — helpers
 # ---------------------------------------------------------------------------
+
 
 class TestCompletionInstallHelpers:
     """Unit tests for install helper functions."""
@@ -313,6 +380,7 @@ class TestCompletionInstallHelpers:
 # Completion install — bash / zsh
 # ---------------------------------------------------------------------------
 
+
 class TestCompletionInstallBashZsh:
     """Integration tests for bash/zsh install."""
 
@@ -322,6 +390,7 @@ class TestCompletionInstallBashZsh:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_bash_zsh
+
             result = _install_bash_zsh("zsh", dry_run=False, force=False)
 
         assert result == 0
@@ -340,6 +409,7 @@ class TestCompletionInstallBashZsh:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_bash_zsh
+
             result = _install_bash_zsh("zsh", dry_run=False, force=False)
 
         assert result == 0
@@ -354,6 +424,7 @@ class TestCompletionInstallBashZsh:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_bash_zsh
+
             _install_bash_zsh("zsh", dry_run=False, force=False)
             capsys.readouterr()
 
@@ -368,6 +439,7 @@ class TestCompletionInstallBashZsh:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_bash_zsh
+
             _install_bash_zsh("zsh", dry_run=False, force=False)
             capsys.readouterr()
 
@@ -382,6 +454,7 @@ class TestCompletionInstallBashZsh:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_bash_zsh
+
             result = _install_bash_zsh("zsh", dry_run=True, force=False)
 
         assert result == 0
@@ -398,6 +471,7 @@ class TestCompletionInstallBashZsh:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_bash_zsh
+
             _install_bash_zsh("bash", dry_run=False, force=False)
 
         assert "_grove_completion" in bashrc.read_text()
@@ -411,6 +485,7 @@ class TestCompletionInstallBashZsh:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_bash_zsh
+
             _install_bash_zsh("bash", dry_run=False, force=False)
 
         assert "_grove_completion" in bash_profile.read_text()
@@ -419,6 +494,7 @@ class TestCompletionInstallBashZsh:
 # ---------------------------------------------------------------------------
 # Completion install — fish
 # ---------------------------------------------------------------------------
+
 
 class TestCompletionInstallFish:
     """Integration tests for fish install."""
@@ -429,6 +505,7 @@ class TestCompletionInstallFish:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_fish
+
             result = _install_fish(dry_run=False, force=False)
 
         assert result == 0
@@ -443,6 +520,7 @@ class TestCompletionInstallFish:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_fish
+
             _install_fish(dry_run=False, force=False)
             capsys.readouterr()
 
@@ -457,6 +535,7 @@ class TestCompletionInstallFish:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_fish
+
             _install_fish(dry_run=False, force=False)
             capsys.readouterr()
 
@@ -471,6 +550,7 @@ class TestCompletionInstallFish:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_fish
+
             result = _install_fish(dry_run=True, force=False)
 
         assert result == 0
@@ -483,6 +563,7 @@ class TestCompletionInstallFish:
 # Completion install — check
 # ---------------------------------------------------------------------------
 
+
 class TestCompletionCheck:
     """Tests for --check flag."""
 
@@ -492,6 +573,7 @@ class TestCompletionCheck:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _check_installed
+
             result = _check_installed("zsh")
 
         assert result == 0
@@ -503,6 +585,7 @@ class TestCompletionCheck:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_bash_zsh, _check_installed
+
             _install_bash_zsh("zsh", dry_run=False, force=False)
             capsys.readouterr()
 
@@ -517,6 +600,7 @@ class TestCompletionCheck:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _check_installed
+
             result = _check_installed("fish")
 
         assert result == 0
@@ -528,6 +612,7 @@ class TestCompletionCheck:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.completion import _install_fish, _check_installed
+
             _install_fish(dry_run=False, force=False)
             capsys.readouterr()
 
@@ -541,12 +626,14 @@ class TestCompletionCheck:
 # Completion install — CLI integration
 # ---------------------------------------------------------------------------
 
+
 class TestCompletionInstallCLI:
     """End-to-end CLI tests for grove completion install."""
 
     def test_install_no_shell_detected(self, monkeypatch, capsys):
         monkeypatch.delenv("SHELL", raising=False)
         from grove.cli import main
+
         result = main(["completion", "install"])
         assert result == 1
         assert "could not detect shell" in capsys.readouterr().out
@@ -558,6 +645,7 @@ class TestCompletionInstallCLI:
 
         with patch.object(Path, "home", return_value=fake_home):
             from grove.cli import main
+
             result = main(["completion", "install", "--shell", "zsh"])
 
         assert result == 0
@@ -565,17 +653,20 @@ class TestCompletionInstallCLI:
 
     def test_completion_bash_still_works(self, capsys):
         from grove.cli import main
+
         result = main(["completion", "bash"])
         assert result == 0
         assert "_grove_completion" in capsys.readouterr().out
 
     def test_completion_zsh_still_works(self, capsys):
         from grove.cli import main
+
         result = main(["completion", "zsh"])
         assert result == 0
         assert "#compdef grove" in capsys.readouterr().out
 
     def test_completion_no_subcommand_returns_2(self, capsys):
         from grove.cli import main
+
         result = main(["completion"])
         assert result == 2

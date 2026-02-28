@@ -6,6 +6,7 @@ Propagates a change from a leaf submodule upward through the dependency
 tree, running tests at each level and committing submodule pointer
 updates.  Supports pause/resume on test failures and full rollback.
 """
+
 from __future__ import annotations
 
 import json
@@ -38,9 +39,11 @@ from grove.repo_utils import (
 # State management
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RepoCascadeEntry:
     """Cascade state for a single repository in the chain."""
+
     rel_path: str
     role: str  # leaf | intermediate | root
     status: str = "pending"
@@ -58,6 +61,7 @@ class RepoCascadeEntry:
 @dataclass
 class CascadeState:
     """Persistent cascade state across CLI invocations."""
+
     submodule_path: str  # display string; " + ".join(paths) for multi-path
     started_at: str
     system_mode: str  # "default" | "all" | "none"
@@ -124,6 +128,7 @@ class CascadeState:
 # Path helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_state_path(repo_root: Path) -> Path:
     return get_state_path(repo_root, "cascade-state.json")
 
@@ -142,6 +147,7 @@ def _log(journal_path: Path, message: str) -> None:
 # ---------------------------------------------------------------------------
 # Test runner
 # ---------------------------------------------------------------------------
+
 
 def _run_test(path: Path, test_cmd: str) -> tuple[bool, float]:
     """Run a test command in a directory.  Returns (passed, duration_seconds)."""
@@ -186,6 +192,7 @@ def _run_tier(
 # Auto-diagnosis
 # ---------------------------------------------------------------------------
 
+
 def _auto_diagnose_integration(
     entry: RepoCascadeEntry,
     child_rel_path: str,
@@ -204,7 +211,7 @@ def _auto_diagnose_integration(
         return results
 
     print()
-    print(f"  Auto-diagnosis:")
+    print("  Auto-diagnosis:")
     print(f"    Running local-tests of {child_rel_path}...")
 
     passed, duration = _run_test(child_path, cmd)
@@ -213,12 +220,16 @@ def _auto_diagnose_integration(
 
     if passed:
         _log(journal_path, f"DIAG {child_rel_path} local-tests PASS ({duration:.1f}s)")
-        print(f"    {Colors.green('✓')} {child_rel_path} — local-tests passed "
-              f"(problem is likely at the interface)")
+        print(
+            f"    {Colors.green('✓')} {child_rel_path} — local-tests passed "
+            f"(problem is likely at the interface)"
+        )
     else:
         _log(journal_path, f"DIAG {child_rel_path} local-tests FAIL ({duration:.1f}s)")
-        print(f"    {Colors.red('✗')} {child_rel_path} — local-tests FAILED "
-              f"(problem may be inside this dependency)")
+        print(
+            f"    {Colors.red('✗')} {child_rel_path} — local-tests FAILED "
+            f"(problem may be inside this dependency)"
+        )
 
     entry.diagnosis = results
     return results
@@ -239,21 +250,31 @@ def _auto_diagnose_system(
 
     # Phase 1: local-tests of changed submodule
     print()
-    print(f"  Auto-diagnosis (phase 1 — direct submodules):")
+    print("  Auto-diagnosis (phase 1 — direct submodules):")
 
     local_cmd = config.get_command("local-tests", child_rel_path)
     if local_cmd and local_cmd != "":
         print(f"    Running local-tests of {child_rel_path}...")
         passed, duration = _run_test(child_path, local_cmd)
-        results.append({"rel_path": child_rel_path, "tier": "local-tests", "passed": passed})
+        results.append(
+            {"rel_path": child_rel_path, "tier": "local-tests", "passed": passed}
+        )
 
         if passed:
-            _log(journal_path, f"DIAG {child_rel_path} local-tests PASS ({duration:.1f}s)")
+            _log(
+                journal_path,
+                f"DIAG {child_rel_path} local-tests PASS ({duration:.1f}s)",
+            )
             print(f"    {Colors.green('✓')} {child_rel_path} — local-tests passed")
         else:
-            _log(journal_path, f"DIAG {child_rel_path} local-tests FAIL ({duration:.1f}s)")
-            print(f"    {Colors.red('✗')} {child_rel_path} — local-tests FAILED "
-                  f"(problem may be inside this dependency)")
+            _log(
+                journal_path,
+                f"DIAG {child_rel_path} local-tests FAIL ({duration:.1f}s)",
+            )
+            print(
+                f"    {Colors.red('✗')} {child_rel_path} — local-tests FAILED "
+                f"(problem may be inside this dependency)"
+            )
             entry.diagnosis = results
             return results  # Found culprit, skip phase 2
 
@@ -261,18 +282,30 @@ def _auto_diagnose_system(
     integ_cmd = config.get_command("integration-tests", child_rel_path)
     if integ_cmd and integ_cmd != "":
         print()
-        print(f"  Auto-diagnosis (phase 2 — deeper):")
+        print("  Auto-diagnosis (phase 2 — deeper):")
         print(f"    Running integration-tests of {child_rel_path}...")
         passed, duration = _run_test(child_path, integ_cmd)
-        results.append({"rel_path": child_rel_path, "tier": "integration-tests", "passed": passed})
+        results.append(
+            {"rel_path": child_rel_path, "tier": "integration-tests", "passed": passed}
+        )
 
         if passed:
-            _log(journal_path, f"DIAG {child_rel_path} integration-tests PASS ({duration:.1f}s)")
-            print(f"    {Colors.green('✓')} {child_rel_path} — integration-tests passed")
+            _log(
+                journal_path,
+                f"DIAG {child_rel_path} integration-tests PASS ({duration:.1f}s)",
+            )
+            print(
+                f"    {Colors.green('✓')} {child_rel_path} — integration-tests passed"
+            )
         else:
-            _log(journal_path, f"DIAG {child_rel_path} integration-tests FAIL ({duration:.1f}s)")
+            _log(
+                journal_path,
+                f"DIAG {child_rel_path} integration-tests FAIL ({duration:.1f}s)",
+            )
             print(f"    {Colors.red('✗')} {child_rel_path} — integration-tests FAILED")
-            print(f"      → Problem may be in a transitive dependency of {child_rel_path}")
+            print(
+                f"      → Problem may be in a transitive dependency of {child_rel_path}"
+            )
 
     entry.diagnosis = results
     return results
@@ -281,6 +314,7 @@ def _auto_diagnose_system(
 # ---------------------------------------------------------------------------
 # Chain discovery
 # ---------------------------------------------------------------------------
+
 
 def _discover_cascade_chain(
     submodule_path: Path,
@@ -342,7 +376,11 @@ def _build_multi_path_plan(
     intermediate_sg_names: list[str] = []
     if config is not None:
         intermediate_sg_names = _expand_plan_for_intermediate_sync_groups(
-            repo_map, repo_root, config, all_repos, leaf_paths,
+            repo_map,
+            repo_root,
+            config,
+            all_repos,
+            leaf_paths,
         )
 
     # Sort by depth ascending (leaves first, root last)
@@ -370,8 +408,7 @@ def _build_multi_path_plan(
         child_rel_paths = None
         if item["children"]:
             child_rel_paths = sorted(
-                str(child_path.relative_to(rp))
-                for child_path in item["children"]
+                str(child_path.relative_to(rp)) for child_path in item["children"]
             )
 
         sync_peers = item.get("sync_peers")
@@ -380,12 +417,16 @@ def _build_multi_path_plan(
             primary_rp = item["sync_primary"]
             sync_primary_rel = (
                 str(primary_rp.relative_to(repo_root))
-                if primary_rp != repo_root else "."
+                if primary_rp != repo_root
+                else "."
             )
 
         entry = RepoCascadeEntry(
-            rel_path=rel, role=role, child_rel_paths=child_rel_paths,
-            sync_peers=sync_peers, sync_primary_rel=sync_primary_rel,
+            rel_path=rel,
+            role=role,
+            child_rel_paths=child_rel_paths,
+            sync_peers=sync_peers,
+            sync_primary_rel=sync_primary_rel,
         )
         plan_repos.append(repo)
         entries.append(entry)
@@ -396,6 +437,7 @@ def _build_multi_path_plan(
 # ---------------------------------------------------------------------------
 # Sync-group awareness
 # ---------------------------------------------------------------------------
+
 
 def _find_sync_group_for_path(
     submodule_path: Path,
@@ -477,7 +519,11 @@ def _build_unified_cascade_plan(
     intermediate_sg_names: list[str] = []
     if config is not None:
         intermediate_sg_names = _expand_plan_for_intermediate_sync_groups(
-            repo_map, repo_root, config, all_repos, leaf_paths,
+            repo_map,
+            repo_root,
+            config,
+            all_repos,
+            leaf_paths,
         )
 
     # Sort by depth ascending (leaves first at depth 0, root last at max depth)
@@ -507,8 +553,7 @@ def _build_unified_cascade_plan(
         child_rel_paths = None
         if item["children"]:
             child_rel_paths = sorted(
-                str(child_path.relative_to(rp))
-                for child_path in item["children"]
+                str(child_path.relative_to(rp)) for child_path in item["children"]
             )
 
         # Sync-group fields
@@ -518,12 +563,16 @@ def _build_unified_cascade_plan(
             primary_rp = item["sync_primary"]
             sync_primary_rel = (
                 str(primary_rp.relative_to(repo_root))
-                if primary_rp != repo_root else "."
+                if primary_rp != repo_root
+                else "."
             )
 
         entry = RepoCascadeEntry(
-            rel_path=rel, role=role, child_rel_paths=child_rel_paths,
-            sync_peers=sync_peers, sync_primary_rel=sync_primary_rel,
+            rel_path=rel,
+            role=role,
+            child_rel_paths=child_rel_paths,
+            sync_peers=sync_peers,
+            sync_primary_rel=sync_primary_rel,
         )
         plan_repos.append(repo)
         entries.append(entry)
@@ -562,7 +611,9 @@ def _expand_plan_for_intermediate_sync_groups(
             checked.add(rp)
 
             sg_match = _find_sync_group_for_path(
-                item["repo"].path, repo_root, config,
+                item["repo"].path,
+                repo_root,
+                config,
             )
             if sg_match is None:
                 continue
@@ -582,8 +633,7 @@ def _expand_plan_for_intermediate_sync_groups(
                     continue  # this is the primary
 
                 sub_rel = (
-                    str(sub_rp.relative_to(repo_root))
-                    if sub_rp != repo_root else "."
+                    str(sub_rp.relative_to(repo_root)) if sub_rp != repo_root else "."
                 )
                 peers.append(sub_rel)
 
@@ -623,7 +673,8 @@ def _expand_plan_for_intermediate_sync_groups(
                         new_entries_added = True
                     else:
                         repo_map[crp]["depth"] = max(
-                            repo_map[crp]["depth"], depth,
+                            repo_map[crp]["depth"],
+                            depth,
                         )
 
                     # Record child→parent
@@ -671,28 +722,31 @@ def _check_sync_group_consistency(
 
     # Inconsistent
     if force:
-        print(Colors.yellow(
-            f"Warning: Sync group '{group_name}' has inconsistent instances (--skip-checks)."
-        ))
+        print(
+            Colors.yellow(
+                f"Warning: Sync group '{group_name}' has inconsistent instances (--skip-checks)."
+            )
+        )
         for rel, sha in sorted(commits.items()):
             print(f"  {rel}: {sha[:8] if sha else '(none)'}")
         print()
         return True
 
-    print(Colors.red(
-        f"Error: Sync group '{group_name}' instances are not in sync."
-    ))
+    print(Colors.red(f"Error: Sync group '{group_name}' instances are not in sync."))
     for rel, sha in sorted(commits.items()):
         print(f"  {rel}: {sha[:8] if sha else '(none)'}")
     print()
-    print(f"Run {Colors.blue(f'grove sync {group_name}')} first, "
-          f"or use {Colors.blue('--skip-checks')} to skip this check.")
+    print(
+        f"Run {Colors.blue(f'grove sync {group_name}')} first, "
+        f"or use {Colors.blue('--skip-checks')} to skip this check."
+    )
     return False
 
 
 # ---------------------------------------------------------------------------
 # Core cascade execution
 # ---------------------------------------------------------------------------
+
 
 def _determine_tiers(
     role: str,
@@ -780,16 +834,24 @@ def _process_repo(
             first_child = child_rel_paths[0] if child_rel_paths else None
             if first_child and tier == "integration-tests":
                 _auto_diagnose_integration(
-                    entry, first_child, config, repo_root, journal_path,
+                    entry,
+                    first_child,
+                    config,
+                    repo_root,
+                    journal_path,
                 )
             elif first_child and tier == "system-tests":
                 _auto_diagnose_system(
-                    entry, first_child, config, repo_root, journal_path,
+                    entry,
+                    first_child,
+                    config,
+                    repo_root,
+                    journal_path,
                 )
 
             state.save(state_path)
             print()
-            print(f"  Paused. Fix the issue, then run: grove cascade --continue")
+            print("  Paused. Fix the issue, then run: grove cascade --continue")
             return 1
 
         # Update status after each passing tier
@@ -801,7 +863,11 @@ def _process_repo(
         if len(child_rel_paths) == 1:
             crp = child_rel_paths[0]
             child_sha = run_git(
-                repo.path / crp, "rev-parse", "--short", "HEAD", check=False,
+                repo.path / crp,
+                "rev-parse",
+                "--short",
+                "HEAD",
+                check=False,
             ).stdout.strip()
             message = f"chore(cascade): update {crp} submodule to {child_sha}"
         else:
@@ -832,6 +898,7 @@ def _process_repo(
 # Public entry points
 # ---------------------------------------------------------------------------
 
+
 def _build_linear_entries(
     chain: list[RepoInfo],
     repo_root: Path,
@@ -857,9 +924,13 @@ def _build_linear_entries(
             child = chain[i - 1]
             child_rel_paths = [str(child.path.relative_to(repo.path))]
 
-        entries.append(RepoCascadeEntry(
-            rel_path=rel, role=role, child_rel_paths=child_rel_paths,
-        ))
+        entries.append(
+            RepoCascadeEntry(
+                rel_path=rel,
+                role=role,
+                child_rel_paths=child_rel_paths,
+            )
+        )
     return entries
 
 
@@ -900,7 +971,11 @@ def _expand_linear_for_intermediate_sync_groups(
 
     # Run the fixed-point expansion
     intermediate_sg_names = _expand_plan_for_intermediate_sync_groups(
-        repo_map, repo_root, config, all_repos, leaf_paths,
+        repo_map,
+        repo_root,
+        config,
+        all_repos,
+        leaf_paths,
     )
     if not intermediate_sg_names:
         return []
@@ -929,8 +1004,7 @@ def _expand_linear_for_intermediate_sync_groups(
         child_rel_paths = None
         if item["children"]:
             child_rel_paths = sorted(
-                str(child_path.relative_to(rp))
-                for child_path in item["children"]
+                str(child_path.relative_to(rp)) for child_path in item["children"]
             )
 
         sync_peers = item.get("sync_peers")
@@ -939,14 +1013,20 @@ def _expand_linear_for_intermediate_sync_groups(
             primary_rp = item["sync_primary"]
             sync_primary_rel = (
                 str(primary_rp.relative_to(repo_root))
-                if primary_rp != repo_root else "."
+                if primary_rp != repo_root
+                else "."
             )
 
         new_chain.append(repo)
-        new_entries.append(RepoCascadeEntry(
-            rel_path=rel, role=role, child_rel_paths=child_rel_paths,
-            sync_peers=sync_peers, sync_primary_rel=sync_primary_rel,
-        ))
+        new_entries.append(
+            RepoCascadeEntry(
+                rel_path=rel,
+                role=role,
+                child_rel_paths=child_rel_paths,
+                sync_peers=sync_peers,
+                sync_primary_rel=sync_primary_rel,
+            )
+        )
 
     # Mutate in place so the caller sees the changes
     chain.clear()
@@ -988,12 +1068,16 @@ def run_cascade(
 
     # Warn if no test tiers configured
     cc = config.cascade
-    if not any([cc.local_tests, cc.contract_tests, cc.integration_tests, cc.system_tests]):
-        print(Colors.yellow(
-            "Warning: No cascade test tiers configured. "
-            "Cascade will commit without testing."
-        ))
-        print(f"Configure tests in .grove.toml under [cascade].")
+    if not any(
+        [cc.local_tests, cc.contract_tests, cc.integration_tests, cc.system_tests]
+    ):
+        print(
+            Colors.yellow(
+                "Warning: No cascade test tiers configured. "
+                "Cascade will commit without testing."
+            )
+        )
+        print("Configure tests in .grove.toml under [cascade].")
         print()
 
     # Discover repos
@@ -1016,14 +1100,20 @@ def run_cascade(
             return 1
 
         print(Colors.blue(f"Cascading sync group: '{sync_group_name}'"))
-        if not _check_sync_group_consistency(sync_group_name, repo_root, sg.url_match, force):
+        if not _check_sync_group_consistency(
+            sync_group_name, repo_root, sg.url_match, force
+        ):
             return 1
         print()
 
         sg_name_for_state = sync_group_name
         submodule_path = f"(sync-group: {sync_group_name})"
         chain, entries, intermediate_sg_names = _build_unified_cascade_plan(
-            sync_group_name, sg.url_match, repo_root, repos, config=config,
+            sync_group_name,
+            sg.url_match,
+            repo_root,
+            repos,
+            config=config,
         )
         is_dag = True
 
@@ -1039,14 +1129,21 @@ def run_cascade(
             print(Colors.blue(f"Multi-path cascade: {' + '.join(submodule_paths)}"))
             try:
                 chain, entries, intermediate_sg_names = _build_multi_path_plan(
-                    targets, repos, repo_root, config=config,
+                    targets,
+                    repos,
+                    repo_root,
+                    config=config,
                 )
             except ValueError as e:
                 print(Colors.red(f"Error: {e}"))
                 return 1
 
             if len(chain) < 2:
-                print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
+                print(
+                    Colors.red(
+                        "Error: Cascade requires at least a leaf and one parent."
+                    )
+                )
                 return 1
 
             is_dag = True
@@ -1060,7 +1157,9 @@ def run_cascade(
             if sg_match is not None:
                 sg_name, sg_group = sg_match
                 print(Colors.blue(f"Sync-group detected: '{sg_name}'"))
-                if not _check_sync_group_consistency(sg_name, repo_root, sg_group.url_match, force):
+                if not _check_sync_group_consistency(
+                    sg_name, repo_root, sg_group.url_match, force
+                ):
                     return 1
                 print()
 
@@ -1069,12 +1168,20 @@ def run_cascade(
                 sg_name, sg_group = sg_match
                 sg_name_for_state = sg_name
                 chain, entries, intermediate_sg_names = _build_unified_cascade_plan(
-                    sg_name, sg_group.url_match, repo_root, repos, config=config,
+                    sg_name,
+                    sg_group.url_match,
+                    repo_root,
+                    repos,
+                    config=config,
                 )
                 is_dag = True
 
                 if len(chain) < 2:
-                    print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
+                    print(
+                        Colors.red(
+                            "Error: Cascade requires at least a leaf and one parent."
+                        )
+                    )
                     return 1
             else:
                 # Mode 3: linear chain from non-sync-group leaf
@@ -1085,7 +1192,11 @@ def run_cascade(
                     return 1
 
                 if len(chain) < 2:
-                    print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
+                    print(
+                        Colors.red(
+                            "Error: Cascade requires at least a leaf and one parent."
+                        )
+                    )
                     print("The given path appears to be the root repository itself.")
                     return 1
 
@@ -1093,7 +1204,11 @@ def run_cascade(
 
                 # Check for intermediate sync groups — may promote linear to DAG
                 intermediate_sg_names = _expand_linear_for_intermediate_sync_groups(
-                    chain, entries, repo_root, config, repos,
+                    chain,
+                    entries,
+                    repo_root,
+                    config,
+                    repos,
                 )
                 if intermediate_sg_names:
                     is_dag = True
@@ -1116,9 +1231,11 @@ def run_cascade(
                 continue  # already consistent
 
             if dry_run:
-                print(Colors.yellow(
-                    f"  Intermediate sync group '{isg_name}' has diverged instances"
-                ))
+                print(
+                    Colors.yellow(
+                        f"  Intermediate sync group '{isg_name}' has diverged instances"
+                    )
+                )
                 print("  (dry-run) Would attempt merge.")
                 continue
 
@@ -1126,27 +1243,37 @@ def run_cascade(
             from grove.sync_merge import attempt_divergence_merge
 
             merge_result = attempt_divergence_merge(
-                isg_name, subs, repo_root,
+                isg_name,
+                subs,
+                repo_root,
                 Path(isg.standalone_repo) if isg.standalone_repo else None,
-                dry_run=False, force=False,
+                dry_run=False,
+                force=False,
             )
             if merge_result is not None:
                 merged_sha, _workspace, _desc = merge_result
                 for sub in subs:
                     run_git(sub.path, "checkout", merged_sha, check=False)
                     run_git(sub.path, "submodule", "update", "--recursive", check=False)
-                print(Colors.green(
-                    f"  Auto-resolved divergence in '{isg_name}': {merged_sha[:8]}"
-                ))
+                print(
+                    Colors.green(
+                        f"  Auto-resolved divergence in '{isg_name}': {merged_sha[:8]}"
+                    )
+                )
             else:
                 # Merge conflict — abort the partial merge and defer
                 run_git(
-                    subs[0].path, "merge", "--abort", check=False,
+                    subs[0].path,
+                    "merge",
+                    "--abort",
+                    check=False,
                 )
                 deferred_sg_names.append(isg_name)
-                print(Colors.yellow(
-                    f"  Divergence in '{isg_name}' could not be auto-resolved (deferred)"
-                ))
+                print(
+                    Colors.yellow(
+                        f"  Divergence in '{isg_name}' could not be auto-resolved (deferred)"
+                    )
+                )
 
     # Create state
     state = CascadeState(
@@ -1171,9 +1298,11 @@ def run_cascade(
 
     if is_dag:
         leaf_entries = [e for e in entries if e.role == "leaf"]
-        print(Colors.blue(
-            f"Cascade (DAG): {len(leaf_entries)} sync-group instances → root"
-        ))
+        print(
+            Colors.blue(
+                f"Cascade (DAG): {len(leaf_entries)} sync-group instances → root"
+            )
+        )
     else:
         print(Colors.blue(f"Cascade: {submodule_path} → root"))
     print(f"Plan: {' → '.join(e.rel_path for e in entries)}")
@@ -1182,8 +1311,16 @@ def run_cascade(
     print()
 
     # Execute the cascade
-    result = _execute_cascade(chain, entries, state, state_path, journal_path,
-                              config.cascade, repo_root, dry_run)
+    result = _execute_cascade(
+        chain,
+        entries,
+        state,
+        state_path,
+        journal_path,
+        config.cascade,
+        repo_root,
+        dry_run,
+    )
 
     if result == 0:
         CascadeState.remove(state_path)
@@ -1194,9 +1331,9 @@ def run_cascade(
             if push_result != 0:
                 return push_result
         elif push and dry_run:
-            print(Colors.yellow(
-                "(--push: would push all cascade repos after completion)"
-            ))
+            print(
+                Colors.yellow("(--push: would push all cascade repos after completion)")
+            )
         else:
             print(f"Run {Colors.blue('grove push')} to distribute changes.")
 
@@ -1265,8 +1402,10 @@ def _execute_cascade(
         # Sync targets are handled by the primary's post-commit step
         if entry.sync_primary_rel is not None:
             if dry_run:
-                print(f"  {Colors.blue(entry.rel_path)} (sync target of {entry.sync_primary_rel})")
-                print(f"    Would sync to primary's commit")
+                print(
+                    f"  {Colors.blue(entry.rel_path)} (sync target of {entry.sync_primary_rel})"
+                )
+                print("    Would sync to primary's commit")
                 print()
             continue
 
@@ -1275,8 +1414,15 @@ def _execute_cascade(
             pass
 
         result = _process_repo(
-            repo, entry, entry.child_rel_paths, config,
-            state, state_path, journal_path, repo_root, dry_run,
+            repo,
+            entry,
+            entry.child_rel_paths,
+            config,
+            state,
+            state_path,
+            journal_path,
+            repo_root,
+            dry_run,
         )
         if result != 0:
             return result
@@ -1284,8 +1430,13 @@ def _execute_cascade(
         # After a primary commits, sync all its peers
         if entry.sync_peers and not dry_run:
             sync_result = _sync_peers_after_commit(
-                repo, entry, entries, entry_map,
-                state, state_path, repo_root,
+                repo,
+                entry,
+                entries,
+                entry_map,
+                state,
+                state_path,
+                repo_root,
             )
             if sync_result != 0:
                 return sync_result
@@ -1309,7 +1460,10 @@ def _sync_peers_after_commit(
     assert entry.sync_peers is not None
 
     committed_sha = run_git(
-        repo.path, "rev-parse", "HEAD", check=False,
+        repo.path,
+        "rev-parse",
+        "HEAD",
+        check=False,
     ).stdout.strip()
 
     for peer_rel in entry.sync_peers:
@@ -1320,7 +1474,10 @@ def _sync_peers_after_commit(
 
         # Record pre-cascade head for abort support
         peer_head = run_git(
-            peer_path, "rev-parse", "HEAD", check=False,
+            peer_path,
+            "rev-parse",
+            "HEAD",
+            check=False,
         ).stdout.strip()
         peer_entry.pre_cascade_head = peer_head
 
@@ -1332,8 +1489,12 @@ def _sync_peers_after_commit(
 
         # Check if peer is an ancestor of the primary (simple fast-forward)
         is_ancestor = run_git(
-            peer_path, "merge-base", "--is-ancestor",
-            peer_head, committed_sha, check=False,
+            peer_path,
+            "merge-base",
+            "--is-ancestor",
+            peer_head,
+            committed_sha,
+            check=False,
         )
         if is_ancestor.returncode == 0:
             # Not diverged — simple checkout
@@ -1342,8 +1503,11 @@ def _sync_peers_after_commit(
             # Diverged — attempt merge of primary's commit into peer
             run_git(peer_path, "fetch", str(repo.path), committed_sha, check=False)
             merge_result = run_git(
-                peer_path, "merge", committed_sha,
-                "-m", f"grove cascade: merge {committed_sha[:8]} into {peer_rel}",
+                peer_path,
+                "merge",
+                committed_sha,
+                "-m",
+                f"grove cascade: merge {committed_sha[:8]} into {peer_rel}",
                 check=False,
             )
             if merge_result.returncode != 0:
@@ -1359,7 +1523,10 @@ def _sync_peers_after_commit(
                 return 1
             # Clean merge — update committed_sha to the merge result
             committed_sha = run_git(
-                peer_path, "rev-parse", "HEAD", check=False,
+                peer_path,
+                "rev-parse",
+                "HEAD",
+                check=False,
             ).stdout.strip()
 
         run_git(peer_path, "submodule", "update", "--recursive", check=False)
@@ -1395,11 +1562,17 @@ def continue_cascade() -> int:
                 break
 
         if peer_entry is None:
-            print(Colors.red(f"Cannot find merge-conflict entry '{peer_rel}'. State may be corrupt."))
+            print(
+                Colors.red(
+                    f"Cannot find merge-conflict entry '{peer_rel}'. State may be corrupt."
+                )
+            )
             return 1
 
         # Check if conflict is resolved (no unmerged files)
-        unmerged = run_git(peer_path, "diff", "--name-only", "--diff-filter=U", check=False)
+        unmerged = run_git(
+            peer_path, "diff", "--name-only", "--diff-filter=U", check=False
+        )
         if unmerged.stdout.strip():
             print(Colors.red("There are still unresolved conflicts:"))
             for f in unmerged.stdout.strip().split("\n"):
@@ -1414,7 +1587,9 @@ def continue_cascade() -> int:
         # Update nested submodules
         run_git(peer_path, "submodule", "update", "--recursive", check=False)
         peer_entry.status = "synced"
-        merged_sha = run_git(peer_path, "rev-parse", "--short", "HEAD", check=False).stdout.strip()
+        merged_sha = run_git(
+            peer_path, "rev-parse", "--short", "HEAD", check=False
+        ).stdout.strip()
         print(Colors.green(f"Merge resolved in {peer_rel} ({merged_sha})"))
         print()
 
@@ -1461,10 +1636,17 @@ def continue_cascade() -> int:
         grove_config = load_config(repo_root)
         sg = grove_config.sync_groups.get(state.sync_group_name)
         if sg is None:
-            print(Colors.red(f"Error: sync group '{state.sync_group_name}' no longer in config."))
+            print(
+                Colors.red(
+                    f"Error: sync group '{state.sync_group_name}' no longer in config."
+                )
+            )
             return 1
         chain, _, _ = _build_unified_cascade_plan(
-            state.sync_group_name, sg.url_match, repo_root, repos,
+            state.sync_group_name,
+            sg.url_match,
+            repo_root,
+            repos,
             config=grove_config,
         )
     else:
@@ -1476,8 +1658,14 @@ def continue_cascade() -> int:
             return 1
 
     result = _execute_cascade(
-        chain, state.repos, state, state_path, journal_path,
-        config.cascade, repo_root, dry_run=False,
+        chain,
+        state.repos,
+        state,
+        state_path,
+        journal_path,
+        config.cascade,
+        repo_root,
+        dry_run=False,
     )
 
     if result == 0:
@@ -1512,23 +1700,33 @@ def abort_cascade() -> int:
 
     # Reverse committed/synced/conflicted repos (skip the leaf — it has no cascade commit)
     for entry in reversed(state.repos):
-        if entry.status in ("committed", "synced", "merge-conflict", "paused") and entry.pre_cascade_head:
+        if (
+            entry.status in ("committed", "synced", "merge-conflict", "paused")
+            and entry.pre_cascade_head
+        ):
             if entry.rel_path == ".":
                 rp = repo_root
             else:
                 rp = repo_root / entry.rel_path
             if rp.exists():
                 repo = RepoInfo(path=rp, repo_root=repo_root)
-                if entry.status == "merge-conflict" or entry.sync_primary_rel is not None:
+                if (
+                    entry.status == "merge-conflict"
+                    or entry.sync_primary_rel is not None
+                ):
                     # Sync target or merge conflict: abort in-progress merge, restore
                     run_git(rp, "merge", "--abort", check=False)
                     run_git(rp, "checkout", entry.pre_cascade_head, check=False)
-                    print(f"  {Colors.yellow('↺')} {entry.rel_path}: "
-                          f"restored to {entry.pre_cascade_head[:8]}")
+                    print(
+                        f"  {Colors.yellow('↺')} {entry.rel_path}: "
+                        f"restored to {entry.pre_cascade_head[:8]}"
+                    )
                 elif entry.role != "leaf":
                     repo.git("reset", "--hard", entry.pre_cascade_head, check=False)
-                    print(f"  {Colors.yellow('↺')} {entry.rel_path}: "
-                          f"restored to {entry.pre_cascade_head[:8]}")
+                    print(
+                        f"  {Colors.yellow('↺')} {entry.rel_path}: "
+                        f"restored to {entry.pre_cascade_head[:8]}"
+                    )
 
     CascadeState.remove(state_path)
     _log(journal_path, "DONE cascade aborted")
@@ -1587,7 +1785,9 @@ def show_cascade_status() -> int:
         print(f"Fix the issue, then run: {Colors.blue('grove cascade --continue')}")
         print(f"Or abort with: {Colors.blue('grove cascade --abort')}")
     elif any(e.status == "merge-conflict" for e in state.repos):
-        print(f"Resolve the merge conflict, then run: {Colors.blue('grove cascade --continue')}")
+        print(
+            f"Resolve the merge conflict, then run: {Colors.blue('grove cascade --continue')}"
+        )
         print(f"Or abort with: {Colors.blue('grove cascade --abort')}")
 
     return 0
@@ -1596,6 +1796,7 @@ def show_cascade_status() -> int:
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
+
 
 def run(args) -> int:
     """Dispatch to the appropriate cascade action from CLI args."""
@@ -1613,7 +1814,11 @@ def run(args) -> int:
         print(Colors.red("Error: Specify either path(s) or --sync-group, not both."))
         return 2
     if not paths and not sync_group:
-        print(Colors.red("Usage: grove cascade <path> [path2 ...]  or  grove cascade --sync-group <name>"))
+        print(
+            Colors.red(
+                "Usage: grove cascade <path> [path2 ...]  or  grove cascade --sync-group <name>"
+            )
+        )
         print("  Or use --continue, --abort, or --status")
         return 2
 

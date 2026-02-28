@@ -16,7 +16,8 @@ def _find_project_root():
     """Find the git repo root for the current working directory."""
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         return None
@@ -32,9 +33,7 @@ def _get_skill_files():
     """Return a dict of {filename: Traversable} for shipped skill files."""
     skills_pkg = resources.files("grove.claude_skills")
     return {
-        item.name: item
-        for item in skills_pkg.iterdir()
-        if item.name.endswith(".md")
+        item.name: item for item in skills_pkg.iterdir() if item.name.endswith(".md")
     }
 
 
@@ -82,7 +81,9 @@ def _check_skills(skills, target_dir):
             print(f"  {Colors.yellow('missing')}   {skill}")
             all_current = False
         else:
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as tmp:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".md", delete=False
+            ) as tmp:
                 tmp.write(source.read_text())
                 tmp_path = tmp.name
             try:

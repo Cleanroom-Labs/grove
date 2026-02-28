@@ -102,7 +102,9 @@ def check_sync_groups(repo_root: Path, verbose: bool = False) -> bool:
         submodules = discover_sync_submodules(repo_root, group.url_match)
 
         if not submodules:
-            print(f"  {Colors.yellow('⚠')} No submodules found for group '{group.name}'")
+            print(
+                f"  {Colors.yellow('⚠')} No submodules found for group '{group.name}'"
+            )
             continue
 
         allow_drift = set(group.allow_drift)
@@ -121,19 +123,25 @@ def check_sync_groups(repo_root: Path, verbose: bool = False) -> bool:
 
         if len(unique_commits) <= 1:
             commit = next(iter(unique_commits)) if unique_commits else "—"
-            print(f"  {Colors.green('✓')} All {len(commits)} {group.name} submodules at {commit}")
+            print(
+                f"  {Colors.green('✓')} All {len(commits)} {group.name} submodules at {commit}"
+            )
             if verbose:
                 for rel_path in sorted(commits):
                     print(f"      {rel_path:<40} {commits[rel_path]}")
             for rel_path in sorted(drifting):
-                print(f"      {rel_path:<40} {drifting[rel_path]}  {Colors.yellow('(allow-drift)')}")
+                print(
+                    f"      {rel_path:<40} {drifting[rel_path]}  {Colors.yellow('(allow-drift)')}"
+                )
         else:
             all_ok = False
             commit_counts = Counter(commits.values())
             majority_commit = commit_counts.most_common(1)[0][0]
 
-            print(f"  {Colors.red('✗')} {group.name} submodules are NOT in sync "
-                  f"({len(unique_commits)} unique commits across {len(commits)} locations)")
+            print(
+                f"  {Colors.red('✗')} {group.name} submodules are NOT in sync "
+                f"({len(unique_commits)} unique commits across {len(commits)} locations)"
+            )
 
             for rel_path in sorted(commits):
                 sha = commits[rel_path]
@@ -142,7 +150,9 @@ def check_sync_groups(repo_root: Path, verbose: bool = False) -> bool:
                 else:
                     print(f"      {rel_path:<40} {sha}")
             for rel_path in sorted(drifting):
-                print(f"      {rel_path:<40} {drifting[rel_path]}  {Colors.yellow('(allow-drift)')}")
+                print(
+                    f"      {rel_path:<40} {drifting[rel_path]}  {Colors.yellow('(allow-drift)')}"
+                )
 
     return all_ok
 
@@ -183,7 +193,9 @@ def run(args) -> int:
     print(Colors.blue("Checking sync group consistency..."))
 
     if not has_sync_groups:
-        print(f"  {Colors.yellow('⚠')} No sync groups configured — skipping sync-group checks")
+        print(
+            f"  {Colors.yellow('⚠')} No sync groups configured — skipping sync-group checks"
+        )
     elif not check_sync_groups(repo_root, args.verbose):
         all_healthy = False
         issues.append("sync-group-out-of-sync")

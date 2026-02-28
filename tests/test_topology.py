@@ -19,6 +19,7 @@ from grove.topology import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _entry(
     rel_path="sub",
     parent_rel_path=".",
@@ -53,6 +54,7 @@ def _snap(
 # SubmoduleEntry
 # ---------------------------------------------------------------------------
 
+
 class TestSubmoduleEntry:
     def test_structure_key_excludes_commit(self):
         e = _entry(commit="xyz")
@@ -74,6 +76,7 @@ class TestSubmoduleEntry:
 # ---------------------------------------------------------------------------
 # compute_topology_hash
 # ---------------------------------------------------------------------------
+
 
 class TestTopologyHash:
     def test_deterministic(self):
@@ -111,6 +114,7 @@ class TestTopologyHash:
 # ---------------------------------------------------------------------------
 # diff_snapshots
 # ---------------------------------------------------------------------------
+
 
 class TestDiffSnapshots:
     def test_identical_snapshots(self):
@@ -188,16 +192,20 @@ class TestDiffSnapshots:
 
     def test_multiple_changes(self):
         """Multiple types of changes in one diff."""
-        s1 = _snap(entries=[
-            _entry(rel_path="a", commit="111"),
-            _entry(rel_path="b", url="git@github.com:Org/old-b.git"),
-            _entry(rel_path="c"),
-        ])
-        s2 = _snap(entries=[
-            _entry(rel_path="a", commit="222"),
-            _entry(rel_path="b", url="git@github.com:Org/new-b.git"),
-            _entry(rel_path="d"),
-        ])
+        s1 = _snap(
+            entries=[
+                _entry(rel_path="a", commit="111"),
+                _entry(rel_path="b", url="git@github.com:Org/old-b.git"),
+                _entry(rel_path="c"),
+            ]
+        )
+        s2 = _snap(
+            entries=[
+                _entry(rel_path="a", commit="222"),
+                _entry(rel_path="b", url="git@github.com:Org/new-b.git"),
+                _entry(rel_path="d"),
+            ]
+        )
         d = diff_snapshots(s1, s2)
         assert len(d.changed_commit) == 1
         assert len(d.changed_url) == 1
@@ -211,6 +219,7 @@ class TestDiffSnapshots:
 # TopologyCache
 # ---------------------------------------------------------------------------
 
+
 class TestTopologyCacheCorruption:
     """Edge cases: corrupt or unexpected cache files."""
 
@@ -220,6 +229,7 @@ class TestTopologyCacheCorruption:
         cache = TopologyCache(cache_path)
         import json
         import pytest
+
         with pytest.raises(json.JSONDecodeError):
             cache.load()
 
@@ -236,6 +246,7 @@ class TestTopologyCacheCorruption:
         cache = TopologyCache(cache_path)
         import json
         import pytest
+
         with pytest.raises(json.JSONDecodeError):
             cache.load()
 
@@ -243,15 +254,24 @@ class TestTopologyCacheCorruption:
         """An entry missing required fields should raise."""
         import json
         import pytest
+
         cache_path = tmp_path / "topo.json"
-        cache_path.write_text(json.dumps({
-            "snapshots": [{
-                "root_commit": "abc",
-                "timestamp": "2026-01-01T00:00:00",
-                "topology_hash": "xyz",
-                "entries": [{"rel_path": "sub"}],  # missing other required fields
-            }]
-        }))
+        cache_path.write_text(
+            json.dumps(
+                {
+                    "snapshots": [
+                        {
+                            "root_commit": "abc",
+                            "timestamp": "2026-01-01T00:00:00",
+                            "topology_hash": "xyz",
+                            "entries": [
+                                {"rel_path": "sub"}
+                            ],  # missing other required fields
+                        }
+                    ]
+                }
+            )
+        )
         cache = TopologyCache(cache_path)
         with pytest.raises(TypeError):
             cache.load()
@@ -357,6 +377,7 @@ class TestTopologyCache:
 # _is_relative_url
 # ---------------------------------------------------------------------------
 
+
 class TestIsRelativeUrl:
     def test_dotdot(self):
         assert _is_relative_url("../foo.git") is True
@@ -378,11 +399,10 @@ class TestIsRelativeUrl:
 # _resolve_relative_url
 # ---------------------------------------------------------------------------
 
+
 class TestResolveRelativeUrl:
     def test_ssh_dotdot(self):
-        result = _resolve_relative_url(
-            "git@github.com:Org/parent.git", "../child.git"
-        )
+        result = _resolve_relative_url("git@github.com:Org/parent.git", "../child.git")
         assert result == "git@github.com:Org/child.git"
 
     def test_ssh_dotdot_multiple(self):
@@ -405,6 +425,7 @@ class TestResolveRelativeUrl:
 # ---------------------------------------------------------------------------
 # build_entries (integration with real git repos)
 # ---------------------------------------------------------------------------
+
 
 class TestBuildEntries:
     def test_with_submodule_tree(self, tmp_submodule_tree: Path):
@@ -447,6 +468,7 @@ class TestBuildEntries:
 # ---------------------------------------------------------------------------
 # TopologyCache.record (integration)
 # ---------------------------------------------------------------------------
+
 
 class TestTopologyCacheRecord:
     def test_record_from_real_repos(self, tmp_submodule_tree: Path):

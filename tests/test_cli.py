@@ -1,6 +1,5 @@
 """Tests for grove.cli argument parsing."""
 
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,7 +21,7 @@ class TestCliCheckSubcommand:
         """'check -v' should set command='check' and verbose=True."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.check.run", mock_run):
-            result = main(["check", "-v"])
+            main(["check", "-v"])
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
@@ -33,7 +32,7 @@ class TestCliCheckSubcommand:
         """'check' alone should set verbose=False."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.check.run", mock_run):
-            result = main(["check"])
+            main(["check"])
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
@@ -46,7 +45,7 @@ class TestCliPushSubcommand:
         """'push --dry-run --skip-checks' should set both flags."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.push.run", mock_run):
-            result = main(["push", "--dry-run", "--skip-checks"])
+            main(["push", "--dry-run", "--skip-checks"])
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
@@ -89,7 +88,17 @@ class TestCliSyncSubcommand:
         """'sync common --commit abc1234 --dry-run --no-push --skip-checks' should parse correctly."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.sync.run", mock_run):
-            main(["sync", "common", "--commit", "abc1234", "--dry-run", "--no-push", "--skip-checks"])
+            main(
+                [
+                    "sync",
+                    "common",
+                    "--commit",
+                    "abc1234",
+                    "--dry-run",
+                    "--no-push",
+                    "--skip-checks",
+                ]
+            )
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
@@ -185,8 +194,10 @@ class TestCliNoColor:
         from grove.repo_utils import Colors
 
         mock_run = MagicMock(return_value=0)
-        with patch("grove.check.run", mock_run), \
-             patch.dict(os.environ, {"NO_COLOR": "1"}):
+        with (
+            patch("grove.check.run", mock_run),
+            patch.dict(os.environ, {"NO_COLOR": "1"}),
+        ):
             main(["check"])
 
         assert Colors._enabled is False
@@ -203,7 +214,7 @@ class TestCliWorktreeSubcommand:
         """'worktree add ../path my-branch' should parse correctly (path first, branch second)."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.worktree.run", mock_run):
-            result = main(["worktree", "add", "../path", "my-branch"])
+            main(["worktree", "add", "../path", "my-branch"])
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
@@ -251,7 +262,7 @@ class TestCliWorktreeMergeSubcommand:
         """'worktree merge my-feature' should parse correctly."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.worktree_merge.run", mock_run):
-            result = main(["worktree", "merge", "my-feature"])
+            main(["worktree", "merge", "my-feature"])
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
@@ -298,8 +309,17 @@ class TestCliWorktreeMergeSubcommand:
         """'worktree merge my-feature --dry-run --no-recurse --no-ff --no-test' should set all."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.worktree_merge.run", mock_run):
-            main(["worktree", "merge", "my-feature",
-                  "--dry-run", "--no-recurse", "--no-ff", "--no-test"])
+            main(
+                [
+                    "worktree",
+                    "merge",
+                    "my-feature",
+                    "--dry-run",
+                    "--no-recurse",
+                    "--no-ff",
+                    "--no-test",
+                ]
+            )
 
         args = mock_run.call_args[0][0]
         assert args.branch == "my-feature"
@@ -322,7 +342,7 @@ class TestCliWorktreeMergeSubcommand:
         """'worktree merge' with no branch should still dispatch."""
         mock_run = MagicMock(return_value=2)
         with patch("grove.worktree_merge.run", mock_run):
-            result = main(["worktree", "merge"])
+            main(["worktree", "merge"])
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
@@ -336,8 +356,10 @@ class TestCliAliasExpansion:
         from grove.config import AliasConfig, GroveConfig
 
         config = GroveConfig(aliases=AliasConfig(mapping={"c": "check"}))
-        with patch("grove.repo_utils.find_repo_root", return_value="/fake"), \
-             patch("grove.config.load_config", return_value=config):
+        with (
+            patch("grove.repo_utils.find_repo_root", return_value="/fake"),
+            patch("grove.config.load_config", return_value=config),
+        ):
             result = _expand_aliases(["c", "-v"])
         assert result == ["check", "-v"]
 
@@ -347,8 +369,10 @@ class TestCliAliasExpansion:
         from grove.config import AliasConfig, GroveConfig
 
         config = GroveConfig(aliases=AliasConfig(mapping={"wm": "worktree merge"}))
-        with patch("grove.repo_utils.find_repo_root", return_value="/fake"), \
-             patch("grove.config.load_config", return_value=config):
+        with (
+            patch("grove.repo_utils.find_repo_root", return_value="/fake"),
+            patch("grove.config.load_config", return_value=config),
+        ):
             result = _expand_aliases(["wm", "--status"])
         assert result == ["worktree", "merge", "--status"]
 
@@ -358,8 +382,10 @@ class TestCliAliasExpansion:
         from grove.config import AliasConfig, GroveConfig
 
         config = GroveConfig(aliases=AliasConfig(mapping={"c": "check"}))
-        with patch("grove.repo_utils.find_repo_root", return_value="/fake"), \
-             patch("grove.config.load_config", return_value=config):
+        with (
+            patch("grove.repo_utils.find_repo_root", return_value="/fake"),
+            patch("grove.config.load_config", return_value=config),
+        ):
             result = _expand_aliases(["push", "--dry-run"])
         assert result == ["push", "--dry-run"]
 
@@ -384,10 +410,12 @@ class TestCliAliasExpansion:
 
         config = GroveConfig(aliases=AliasConfig(mapping={"c": "check"}))
         mock_run = MagicMock(return_value=0)
-        with patch("grove.repo_utils.find_repo_root", return_value="/fake"), \
-             patch("grove.config.load_config", return_value=config), \
-             patch("grove.check.run", mock_run):
-            result = main(["c", "-v"])
+        with (
+            patch("grove.repo_utils.find_repo_root", return_value="/fake"),
+            patch("grove.config.load_config", return_value=config),
+            patch("grove.check.run", mock_run),
+        ):
+            main(["c", "-v"])
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]

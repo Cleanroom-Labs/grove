@@ -13,6 +13,7 @@ from pathlib import Path
 # Parser introspection
 # ---------------------------------------------------------------------------
 
+
 def _get_subparsers_action(parser: argparse.ArgumentParser):
     """Return the _SubParsersAction from a parser, or None."""
     for action in parser._actions:
@@ -65,6 +66,7 @@ def extract_structure(parser: argparse.ArgumentParser) -> dict:
 # Collect all subcommand names (used by bash/zsh word-walking)
 # ---------------------------------------------------------------------------
 
+
 def _collect_all_subcommands(structure: dict) -> set[str]:
     """Recursively collect every subcommand name in the tree."""
     names: set[str] = set()
@@ -78,13 +80,14 @@ def _collect_all_subcommands(structure: dict) -> set[str]:
 # Bash completion
 # ---------------------------------------------------------------------------
 
+
 def _generate_bash(structure: dict) -> str:
     """Generate a bash completion script from the extracted parser structure."""
     all_subcmds = sorted(_collect_all_subcommands(structure))
     lines: list[str] = []
 
     lines.append("# grove shell completion (bash)")
-    lines.append("# eval \"$(grove completion bash)\"")
+    lines.append('# eval "$(grove completion bash)"')
     lines.append("")
     lines.append("_grove_completion() {")
     lines.append("    local cur prev words cword")
@@ -106,7 +109,7 @@ def _generate_bash(structure: dict) -> str:
     lines.append("            -*) ;;  # skip flags")
     lines.append("            *)")
     lines.append('                case "$word" in')
-    lines.append(f'                    {" | ".join(all_subcmds)})')
+    lines.append(f"                    {' | '.join(all_subcmds)})")
     lines.append('                        cmd_path="${cmd_path}_${word}"')
     lines.append("                        ;;")
     lines.append("                esac")
@@ -125,7 +128,9 @@ def _generate_bash(structure: dict) -> str:
         if completions:
             lines.append(f"        {path})")
             words_str = " ".join(completions)
-            lines.append(f"            COMPREPLY=($(compgen -W '{words_str}' -- \"$cur\"))")
+            lines.append(
+                f"            COMPREPLY=($(compgen -W '{words_str}' -- \"$cur\"))"
+            )
             lines.append("            return ;;")
         for cmd in subcmds:
             _emit(struct["commands"][cmd], f"{path}_{cmd}")
@@ -144,6 +149,7 @@ def _generate_bash(structure: dict) -> str:
 # Zsh completion
 # ---------------------------------------------------------------------------
 
+
 def _generate_zsh(structure: dict) -> str:
     """Generate a zsh completion script from the extracted parser structure."""
     all_subcmds = sorted(_collect_all_subcommands(structure))
@@ -151,7 +157,7 @@ def _generate_zsh(structure: dict) -> str:
 
     lines.append("#compdef grove")
     lines.append("# grove shell completion (zsh)")
-    lines.append("# eval \"$(grove completion zsh)\"")
+    lines.append('# eval "$(grove completion zsh)"')
     lines.append("")
     lines.append("_grove() {")
     lines.append("")
@@ -164,7 +170,7 @@ def _generate_zsh(structure: dict) -> str:
     lines.append("            -*) ;;")
     lines.append("            *)")
     lines.append('                case "$word" in')
-    lines.append(f'                    {" | ".join(all_subcmds)})')
+    lines.append(f"                    {' | '.join(all_subcmds)})")
     lines.append('                        cmd_path="${cmd_path}_${word}"')
     lines.append("                        ;;")
     lines.append("                esac")
@@ -202,6 +208,7 @@ def _generate_zsh(structure: dict) -> str:
 # Fish completion
 # ---------------------------------------------------------------------------
 
+
 def _generate_fish(structure: dict) -> str:
     """Generate a fish completion script from the extracted parser structure."""
     lines: list[str] = []
@@ -220,9 +227,7 @@ def _generate_fish(structure: dict) -> str:
         else:
             parts = [f"__fish_seen_subcommand_from {path_parts[-1]}"]
             if subcmds:
-                parts.append(
-                    f"not __fish_seen_subcommand_from {' '.join(subcmds)}"
-                )
+                parts.append(f"not __fish_seen_subcommand_from {' '.join(subcmds)}")
             cond = "; and ".join(parts)
 
         for cmd in subcmds:
@@ -281,6 +286,7 @@ _SENTINEL_END = "# <<< grove completion <<<"
 # Shell / profile detection
 # ---------------------------------------------------------------------------
 
+
 def _detect_shell() -> str | None:
     """Detect the current shell from $SHELL."""
     import os
@@ -317,13 +323,10 @@ def _get_fish_completions_path() -> Path:
 # Profile file manipulation
 # ---------------------------------------------------------------------------
 
+
 def _build_profile_block(script: str) -> str:
     """Wrap a completion script in sentinel markers for profile injection."""
-    return (
-        f"{_SENTINEL_BEGIN}\n"
-        f"{script}\n"
-        f"{_SENTINEL_END}\n"
-    )
+    return f"{_SENTINEL_BEGIN}\n{script}\n{_SENTINEL_END}\n"
 
 
 def _has_grove_block(content: str) -> bool:
@@ -344,15 +347,14 @@ def _replace_block(content: str, block: str) -> str:
     """Replace an existing grove sentinel block in file content."""
     import re
 
-    pattern = (
-        re.escape(_SENTINEL_BEGIN) + r".*?" + re.escape(_SENTINEL_END) + r"\n?"
-    )
+    pattern = re.escape(_SENTINEL_BEGIN) + r".*?" + re.escape(_SENTINEL_END) + r"\n?"
     return re.sub(pattern, block, content, flags=re.DOTALL)
 
 
 # ---------------------------------------------------------------------------
 # Install logic
 # ---------------------------------------------------------------------------
+
 
 def _install_bash_zsh(shell: str, *, dry_run: bool, force: bool) -> int:
     """Install completions for bash or zsh by writing the script into the profile."""
@@ -376,7 +378,9 @@ def _install_bash_zsh(shell: str, *, dry_run: bool, force: bool) -> int:
                 return 0
             if dry_run:
                 if new_content == content:
-                    print(f"Would re-write grove completions in {profile_path} (--force)")
+                    print(
+                        f"Would re-write grove completions in {profile_path} (--force)"
+                    )
                 else:
                     print(f"Would update grove completions in {profile_path}")
                 return 0
@@ -442,6 +446,7 @@ def _install_fish(*, dry_run: bool, force: bool) -> int:
 # Check logic
 # ---------------------------------------------------------------------------
 
+
 def _check_installed(shell: str) -> int:
     """Check if completions are installed for the given shell."""
     from grove.repo_utils import Colors
@@ -468,6 +473,7 @@ def _check_installed(shell: str) -> int:
 # ---------------------------------------------------------------------------
 # Entry point for install subcommand
 # ---------------------------------------------------------------------------
+
 
 def run_install(args) -> int:
     """Install shell completions or check installation status."""

@@ -20,13 +20,16 @@ from grove.worktree import (
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["git", "-C", str(cwd)] + list(args),
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
 
 
 # ---------------------------------------------------------------------------
 # parse_gitmodules (shared from repo_utils, used by worktree)
 # ---------------------------------------------------------------------------
+
 
 class TestParseGitmodulesAll:
     def test_missing_file(self, tmp_path: Path):
@@ -74,6 +77,7 @@ class TestParseGitmodulesAll:
 # _init_submodules
 # ---------------------------------------------------------------------------
 
+
 class TestInitSubmodules:
     def test_no_gitmodules_returns_true(self, tmp_path: Path):
         """Directory without .gitmodules should succeed immediately."""
@@ -86,11 +90,14 @@ class TestInitSubmodules:
 # add_worktree (integration)
 # ---------------------------------------------------------------------------
 
+
 class TestAddWorktree:
     def test_creates_worktree_directory(self, tmp_submodule_tree: Path):
         """Worktree directory should exist after add."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
-        args = argparse.Namespace(branch="test-branch", path=str(wt_path), create_branch=True)
+        args = argparse.Namespace(
+            branch="test-branch", path=str(wt_path), create_branch=True
+        )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
             result = add_worktree(args)
@@ -102,7 +109,9 @@ class TestAddWorktree:
     def test_initializes_nested_submodules(self, tmp_submodule_tree: Path):
         """Nested submodules should be checked out in the new worktree."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
-        args = argparse.Namespace(branch="test-branch", path=str(wt_path), create_branch=True)
+        args = argparse.Namespace(
+            branch="test-branch", path=str(wt_path), create_branch=True
+        )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
             result = add_worktree(args)
@@ -120,7 +129,9 @@ class TestAddWorktree:
         _git(tmp_submodule_tree, "branch", "existing-branch")
 
         wt_path = tmp_submodule_tree.parent / "test-wt"
-        args = argparse.Namespace(branch="existing-branch", path=str(wt_path), create_branch=False)
+        args = argparse.Namespace(
+            branch="existing-branch", path=str(wt_path), create_branch=False
+        )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
             result = add_worktree(args)
@@ -132,7 +143,9 @@ class TestAddWorktree:
         """Default behavior keeps submodule origins pointing to the main worktree."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
         args = argparse.Namespace(
-            branch="local-branch", path=str(wt_path), create_branch=True,
+            branch="local-branch",
+            path=str(wt_path),
+            create_branch=True,
         )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
@@ -147,15 +160,22 @@ class TestAddWorktree:
         # Nested submodule should also have local URL
         out = _git(
             wt_path / "technical-docs" / "common",
-            "config", "--get", "remote.origin.url",
+            "config",
+            "--get",
+            "remote.origin.url",
         )
-        assert out.stdout.strip() == str(tmp_submodule_tree / "technical-docs" / "common")
+        assert out.stdout.strip() == str(
+            tmp_submodule_tree / "technical-docs" / "common"
+        )
 
     def test_no_local_remotes_restores_upstream_urls(self, tmp_submodule_tree: Path):
         """--no-local-remotes should restore submodule origins to upstream URLs."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
         args = argparse.Namespace(
-            branch="upstream-branch", path=str(wt_path), create_branch=True, no_local_remotes=True,
+            branch="upstream-branch",
+            path=str(wt_path),
+            create_branch=True,
+            no_local_remotes=True,
         )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
@@ -172,7 +192,9 @@ class TestAddWorktree:
         wt_path = tmp_submodule_tree.parent / "test-wt"
         wt_path.mkdir()  # pre-create
 
-        args = argparse.Namespace(branch="test-branch", path=str(wt_path), create_branch=True)
+        args = argparse.Namespace(
+            branch="test-branch", path=str(wt_path), create_branch=True
+        )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
             result = add_worktree(args)
@@ -183,6 +205,7 @@ class TestAddWorktree:
 # ---------------------------------------------------------------------------
 # remove_worktree (integration)
 # ---------------------------------------------------------------------------
+
 
 class TestRemoveWorktree:
     def test_removes_worktree(self, tmp_submodule_tree: Path):
@@ -217,7 +240,9 @@ class TestRemoveWorktree:
         """Worktree with initialized submodules should be removed successfully."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
         args_add = argparse.Namespace(
-            branch="rm-sub-branch", path=str(wt_path), create_branch=True,
+            branch="rm-sub-branch",
+            path=str(wt_path),
+            create_branch=True,
         )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
@@ -239,6 +264,7 @@ class TestRemoveWorktree:
 # ---------------------------------------------------------------------------
 # Helper: create a minimal fake venv directory
 # ---------------------------------------------------------------------------
+
 
 def _make_fake_venv(root: Path, venv_rel: str = ".venv") -> Path:
     """Create a minimal fake venv under *root* / *venv_rel* for testing.
@@ -276,10 +302,7 @@ def _make_fake_venv(root: Path, venv_rel: str = ".venv") -> Path:
 
     # Script with shebang referencing the venv
     grove_script = bin_dir / "grove"
-    grove_script.write_text(
-        f"#!{old_root}/{venv_rel}/bin/python\n"
-        f"# entry point\n"
-    )
+    grove_script.write_text(f"#!{old_root}/{venv_rel}/bin/python\n# entry point\n")
 
     # Editable install .pth file
     sp = venv / "lib" / "python3.14" / "site-packages"
@@ -299,6 +322,7 @@ def _make_fake_venv(root: Path, venv_rel: str = ".venv") -> Path:
 # ---------------------------------------------------------------------------
 # _detect_venv
 # ---------------------------------------------------------------------------
+
 
 class TestDetectVenv:
     def test_detects_direnv_layout(self, tmp_path: Path):
@@ -356,6 +380,7 @@ class TestDetectVenv:
 # _fixup_venv_paths
 # ---------------------------------------------------------------------------
 
+
 class TestFixupVenvPaths:
     def test_replaces_paths_in_all_targets(self, tmp_path: Path):
         old_root = tmp_path / "source"
@@ -368,6 +393,7 @@ class TestFixupVenvPaths:
 
         # Copy the venv manually so we can test fixup in isolation
         import shutil
+
         shutil.copytree(venv, new_venv, symlinks=True)
 
         _fixup_venv_paths(new_venv, str(old_root), str(new_root))
@@ -392,12 +418,25 @@ class TestFixupVenvPaths:
         assert old not in grove_text
 
         # .pth file
-        pth = (new_venv / "lib" / "python3.14" / "site-packages" / "__editable__.grove-0.1.0.pth").read_text()
+        pth = (
+            new_venv
+            / "lib"
+            / "python3.14"
+            / "site-packages"
+            / "__editable__.grove-0.1.0.pth"
+        ).read_text()
         assert f"{new}/src" in pth
         assert old not in pth
 
         # direct_url.json
-        durl = (new_venv / "lib" / "python3.14" / "site-packages" / "grove-0.1.0.dist-info" / "direct_url.json").read_text()
+        durl = (
+            new_venv
+            / "lib"
+            / "python3.14"
+            / "site-packages"
+            / "grove-0.1.0.dist-info"
+            / "direct_url.json"
+        ).read_text()
         assert new in durl
         assert old not in durl
 
@@ -409,7 +448,9 @@ class TestFixupVenvPaths:
 
         # The python symlink should still point to python3
         assert (venv / "bin" / "python").is_symlink()
-        assert (venv / "bin" / "python").resolve() == (venv / "bin" / "python3").resolve()
+        assert (venv / "bin" / "python").resolve() == (
+            venv / "bin" / "python3"
+        ).resolve()
 
     def test_skips_missing_files_gracefully(self, tmp_path: Path):
         """Should not crash if expected files are missing."""
@@ -423,6 +464,7 @@ class TestFixupVenvPaths:
 # ---------------------------------------------------------------------------
 # _copy_venv
 # ---------------------------------------------------------------------------
+
 
 class TestCopyVenv:
     def test_copies_and_fixes_paths(self, tmp_path: Path):
@@ -441,7 +483,13 @@ class TestCopyVenv:
         assert (target_venv / "pyvenv.cfg").exists()
 
         # Paths should reference target, not source
-        pth = (target_venv / "lib" / "python3.14" / "site-packages" / "__editable__.grove-0.1.0.pth").read_text()
+        pth = (
+            target_venv
+            / "lib"
+            / "python3.14"
+            / "site-packages"
+            / "__editable__.grove-0.1.0.pth"
+        ).read_text()
         assert str(target) in pth
         assert str(source) not in pth
 
@@ -481,12 +529,15 @@ class TestCopyVenv:
 # _run_direnv_allow
 # ---------------------------------------------------------------------------
 
+
 class TestRunDirenvAllow:
     def test_calls_direnv_when_envrc_exists(self, tmp_path: Path):
         (tmp_path / ".envrc").write_text("layout python\n")
 
-        with patch("grove.worktree.shutil.which", return_value="/usr/bin/direnv"), \
-             patch("grove.worktree.subprocess.run") as mock_run:
+        with (
+            patch("grove.worktree.shutil.which", return_value="/usr/bin/direnv"),
+            patch("grove.worktree.subprocess.run") as mock_run,
+        ):
             _run_direnv_allow(tmp_path)
 
         mock_run.assert_called_once()
@@ -502,8 +553,10 @@ class TestRunDirenvAllow:
     def test_skips_when_direnv_not_installed(self, tmp_path: Path):
         (tmp_path / ".envrc").write_text("layout python\n")
 
-        with patch("grove.worktree.shutil.which", return_value=None), \
-             patch("grove.worktree.subprocess.run") as mock_run:
+        with (
+            patch("grove.worktree.shutil.which", return_value=None),
+            patch("grove.worktree.subprocess.run") as mock_run,
+        ):
             _run_direnv_allow(tmp_path)
 
         mock_run.assert_not_called()
@@ -513,8 +566,11 @@ class TestRunDirenvAllow:
 # Config-driven copy-venv
 # ---------------------------------------------------------------------------
 
+
 class TestConfigCopyVenv:
-    def test_config_copy_venv_applies_when_flag_not_passed(self, tmp_submodule_tree: Path):
+    def test_config_copy_venv_applies_when_flag_not_passed(
+        self, tmp_submodule_tree: Path
+    ):
         """copy-venv = true in .grove.toml should trigger venv copy without CLI flag."""
         # Create a fake venv in the repo root
         _make_fake_venv(tmp_submodule_tree)
@@ -526,7 +582,9 @@ class TestConfigCopyVenv:
         )
 
         wt_path = tmp_submodule_tree.parent / "cfg-venv-wt"
-        args = argparse.Namespace(branch="cfg-venv-branch", path=str(wt_path), create_branch=True)
+        args = argparse.Namespace(
+            branch="cfg-venv-branch", path=str(wt_path), create_branch=True
+        )
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
             result = add_worktree(args)
@@ -541,7 +599,9 @@ class TestConfigCopyVenv:
 
         wt_path = tmp_submodule_tree.parent / "cli-venv-wt"
         args = argparse.Namespace(
-            branch="cli-venv-branch", path=str(wt_path), create_branch=True,
+            branch="cli-venv-branch",
+            path=str(wt_path),
+            create_branch=True,
             copy_venv=True,
         )
 

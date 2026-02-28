@@ -7,6 +7,7 @@ and both absolute and relative URLs — indexed by root commit SHA.
 The cache is stored at .git/grove-topology.json and incrementally
 built by discover_repos_from_gitmodules() when a TopologyCache is provided.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -24,6 +25,7 @@ DEFAULT_MAX_SNAPSHOTS = 500
 @dataclass
 class SubmoduleEntry:
     """A single submodule in a topology snapshot."""
+
     rel_path: str
     parent_rel_path: str
     url: str
@@ -38,6 +40,7 @@ class SubmoduleEntry:
 @dataclass
 class TopologySnapshot:
     """A point-in-time snapshot of the submodule tree structure."""
+
     root_commit: str
     timestamp: str
     topology_hash: str
@@ -47,26 +50,41 @@ class TopologySnapshot:
 @dataclass
 class TopologyDiff:
     """Differences between two topology snapshots."""
+
     added: list[SubmoduleEntry] = field(default_factory=list)
     removed: list[SubmoduleEntry] = field(default_factory=list)
-    changed_url: list[tuple[SubmoduleEntry, SubmoduleEntry]] = field(default_factory=list)
-    changed_relative_url: list[tuple[SubmoduleEntry, SubmoduleEntry]] = field(default_factory=list)
-    changed_commit: list[tuple[SubmoduleEntry, SubmoduleEntry]] = field(default_factory=list)
-    reparented: list[tuple[SubmoduleEntry, SubmoduleEntry]] = field(default_factory=list)
+    changed_url: list[tuple[SubmoduleEntry, SubmoduleEntry]] = field(
+        default_factory=list
+    )
+    changed_relative_url: list[tuple[SubmoduleEntry, SubmoduleEntry]] = field(
+        default_factory=list
+    )
+    changed_commit: list[tuple[SubmoduleEntry, SubmoduleEntry]] = field(
+        default_factory=list
+    )
+    reparented: list[tuple[SubmoduleEntry, SubmoduleEntry]] = field(
+        default_factory=list
+    )
 
     @property
     def has_structural_changes(self) -> bool:
         """True if there are changes beyond just commit hash differences."""
         return bool(
-            self.added or self.removed or self.changed_url
-            or self.changed_relative_url or self.reparented
+            self.added
+            or self.removed
+            or self.changed_url
+            or self.changed_relative_url
+            or self.reparented
         )
 
     @property
     def is_empty(self) -> bool:
         return not (
-            self.added or self.removed or self.changed_url
-            or self.changed_relative_url or self.changed_commit
+            self.added
+            or self.removed
+            or self.changed_url
+            or self.changed_relative_url
+            or self.changed_commit
             or self.reparented
         )
 
@@ -143,8 +161,7 @@ def build_entries(repos, repo_root: Path) -> list[SubmoduleEntry]:
         parent_path = repo.parent.path
 
         parent_rel = (
-            "." if parent_path == repo_root
-            else str(parent_path.relative_to(repo_root))
+            "." if parent_path == repo_root else str(parent_path.relative_to(repo_root))
         )
 
         # Parse parent's .gitmodules for this submodule's URL
@@ -160,7 +177,9 @@ def build_entries(repos, repo_root: Path) -> list[SubmoduleEntry]:
                 if _is_relative_url(sm_url):
                     relative_url = sm_url
                     # Resolve to absolute by getting the remote URL of the parent
-                    result = run_git(parent_path, "remote", "get-url", "origin", check=False)
+                    result = run_git(
+                        parent_path, "remote", "get-url", "origin", check=False
+                    )
                     if result.returncode == 0:
                         parent_url = result.stdout.strip()
                         # Resolve relative URL against parent's remote
@@ -178,13 +197,15 @@ def build_entries(repos, repo_root: Path) -> list[SubmoduleEntry]:
 
         rel_path = str(repo.path.relative_to(repo_root))
 
-        entries.append(SubmoduleEntry(
-            rel_path=rel_path,
-            parent_rel_path=parent_rel,
-            url=url,
-            relative_url=relative_url,
-            commit=commit,
-        ))
+        entries.append(
+            SubmoduleEntry(
+                rel_path=rel_path,
+                parent_rel_path=parent_rel,
+                url=url,
+                relative_url=relative_url,
+                commit=commit,
+            )
+        )
 
     return entries
 
@@ -220,6 +241,7 @@ def _resolve_relative_url(parent_url: str, relative: str) -> str:
     # Handle HTTP(S) URLs
     if base.startswith(("http://", "https://")):
         from urllib.parse import urljoin
+
         # urljoin needs a trailing slash on the "directory"
         if not base.endswith("/"):
             base = base.rsplit("/", 1)[0] + "/"
@@ -249,6 +271,7 @@ class TopologyCache:
         Uses ``--git-common-dir`` so the cache is shared across worktrees.
         """
         from grove.repo_utils import get_git_common_dir
+
         return cls(get_git_common_dir(repo_root) / "grove" / "topology.json")
 
     def load(self) -> None:
@@ -261,16 +284,15 @@ class TopologyCache:
             data = json.loads(f.read())
         self.snapshots = []
         for snap_data in data.get("snapshots", []):
-            entries = [
-                SubmoduleEntry(**e)
-                for e in snap_data.get("entries", [])
-            ]
-            self.snapshots.append(TopologySnapshot(
-                root_commit=snap_data["root_commit"],
-                timestamp=snap_data["timestamp"],
-                topology_hash=snap_data["topology_hash"],
-                entries=entries,
-            ))
+            entries = [SubmoduleEntry(**e) for e in snap_data.get("entries", [])]
+            self.snapshots.append(
+                TopologySnapshot(
+                    root_commit=snap_data["root_commit"],
+                    timestamp=snap_data["timestamp"],
+                    topology_hash=snap_data["topology_hash"],
+                    entries=entries,
+                )
+            )
 
     def save(self) -> None:
         """Persist snapshots to disk."""
@@ -299,12 +321,14 @@ class TopologyCache:
         topology_hash = compute_topology_hash(entries)
         timestamp = datetime.now(timezone.utc).isoformat()
 
-        self.snapshots.append(TopologySnapshot(
-            root_commit=root_commit,
-            timestamp=timestamp,
-            topology_hash=topology_hash,
-            entries=entries,
-        ))
+        self.snapshots.append(
+            TopologySnapshot(
+                root_commit=root_commit,
+                timestamp=timestamp,
+                topology_hash=topology_hash,
+                entries=entries,
+            )
+        )
 
     def get(self, commit: str) -> TopologySnapshot | None:
         """Look up a snapshot by root commit SHA."""

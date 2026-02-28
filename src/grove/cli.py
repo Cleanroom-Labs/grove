@@ -64,7 +64,8 @@ examples:
         help="Directory to write .grove.toml to (default: current directory)",
     )
     init_parser.add_argument(
-        "--force", "-f",
+        "--force",
+        "-f",
         action="store_true",
         help="Overwrite an existing .grove.toml",
     )
@@ -77,7 +78,8 @@ examples:
         "(not detached HEAD) and all sync-group submodules at the same commit.",
     )
     check_parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Show additional details (commits, remotes)",
     )
@@ -108,18 +110,21 @@ examples:
         help="Specific repo paths to push (exact match on relative path)",
     )
     push_parser.add_argument(
-        "--dry-run", "-n",
+        "--dry-run",
+        "-n",
         action="store_true",
         help="Show what would be pushed without pushing",
     )
     push_parser.add_argument(
-        "--skip-checks", "-f",
+        "--skip-checks",
+        "-f",
         action="store_true",
         dest="skip_checks",
         help="Skip validation (for recovery scenarios)",
     )
     push_parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Show additional details during push",
     )
@@ -167,7 +172,8 @@ examples:
         help="Resolve target from remote instead of local instances",
     )
     sync_parser.add_argument(
-        "--dry-run", "-n",
+        "--dry-run",
+        "-n",
         action="store_true",
         help="Preview changes without making them",
     )
@@ -177,13 +183,15 @@ examples:
         help="Commit only, skip pushing (push is default)",
     )
     sync_parser.add_argument(
-        "--skip-checks", "-f",
+        "--skip-checks",
+        "-f",
         action="store_true",
         dest="skip_checks",
         help="Skip remote sync validation",
     )
     sync_parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Show additional details during sync",
     )
@@ -285,7 +293,8 @@ examples:
         help="Path to the worktree to remove",
     )
     worktree_remove_parser.add_argument(
-        "--force", "-f",
+        "--force",
+        "-f",
         action="store_true",
         help="Force removal even if the worktree has uncommitted changes",
     )
@@ -318,12 +327,14 @@ examples:
         help="Show current merge progress",
     )
     worktree_merge_parser.add_argument(
-        "--dry-run", "-n",
+        "--dry-run",
+        "-n",
         action="store_true",
         help="Show what would happen without merging",
     )
     worktree_merge_parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Show additional details during merge",
     )
@@ -440,12 +451,14 @@ examples:
         help="Show current cascade progress",
     )
     cascade_parser.add_argument(
-        "--dry-run", "-n",
+        "--dry-run",
+        "-n",
         action="store_true",
         help="Preview the cascade chain and test plan without making changes",
     )
     cascade_parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Show additional details during cascade",
     )
@@ -466,7 +479,8 @@ examples:
         help="Run only local-tests and contract-tests everywhere (fastest)",
     )
     cascade_parser.add_argument(
-        "--skip-checks", "-f",
+        "--skip-checks",
+        "-f",
         action="store_true",
         dest="skip_checks",
         help="Skip sync-group consistency check (proceed even if instances differ)",
@@ -560,12 +574,14 @@ examples:
         help="Check if completions are already installed",
     )
     completion_install_parser.add_argument(
-        "--dry-run", "-n",
+        "--dry-run",
+        "-n",
         action="store_true",
         help="Preview changes without modifying any files",
     )
     completion_install_parser.add_argument(
-        "--force", "-f",
+        "--force",
+        "-f",
         action="store_true",
         help="Re-write the completion block even if already installed",
     )
@@ -588,6 +604,7 @@ def _expand_aliases(argv: list[str]) -> list[str]:
     try:
         from grove.config import load_config
         from grove.repo_utils import find_repo_root
+
         repo_root = find_repo_root()
         config = load_config(repo_root)
     except (FileNotFoundError, ValueError):
@@ -618,30 +635,37 @@ def main(argv=None):
 
     if args.command == "init":
         from grove.init import run
+
         return run(args)
 
     if args.command == "check":
         from grove.check import run
+
         return run(args)
 
     if args.command == "push":
         from grove.push import run
+
         return run(args)
 
     if args.command == "sync":
         from grove.sync import run
+
         return run(args)
 
     if args.command == "checkout":
         from grove.checkout import run
+
         return run(args)
 
     if args.command == "cascade":
         from grove.cascade import run
+
         return run(args)
 
     if args.command == "visualize":
         from grove.visualizer.__main__ import run
+
         return run(args)
 
     if args.command == "worktree":
@@ -650,8 +674,10 @@ def main(argv=None):
             return 2
         if args.worktree_command == "merge":
             from grove.worktree_merge import run
+
             return run(args)
         from grove.worktree import run
+
         return run(args)
 
     if args.command == "claude":
@@ -660,6 +686,7 @@ def main(argv=None):
             return 2
         if args.claude_command == "install":
             from grove.claude import run_install
+
             return run_install(args)
 
     if args.command == "completion":
@@ -668,8 +695,10 @@ def main(argv=None):
             return 2
         if args.completion_command == "install":
             from grove.completion import run_install
+
             return run_install(args)
         from grove.completion import run
+
         return run(args)
 
     parser.print_help()

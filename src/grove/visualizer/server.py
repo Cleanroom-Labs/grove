@@ -111,7 +111,9 @@ def make_handler_class(state: VisualizerState):
                     except Exception as e:
                         self._json_response({"ok": False, "error": str(e)}, status=500)
                 else:
-                    self._json_response({"ok": False, "error": "Missing path parameter"}, status=400)
+                    self._json_response(
+                        {"ok": False, "error": "Missing path parameter"}, status=400
+                    )
                 return
 
             if path == "/api/compare":
@@ -125,7 +127,10 @@ def make_handler_class(state: VisualizerState):
                     except Exception as e:
                         self._json_response({"ok": False, "error": str(e)}, status=500)
                 else:
-                    self._json_response({"ok": False, "error": "Missing base or other parameter"}, status=400)
+                    self._json_response(
+                        {"ok": False, "error": "Missing base or other parameter"},
+                        status=400,
+                    )
                 return
 
             self._not_found()
@@ -145,12 +150,22 @@ def make_handler_class(state: VisualizerState):
                 repo_path = body.get("path", "")
                 repo = state.find_repo(repo_path)
                 if not repo:
-                    self._json_response({"ok": False, "error": f"Repository not found: {repo_path}"}, status=404)
+                    self._json_response(
+                        {"ok": False, "error": f"Repository not found: {repo_path}"},
+                        status=404,
+                    )
                     return
                 success = repo.fetch()
                 if success:
-                    repo.validate(check_sync=True, allow_detached=True, allow_no_remote=True)
-                self._json_response({"ok": success, "error": "" if success else f"Fetch failed for {repo.name}"})
+                    repo.validate(
+                        check_sync=True, allow_detached=True, allow_no_remote=True
+                    )
+                self._json_response(
+                    {
+                        "ok": success,
+                        "error": "" if success else f"Fetch failed for {repo.name}",
+                    }
+                )
                 return
 
             if path == "/api/action/fetch-all":
@@ -160,33 +175,51 @@ def make_handler_class(state: VisualizerState):
                         if not repo.fetch():
                             failed.append(repo.name)
                     for repo in state.repos:
-                        repo.validate(check_sync=True, allow_detached=True, allow_no_remote=True)
-                self._json_response({
-                    "ok": len(failed) == 0,
-                    "error": f"Failed to fetch: {', '.join(failed)}" if failed else "",
-                })
+                        repo.validate(
+                            check_sync=True, allow_detached=True, allow_no_remote=True
+                        )
+                self._json_response(
+                    {
+                        "ok": len(failed) == 0,
+                        "error": f"Failed to fetch: {', '.join(failed)}"
+                        if failed
+                        else "",
+                    }
+                )
                 return
 
             if path == "/api/action/push":
                 repo_path = body.get("path", "")
                 repo = state.find_repo(repo_path)
                 if not repo:
-                    self._json_response({"ok": False, "error": f"Repository not found: {repo_path}"}, status=404)
+                    self._json_response(
+                        {"ok": False, "error": f"Repository not found: {repo_path}"},
+                        status=404,
+                    )
                     return
                 if repo.ahead_count == "0":
                     self._json_response({"ok": True, "error": "Nothing to push"})
                     return
                 success = repo.push()
                 if success:
-                    repo.validate(check_sync=True, allow_detached=True, allow_no_remote=True)
-                self._json_response({"ok": success, "error": "" if success else f"Push failed for {repo.name}"})
+                    repo.validate(
+                        check_sync=True, allow_detached=True, allow_no_remote=True
+                    )
+                self._json_response(
+                    {
+                        "ok": success,
+                        "error": "" if success else f"Push failed for {repo.name}",
+                    }
+                )
                 return
 
             if path == "/api/action/push-all":
                 from grove.repo_utils import topological_sort_repos
 
                 with state.lock:
-                    to_push = [r for r in state.repos if r.ahead_count not in ("0", None)]
+                    to_push = [
+                        r for r in state.repos if r.ahead_count not in ("0", None)
+                    ]
                     if not to_push:
                         self._json_response({"ok": True, "error": "Nothing to push"})
                         return
@@ -198,12 +231,18 @@ def make_handler_class(state: VisualizerState):
                             failed.append(repo.name)
 
                     for repo in state.repos:
-                        repo.validate(check_sync=True, allow_detached=True, allow_no_remote=True)
+                        repo.validate(
+                            check_sync=True, allow_detached=True, allow_no_remote=True
+                        )
 
-                self._json_response({
-                    "ok": len(failed) == 0,
-                    "error": f"Failed to push: {', '.join(failed)}" if failed else "",
-                })
+                self._json_response(
+                    {
+                        "ok": len(failed) == 0,
+                        "error": f"Failed to push: {', '.join(failed)}"
+                        if failed
+                        else "",
+                    }
+                )
                 return
 
             if path == "/api/action/checkout":
@@ -211,14 +250,21 @@ def make_handler_class(state: VisualizerState):
                 branch = body.get("branch", "")
                 repo = state.find_repo(repo_path)
                 if not repo:
-                    self._json_response({"ok": False, "error": f"Repository not found: {repo_path}"}, status=404)
+                    self._json_response(
+                        {"ok": False, "error": f"Repository not found: {repo_path}"},
+                        status=404,
+                    )
                     return
                 if not branch:
-                    self._json_response({"ok": False, "error": "Missing branch"}, status=400)
+                    self._json_response(
+                        {"ok": False, "error": "Missing branch"}, status=400
+                    )
                     return
                 success, error = repo.checkout(branch)
                 if success:
-                    repo.validate(check_sync=True, allow_detached=True, allow_no_remote=True)
+                    repo.validate(
+                        check_sync=True, allow_detached=True, allow_no_remote=True
+                    )
                 self._json_response({"ok": success, "error": error})
                 return
 
@@ -273,6 +319,7 @@ def make_handler_class(state: VisualizerState):
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     """HTTP server that handles each request in a separate thread."""
+
     daemon_threads = True
     allow_reuse_address = True
 

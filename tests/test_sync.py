@@ -106,6 +106,7 @@ class TestParseGitmodules:
 # resolve_target_commit
 # ---------------------------------------------------------------------------
 
+
 class TestResolveTargetCommit:
     def test_explicit_sha_returned_as_is(self):
         """An explicit commit SHA should be returned without modification."""
@@ -149,7 +150,9 @@ class TestResolveTargetCommit:
             mock_run.return_value = subprocess.CompletedProcess(
                 args=[], returncode=0, stdout=fake_output, stderr=""
             )
-            sha, source = resolve_target_commit(None, None, remote_url="https://example.com/repo.git")
+            sha, source = resolve_target_commit(
+                None, None, remote_url="https://example.com/repo.git"
+            )
 
         assert sha == fake_sha
         assert "example.com" in source
@@ -162,7 +165,9 @@ class TestResolveTargetCommit:
                 args=[], returncode=128, stdout="", stderr="fatal: could not read"
             )
             with pytest.raises(ValueError, match="ls-remote failed"):
-                resolve_target_commit(None, None, remote_url="https://example.com/repo.git")
+                resolve_target_commit(
+                    None, None, remote_url="https://example.com/repo.git"
+                )
 
     def test_ls_remote_no_main_branch_raises(self):
         """When ls-remote returns empty output (no main branch), should raise."""
@@ -171,12 +176,15 @@ class TestResolveTargetCommit:
                 args=[], returncode=0, stdout="", stderr=""
             )
             with pytest.raises(ValueError, match="No 'main' branch"):
-                resolve_target_commit(None, None, remote_url="https://example.com/repo.git")
+                resolve_target_commit(
+                    None, None, remote_url="https://example.com/repo.git"
+                )
 
 
 # ---------------------------------------------------------------------------
 # resolve_remote_url
 # ---------------------------------------------------------------------------
+
 
 class TestResolveRemoteUrl:
     def test_returns_matching_url(self, tmp_path: Path):
@@ -209,16 +217,20 @@ class TestResolveRemoteUrl:
 # Parent pointer propagation
 # ---------------------------------------------------------------------------
 
+
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["git", "-C", str(cwd)] + list(args),
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
 
 
 class TestSyncParentPointerPropagation:
     def test_sync_propagates_child_pointer_updates_to_parent(
-        self, tmp_sync_group_multi_instance: Path,
+        self,
+        tmp_sync_group_multi_instance: Path,
     ):
         """After syncing common, the root should also update its pointers
         to frontend/backend/shared (which received sync commits)."""
@@ -239,8 +251,12 @@ class TestSyncParentPointerPropagation:
         )
 
         result = _sync_group(
-            group, root, commit_arg=target_sha,
-            dry_run=False, no_push=True, force=True,
+            group,
+            root,
+            commit_arg=target_sha,
+            dry_run=False,
+            no_push=True,
+            force=True,
         )
 
         assert result == 0

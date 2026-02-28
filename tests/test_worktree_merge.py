@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from grove.config import CONFIG_FILENAME
-from grove.repo_utils import RepoInfo, run_git
+from grove.repo_utils import RepoInfo
 from grove.worktree_merge import (
     MergeState,
     RepoMergeEntry,
@@ -28,7 +28,9 @@ from grove.config import MergeConfig
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["git", "-C", str(cwd)] + list(args),
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
 
 
@@ -36,15 +38,20 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
 # Unit tests: git helpers
 # ---------------------------------------------------------------------------
 
+
 class TestHasBranch:
     def test_existing_branch(self, tmp_submodule_tree_with_branches: Path):
-        repo = RepoInfo(path=tmp_submodule_tree_with_branches,
-                        repo_root=tmp_submodule_tree_with_branches)
+        repo = RepoInfo(
+            path=tmp_submodule_tree_with_branches,
+            repo_root=tmp_submodule_tree_with_branches,
+        )
         assert repo.has_local_branch("my-feature") is True
 
     def test_nonexistent_branch(self, tmp_submodule_tree_with_branches: Path):
-        repo = RepoInfo(path=tmp_submodule_tree_with_branches,
-                        repo_root=tmp_submodule_tree_with_branches)
+        repo = RepoInfo(
+            path=tmp_submodule_tree_with_branches,
+            repo_root=tmp_submodule_tree_with_branches,
+        )
         assert repo.has_local_branch("nonexistent") is False
 
 
@@ -56,15 +63,19 @@ class TestIsAncestor:
         assert repo.is_ancestor("HEAD") is True
 
     def test_not_merged(self, tmp_submodule_tree_with_branches: Path):
-        repo = RepoInfo(path=tmp_submodule_tree_with_branches,
-                        repo_root=tmp_submodule_tree_with_branches)
+        repo = RepoInfo(
+            path=tmp_submodule_tree_with_branches,
+            repo_root=tmp_submodule_tree_with_branches,
+        )
         assert repo.is_ancestor("my-feature") is False
 
 
 class TestCountDivergentCommits:
     def test_divergent(self, tmp_submodule_tree_with_branches: Path):
-        repo = RepoInfo(path=tmp_submodule_tree_with_branches,
-                        repo_root=tmp_submodule_tree_with_branches)
+        repo = RepoInfo(
+            path=tmp_submodule_tree_with_branches,
+            repo_root=tmp_submodule_tree_with_branches,
+        )
         ahead, behind = repo.count_divergent_commits("my-feature")
         # main is 0 ahead and 1 behind the feature branch
         assert ahead == 0
@@ -74,6 +85,7 @@ class TestCountDivergentCommits:
 # ---------------------------------------------------------------------------
 # Unit tests: test command resolution
 # ---------------------------------------------------------------------------
+
 
 class TestGetTestCommand:
     def test_root_override(self, tmp_git_repo: Path):
@@ -108,8 +120,7 @@ class TestGetTestCommand:
         child = tmp_submodule_tree / "technical-docs"
         # Write a local config
         (child / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
-            'test-command = "make html"\n'
+            '[worktree-merge]\ntest-command = "make html"\n'
         )
         repo = RepoInfo(path=child, repo_root=tmp_submodule_tree)
         assert _get_test_command(config, repo) == "make html"
@@ -132,10 +143,13 @@ class TestGetTestCommand:
 # Unit tests: conflict prediction
 # ---------------------------------------------------------------------------
 
+
 class TestPredictConflicts:
     def test_clean_merge(self, tmp_submodule_tree_with_branches: Path):
-        repo = RepoInfo(path=tmp_submodule_tree_with_branches,
-                        repo_root=tmp_submodule_tree_with_branches)
+        repo = RepoInfo(
+            path=tmp_submodule_tree_with_branches,
+            repo_root=tmp_submodule_tree_with_branches,
+        )
         clean, conflicts = _predict_conflicts(repo, "my-feature")
         assert clean is True
         assert conflicts == []
@@ -164,6 +178,7 @@ class TestPredictConflicts:
 # Unit tests: state management
 # ---------------------------------------------------------------------------
 
+
 class TestMergeStateCorruption:
     """Edge cases: corrupt or unexpected state files."""
 
@@ -175,10 +190,16 @@ class TestMergeStateCorruption:
 
     def test_load_missing_repos_key(self, tmp_path: Path):
         state_path = tmp_path / "merge.json"
-        state_path.write_text(json.dumps({
-            "branch": "feat", "no_ff": False, "no_test": False,
-            "started_at": "2026-01-01T00:00:00",
-        }))
+        state_path.write_text(
+            json.dumps(
+                {
+                    "branch": "feat",
+                    "no_ff": False,
+                    "no_test": False,
+                    "started_at": "2026-01-01T00:00:00",
+                }
+            )
+        )
         with pytest.raises(KeyError):
             MergeState.load(state_path)
 
@@ -191,27 +212,52 @@ class TestMergeStateCorruption:
     def test_extra_fields_in_repos_raises(self, tmp_path: Path):
         """Extra keys in repo entries cause TypeError (forward-compat gap)."""
         state_path = tmp_path / "merge.json"
-        state_path.write_text(json.dumps({
-            "branch": "feat", "no_ff": False, "no_test": False,
-            "started_at": "2026-01-01T00:00:00",
-            "repos": [{"rel_path": ".", "status": "pending",
-                        "pre_merge_head": None, "post_merge_head": None,
-                        "reason": None, "extra_key": "ignored"}],
-        }))
+        state_path.write_text(
+            json.dumps(
+                {
+                    "branch": "feat",
+                    "no_ff": False,
+                    "no_test": False,
+                    "started_at": "2026-01-01T00:00:00",
+                    "repos": [
+                        {
+                            "rel_path": ".",
+                            "status": "pending",
+                            "pre_merge_head": None,
+                            "post_merge_head": None,
+                            "reason": None,
+                            "extra_key": "ignored",
+                        }
+                    ],
+                }
+            )
+        )
         with pytest.raises(TypeError, match="unexpected keyword argument"):
             MergeState.load(state_path)
 
     def test_extra_top_level_fields_ignored(self, tmp_path: Path):
         """Extra top-level keys in the JSON should not break loading."""
         state_path = tmp_path / "merge.json"
-        state_path.write_text(json.dumps({
-            "branch": "feat", "no_ff": False, "no_test": False,
-            "started_at": "2026-01-01T00:00:00",
-            "repos": [{"rel_path": ".", "status": "pending",
-                        "pre_merge_head": None, "post_merge_head": None,
-                        "reason": None}],
-            "future_field": True,
-        }))
+        state_path.write_text(
+            json.dumps(
+                {
+                    "branch": "feat",
+                    "no_ff": False,
+                    "no_test": False,
+                    "started_at": "2026-01-01T00:00:00",
+                    "repos": [
+                        {
+                            "rel_path": ".",
+                            "status": "pending",
+                            "pre_merge_head": None,
+                            "post_merge_head": None,
+                            "reason": None,
+                        }
+                    ],
+                    "future_field": True,
+                }
+            )
+        )
         state = MergeState.load(state_path)
         assert state.branch == "feat"
         assert len(state.repos) == 1
@@ -226,8 +272,12 @@ class TestMergeState:
             no_test=False,
             started_at="2026-01-01T00:00:00",
             repos=[
-                RepoMergeEntry(rel_path="sub", status="merged",
-                               pre_merge_head="aaa", post_merge_head="bbb"),
+                RepoMergeEntry(
+                    rel_path="sub",
+                    status="merged",
+                    pre_merge_head="aaa",
+                    post_merge_head="bbb",
+                ),
                 RepoMergeEntry(rel_path=".", status="pending"),
             ],
         )
@@ -256,6 +306,7 @@ class TestMergeState:
 # Unit tests: journal
 # ---------------------------------------------------------------------------
 
+
 class TestMergeJournal:
     def test_log_appends(self, tmp_path: Path):
         journal = tmp_path / "merge.log"
@@ -273,6 +324,7 @@ class TestMergeJournal:
         """Journal path should include the current year-month."""
         path = _get_journal_path(tmp_submodule_tree)
         import datetime
+
         now = datetime.datetime.now(datetime.timezone.utc)
         expected_suffix = f"merge-journal-{now.strftime('%Y-%m')}.log"
         assert path.name == expected_suffix
@@ -281,6 +333,7 @@ class TestMergeJournal:
 # ---------------------------------------------------------------------------
 # Integration tests: start_merge
 # ---------------------------------------------------------------------------
+
 
 class TestStartMerge:
     def test_full_merge(self, tmp_submodule_tree_with_branches: Path):
@@ -370,6 +423,7 @@ class TestStartMerge:
 # Integration tests: continue_merge
 # ---------------------------------------------------------------------------
 
+
 class TestContinueMerge:
     def test_continue_after_test_failure(self, tmp_submodule_tree_with_branches: Path):
         """After a test failure, --continue should re-run tests."""
@@ -377,8 +431,7 @@ class TestContinueMerge:
 
         # Write a config with a test that will fail and commit it
         (root / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
-            'test-command = "false"\n'
+            '[worktree-merge]\ntest-command = "false"\n'
         )
         _git(root, "add", CONFIG_FILENAME)
         _git(root, "commit", "-m", "add failing test config")
@@ -395,10 +448,7 @@ class TestContinueMerge:
 
         # Fix: change test command to succeed (this is OK as uncommitted
         # since we're in --continue, not starting a new merge)
-        (root / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
-            'test-command = "true"\n'
-        )
+        (root / CONFIG_FILENAME).write_text('[worktree-merge]\ntest-command = "true"\n')
 
         with patch("grove.worktree_merge.find_repo_root", return_value=root):
             result = continue_merge()
@@ -417,21 +467,25 @@ class TestContinueMerge:
 # Integration tests: abort_merge
 # ---------------------------------------------------------------------------
 
+
 class TestAbortMerge:
     def test_abort_restores_state(self, tmp_submodule_tree_with_branches: Path):
         root = tmp_submodule_tree_with_branches
 
         # Write and commit a failing test config
         (root / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
-            'test-command = "false"\n'
+            '[worktree-merge]\ntest-command = "false"\n'
         )
         _git(root, "add", CONFIG_FILENAME)
         _git(root, "commit", "-m", "add failing test config")
 
         # Record pre-merge commits (after committing config)
         pre_commits = {}
-        for repo_path in [root, root / "technical-docs", root / "technical-docs" / "common"]:
+        for repo_path in [
+            root,
+            root / "technical-docs",
+            root / "technical-docs" / "common",
+        ]:
             result = _git(repo_path, "rev-parse", "HEAD")
             pre_commits[str(repo_path)] = result.stdout.strip()
 
@@ -461,6 +515,7 @@ class TestAbortMerge:
 # Integration tests: status_merge
 # ---------------------------------------------------------------------------
 
+
 class TestStatusMerge:
     def test_status_no_merge(self, tmp_submodule_tree: Path, capsys):
         root = tmp_submodule_tree
@@ -474,8 +529,7 @@ class TestStatusMerge:
 
         # Write and commit a failing test config
         (root / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
-            'test-command = "false"\n'
+            '[worktree-merge]\ntest-command = "false"\n'
         )
         _git(root, "add", CONFIG_FILENAME)
         _git(root, "commit", "-m", "add failing test config")
@@ -500,13 +554,11 @@ class TestStatusMerge:
 # Integration tests: test command execution
 # ---------------------------------------------------------------------------
 
+
 class TestTestCommand:
     def test_test_pass_continues(self, tmp_submodule_tree_with_branches: Path):
         root = tmp_submodule_tree_with_branches
-        (root / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
-            'test-command = "true"\n'
-        )
+        (root / CONFIG_FILENAME).write_text('[worktree-merge]\ntest-command = "true"\n')
         _git(root, "add", CONFIG_FILENAME)
         _git(root, "commit", "-m", "add passing test config")
 
@@ -517,8 +569,7 @@ class TestTestCommand:
     def test_test_fail_pauses(self, tmp_submodule_tree_with_branches: Path):
         root = tmp_submodule_tree_with_branches
         (root / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
-            'test-command = "false"\n'
+            '[worktree-merge]\ntest-command = "false"\n'
         )
         _git(root, "add", CONFIG_FILENAME)
         _git(root, "commit", "-m", "add failing test config")
@@ -536,8 +587,7 @@ class TestTestCommand:
         root = tmp_submodule_tree_with_branches
         # Even with a failing test command, --no-test should succeed
         (root / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
-            'test-command = "false"\n'
+            '[worktree-merge]\ntest-command = "false"\n'
         )
         _git(root, "add", CONFIG_FILENAME)
         _git(root, "commit", "-m", "add failing test config")
@@ -551,6 +601,7 @@ class TestTestCommand:
 # Integration tests: merge journal
 # ---------------------------------------------------------------------------
 
+
 class TestMergeJournalIntegration:
     def test_journal_entries_logged(self, tmp_submodule_tree_with_branches: Path):
         root = tmp_submodule_tree_with_branches
@@ -559,10 +610,9 @@ class TestMergeJournalIntegration:
 
         # Find journal file
         import datetime
+
         now = datetime.datetime.now(datetime.timezone.utc)
-        git_dir = Path(
-            _git(root, "rev-parse", "--git-common-dir").stdout.strip()
-        )
+        git_dir = Path(_git(root, "rev-parse", "--git-common-dir").stdout.strip())
         if not git_dir.is_absolute():
             git_dir = (root / git_dir).resolve()
         journal = git_dir / "grove" / f"merge-journal-{now.strftime('%Y-%m')}.log"
@@ -576,6 +626,7 @@ class TestMergeJournalIntegration:
 # ---------------------------------------------------------------------------
 # Integration tests: structural consistency
 # ---------------------------------------------------------------------------
+
 
 class TestStructuralCheck:
     def test_no_warning_when_same_structure(
@@ -593,6 +644,7 @@ class TestStructuralCheck:
 # ---------------------------------------------------------------------------
 # Integration tests: continue with conflict resolution
 # ---------------------------------------------------------------------------
+
 
 class TestContinueConflictResolution:
     def test_continue_after_conflict_resolution(self, tmp_git_repo: Path):
@@ -719,6 +771,7 @@ class TestAbortConflict:
 # Integration tests: sync-aware merge
 # ---------------------------------------------------------------------------
 
+
 class TestSyncGroupMerge:
     def test_sync_group_merge_and_propagation(
         self, tmp_submodule_tree_with_sync_branches: Path
@@ -759,9 +812,7 @@ class TestSyncGroupMerge:
         common = root / "technical-docs" / "common"
         assert not (common / "feature.txt").exists()
 
-    def test_sync_group_no_feature_branch(
-        self, tmp_submodule_tree: Path, capsys
-    ):
+    def test_sync_group_no_feature_branch(self, tmp_submodule_tree: Path, capsys):
         """When sync-group has no feature branch, skip gracefully."""
         root = tmp_submodule_tree
 
@@ -769,7 +820,8 @@ class TestSyncGroupMerge:
         for sub in [root / "technical-docs" / "common", root / "technical-docs"]:
             result = subprocess.run(
                 ["git", "-C", str(sub), "checkout", "main"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             if result.returncode != 0:
                 _git(sub, "checkout", "-b", "main")
@@ -791,7 +843,7 @@ class TestSyncGroupMerge:
         # Record pre-merge SHAs
         pre_common_sha = _git(common, "rev-parse", "HEAD").stdout.strip()
         pre_child_sha = _git(child, "rev-parse", "HEAD").stdout.strip()
-        pre_root_sha = _git(root, "rev-parse", "HEAD").stdout.strip()
+        _git(root, "rev-parse", "HEAD").stdout.strip()
 
         # Make root conflict so merge pauses at root
         _git(root, "checkout", "my-feature")
@@ -805,7 +857,7 @@ class TestSyncGroupMerge:
         _git(root, "commit", "-m", "main conflict on root README")
 
         # Re-record root SHA after the conflict setup commit
-        pre_root_sha_after = _git(root, "rev-parse", "HEAD").stdout.strip()
+        _git(root, "rev-parse", "HEAD").stdout.strip()
 
         with patch("grove.worktree_merge.find_repo_root", return_value=root):
             result = start_merge("my-feature", no_test=True)
@@ -847,10 +899,10 @@ class TestSyncGroupMerge:
         # Use a failing test command to pause the merge after sync
         (root / ".grove.toml").read_text()  # Verify it exists
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
-            f'url-match = "grandchild_origin"\n'
-            '\n'
-            '[worktree-merge]\n'
+            "[sync-groups.common]\n"
+            'url-match = "grandchild_origin"\n'
+            "\n"
+            "[worktree-merge]\n"
             'test-command = "false"\n'
         )
         _git(root, "add", ".grove.toml")
@@ -875,27 +927,52 @@ class TestMergeStateBackwardCompat:
     def test_load_without_pre_sync_heads(self, tmp_path: Path):
         """Old state files without pre_sync_heads should load with empty dict."""
         state_path = tmp_path / "merge.json"
-        state_path.write_text(json.dumps({
-            "branch": "feat", "no_ff": False, "no_test": False,
-            "started_at": "2026-01-01T00:00:00",
-            "repos": [{"rel_path": ".", "status": "pending",
-                        "pre_merge_head": None, "post_merge_head": None,
-                        "reason": None}],
-        }))
+        state_path.write_text(
+            json.dumps(
+                {
+                    "branch": "feat",
+                    "no_ff": False,
+                    "no_test": False,
+                    "started_at": "2026-01-01T00:00:00",
+                    "repos": [
+                        {
+                            "rel_path": ".",
+                            "status": "pending",
+                            "pre_merge_head": None,
+                            "post_merge_head": None,
+                            "reason": None,
+                        }
+                    ],
+                }
+            )
+        )
         state = MergeState.load(state_path)
         assert state.pre_sync_heads == {}
 
     def test_load_with_pre_sync_heads(self, tmp_path: Path):
         """State files with pre_sync_heads should load correctly."""
         state_path = tmp_path / "merge.json"
-        state_path.write_text(json.dumps({
-            "branch": "feat", "no_ff": False, "no_test": False,
-            "started_at": "2026-01-01T00:00:00",
-            "repos": [{"rel_path": "common", "status": "merged",
-                        "pre_merge_head": "aaa", "post_merge_head": "bbb",
-                        "reason": None, "sync_group": "common"}],
-            "pre_sync_heads": {"technical-docs": "ccc"},
-        }))
+        state_path.write_text(
+            json.dumps(
+                {
+                    "branch": "feat",
+                    "no_ff": False,
+                    "no_test": False,
+                    "started_at": "2026-01-01T00:00:00",
+                    "repos": [
+                        {
+                            "rel_path": "common",
+                            "status": "merged",
+                            "pre_merge_head": "aaa",
+                            "post_merge_head": "bbb",
+                            "reason": None,
+                            "sync_group": "common",
+                        }
+                    ],
+                    "pre_sync_heads": {"technical-docs": "ccc"},
+                }
+            )
+        )
         state = MergeState.load(state_path)
         assert state.pre_sync_heads == {"technical-docs": "ccc"}
         assert state.repos[0].sync_group == "common"
@@ -904,7 +981,9 @@ class TestMergeStateBackwardCompat:
         """Saved state should include pre_sync_heads."""
         state_path = tmp_path / "merge.json"
         state = MergeState(
-            branch="feat", no_ff=False, no_test=False,
+            branch="feat",
+            no_ff=False,
+            no_test=False,
             started_at="2026-01-01T00:00:00",
             repos=[RepoMergeEntry(rel_path=".", sync_group="common")],
             pre_sync_heads={"technical-docs": "abc123"},

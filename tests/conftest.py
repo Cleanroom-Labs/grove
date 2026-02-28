@@ -61,10 +61,7 @@ def tmp_submodule_tree(tmp_path: Path) -> Path:
     _git(grandchild, "config", "user.email", "test@example.com")
     _git(grandchild, "config", "user.name", "Test User")
     (grandchild / "theme.txt").write_text("theme content\n")
-    (grandchild / ".grove.toml").write_text(
-        '[worktree-merge]\n'
-        'test-command = "true"\n'
-    )
+    (grandchild / ".grove.toml").write_text('[worktree-merge]\ntest-command = "true"\n')
     _git(grandchild, "add", "theme.txt", ".grove.toml")
     _git(grandchild, "commit", "-m", "Initial grandchild commit")
 
@@ -75,10 +72,7 @@ def tmp_submodule_tree(tmp_path: Path) -> Path:
     _git(child, "config", "user.email", "test@example.com")
     _git(child, "config", "user.name", "Test User")
     (child / "index.rst").write_text("index\n")
-    (child / ".grove.toml").write_text(
-        '[worktree-merge]\n'
-        'test-command = "true"\n'
-    )
+    (child / ".grove.toml").write_text('[worktree-merge]\ntest-command = "true"\n')
     _git(child, "add", "index.rst", ".grove.toml")
     _git(child, "commit", "-m", "Initial child commit")
 
@@ -97,11 +91,11 @@ def tmp_submodule_tree(tmp_path: Path) -> Path:
     # The grandchild repo URL will be a local path; url-match uses a
     # substring that appears in that path.
     (parent / ".grove.toml").write_text(
-        '[sync-groups.common]\n'
+        "[sync-groups.common]\n"
         f'url-match = "grandchild_origin"\n'
         f'standalone-repo = "{grandchild}"\n'
-        '\n'
-        '[worktree-merge]\n'
+        "\n"
+        "[worktree-merge]\n"
         'test-command = "true"\n'
     )
 
@@ -148,7 +142,8 @@ def tmp_submodule_tree_with_branches(tmp_submodule_tree: Path) -> Path:
         # Try to checkout an existing main branch; create one if it doesn't exist
         result = subprocess.run(
             ["git", "-C", str(sub), "checkout", "main"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if result.returncode != 0:
             _git(sub, "checkout", "-b", "main")
@@ -203,7 +198,8 @@ def tmp_submodule_tree_with_sync_branches(tmp_submodule_tree: Path) -> Path:
     for sub in [grandchild, child]:
         result = subprocess.run(
             ["git", "-C", str(sub), "checkout", "main"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if result.returncode != 0:
             _git(sub, "checkout", "-b", "main")
@@ -213,9 +209,7 @@ def tmp_submodule_tree_with_sync_branches(tmp_submodule_tree: Path) -> Path:
     (grandchild / "feature.txt").write_text("grandchild feature\n")
     _git(grandchild, "add", "feature.txt")
     _git(grandchild, "commit", "-m", "grandchild feature commit")
-    grandchild_feature_sha = _git(
-        grandchild, "rev-parse", "HEAD"
-    ).stdout.strip()
+    grandchild_feature_sha = _git(grandchild, "rev-parse", "HEAD").stdout.strip()
     _git(grandchild, "checkout", "main")
 
     # --- Child (technical-docs): content change + updated common pointer ---
@@ -285,10 +279,7 @@ def tmp_sibling_submodules(tmp_path: Path) -> Path:
     root = tmp_path / "root"
     _init_repo(root)
 
-    (root / ".grove.toml").write_text(
-        '[cascade]\n'
-        'local-tests = "true"\n'
-    )
+    (root / ".grove.toml").write_text('[cascade]\nlocal-tests = "true"\n')
     _git(root, "add", ".grove.toml")
     _git(root, "commit", "-m", "Add grove config")
 
@@ -349,11 +340,11 @@ def tmp_sync_group_multi_instance(tmp_path: Path) -> Path:
     _init_repo(root)
 
     (root / ".grove.toml").write_text(
-        '[sync-groups.common]\n'
+        "[sync-groups.common]\n"
         f'url-match = "common_origin"\n'
         f'standalone-repo = "{common_origin}"\n'
-        '\n'
-        '[cascade]\n'
+        "\n"
+        "[cascade]\n"
         'local-tests = "true"\n'
         'contract-tests = "true"\n'
     )
@@ -464,10 +455,10 @@ def tmp_intermediate_sync_group(tmp_path: Path) -> Path:
     _init_repo(root)
 
     (root / ".grove.toml").write_text(
-        '[sync-groups.services]\n'
-        f'url-match = "service_origin"\n'
-        '\n'
-        '[cascade]\n'
+        "[sync-groups.services]\n"
+        'url-match = "service_origin"\n'
+        "\n"
+        "[cascade]\n"
         'local-tests = "true"\n'
         'contract-tests = "true"\n'
     )

@@ -6,6 +6,7 @@ Merges a feature branch into the current branch across all repos in the
 submodule tree, processing leaves first (topological order). Supports
 pause/resume on conflicts or test failures, and full abort/rollback.
 """
+
 from __future__ import annotations
 
 import json
@@ -15,7 +16,12 @@ from pathlib import Path
 
 from grove.filelock import atomic_write_json, locked_open
 
-from grove.config import GroveConfig, MergeConfig, get_sync_group_exclude_paths, load_config
+from grove.config import (
+    GroveConfig,
+    MergeConfig,
+    get_sync_group_exclude_paths,
+    load_config,
+)
 from grove.repo_utils import (
     Colors,
     RepoInfo,
@@ -36,20 +42,25 @@ from grove.topology import TopologyCache
 # State management
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RepoMergeEntry:
     """Merge state for a single repository."""
+
     rel_path: str
     status: str = "pending"  # pending | skipped | merged | paused
     pre_merge_head: str | None = None
     post_merge_head: str | None = None
     reason: str | None = None  # already-merged | conflict | test-failed | ...
-    sync_group: str | None = None  # sync group name if this is a sync-group canonical repo
+    sync_group: str | None = (
+        None  # sync group name if this is a sync-group canonical repo
+    )
 
 
 @dataclass
 class MergeState:
     """Persistent merge state across CLI invocations."""
+
     branch: str
     no_ff: bool
     no_test: bool
@@ -91,6 +102,7 @@ class MergeState:
 # Path helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_state_path(repo_root: Path) -> Path:
     """Per-worktree merge state file."""
     return get_state_path(repo_root, "merge-state.json")
@@ -111,6 +123,7 @@ def _log(journal_path: Path, message: str) -> None:
 # ---------------------------------------------------------------------------
 # Conflict prediction
 # ---------------------------------------------------------------------------
+
 
 def _predict_conflicts(repo: RepoInfo, branch: str) -> tuple[bool, list[str]]:
     """Simulate a merge to predict conflicts.
@@ -139,6 +152,7 @@ def _predict_conflicts(repo: RepoInfo, branch: str) -> tuple[bool, list[str]]:
 # Submodule conflict auto-resolution
 # ---------------------------------------------------------------------------
 
+
 def _auto_resolve_submodule_conflicts(
     repo: RepoInfo, merged_child_rel_paths: set[str]
 ) -> bool:
@@ -163,9 +177,7 @@ def _auto_resolve_submodule_conflicts(
     for conflict_path in unmerged:
         if conflict_path in submodule_paths:
             # Check if this submodule was already merged
-            child_rel = str(
-                (repo.path / conflict_path).relative_to(repo.repo_root)
-            )
+            child_rel = str((repo.path / conflict_path).relative_to(repo.repo_root))
             if child_rel in merged_child_rel_paths:
                 repo.git("add", conflict_path, check=False)
                 continue
@@ -234,6 +246,7 @@ def _get_submodule_conflict_guidance(
 # Sync-group helpers
 # ---------------------------------------------------------------------------
 
+
 def _find_canonical_sync_instance(
     submodules,  # list[SyncSubmodule] from grove.sync
     standalone_repo: Path | None,
@@ -279,11 +292,11 @@ def _run_sync_propagation(
 
     group = config.sync_groups[group_name]
 
-    _log(journal_path,
-         f"SYNC-GROUP {group_name}: syncing to {merged_sha[:8]}")
+    _log(journal_path, f"SYNC-GROUP {group_name}: syncing to {merged_sha[:8]}")
 
     sync_rc = run_sync_group(
-        group, repo_root,
+        group,
+        repo_root,
         commit_arg=merged_sha,
         dry_run=False,
         no_push=True,
@@ -296,8 +309,7 @@ def _run_sync_propagation(
         _log(journal_path, f"SYNC-GROUP {group_name}: sync FAILED")
         return 1
 
-    _log(journal_path,
-         f"SYNC-GROUP {group_name}: synced to {merged_sha[:8]}")
+    _log(journal_path, f"SYNC-GROUP {group_name}: synced to {merged_sha[:8]}")
 
     # Add all instance paths to merged_child_rel_paths
     submodules = discover_sync_submodules(repo_root, group.url_match)
@@ -337,17 +349,24 @@ def _merge_and_sync_groups(
             continue
 
         canonical = _find_canonical_sync_instance(
-            submodules, group.standalone_repo, branch, repo_root,
+            submodules,
+            group.standalone_repo,
+            branch,
+            repo_root,
         )
         if canonical is None:
-            print(f"  {Colors.yellow('·')} sync group '{group_name}': "
-                  f"branch '{branch}' not found, skipping")
+            print(
+                f"  {Colors.yellow('·')} sync group '{group_name}': "
+                f"branch '{branch}' not found, skipping"
+            )
             continue
 
         found_any = True
         canonical_rel = canonical.rel_path
-        print(f"  {Colors.green('→')} sync group '{group_name}': "
-              f"merging in {canonical_rel}")
+        print(
+            f"  {Colors.green('→')} sync group '{group_name}': "
+            f"merging in {canonical_rel}"
+        )
 
         # Record pre-sync HEADs for all repos that sync will touch
         parent_repos = get_parent_repos_for_submodules(submodules, repo_root)
@@ -377,8 +396,13 @@ def _merge_and_sync_groups(
 
         # Merge the feature branch
         rc = _execute_merge_for_repo(
-            canonical, entry, state, state_path, journal_path,
-            config.merge, merged_child_rel_paths,
+            canonical,
+            entry,
+            state,
+            state_path,
+            journal_path,
+            config.merge,
+            merged_child_rel_paths,
         )
         if rc != 0:
             return rc  # Paused on conflict or test failure
@@ -386,8 +410,13 @@ def _merge_and_sync_groups(
         # Propagate via sync
         merged_sha = canonical.get_commit_sha(short=False)
         sync_rc = _run_sync_propagation(
-            group_name, canonical.path, merged_sha, repo_root,
-            config, journal_path, merged_child_rel_paths,
+            group_name,
+            canonical.path,
+            merged_sha,
+            repo_root,
+            config,
+            journal_path,
+            merged_child_rel_paths,
         )
         if sync_rc != 0:
             return 1
@@ -403,6 +432,7 @@ def _merge_and_sync_groups(
 # ---------------------------------------------------------------------------
 # Test command resolution and execution
 # ---------------------------------------------------------------------------
+
 
 def _get_test_command(root_config: MergeConfig, repo: RepoInfo) -> str | None:
     """Resolve test command using priority order:
@@ -439,6 +469,7 @@ def _run_test(repo: RepoInfo, test_cmd: str) -> tuple[bool, float]:
 # Structural consistency check
 # ---------------------------------------------------------------------------
 
+
 def _check_structural_consistency(
     repo_root: Path, branch: str, cache: TopologyCache
 ) -> None:
@@ -448,9 +479,7 @@ def _check_structural_consistency(
     """
     # Get current and branch head commits
     current = run_git(repo_root, "rev-parse", "--short", "HEAD", check=False)
-    branch_result = run_git(
-        repo_root, "rev-parse", "--short", branch, check=False
-    )
+    branch_result = run_git(repo_root, "rev-parse", "--short", branch, check=False)
     if current.returncode != 0 or branch_result.returncode != 0:
         return
 
@@ -461,14 +490,20 @@ def _check_structural_consistency(
     if td is None:
         # Fall back to gitmodules diff
         result = run_git(
-            repo_root, "diff", f"{branch}..HEAD", "--", ".gitmodules",
+            repo_root,
+            "diff",
+            f"{branch}..HEAD",
+            "--",
+            ".gitmodules",
             check=False,
         )
         if result.returncode == 0 and result.stdout.strip():
-            print(Colors.yellow(
-                "  Warning: .gitmodules differs between branches "
-                "(topology cache miss — cannot show detailed diff)"
-            ))
+            print(
+                Colors.yellow(
+                    "  Warning: .gitmodules differs between branches "
+                    "(topology cache miss — cannot show detailed diff)"
+                )
+            )
         return
 
     if td.is_empty:
@@ -483,15 +518,20 @@ def _check_structural_consistency(
         for o, n in td.changed_url:
             print(f"    ~ {o.rel_path}: URL changed ({o.url} → {n.url})")
         for o, n in td.changed_relative_url:
-            print(f"    ~ {o.rel_path}: relative URL changed ({o.relative_url} → {n.relative_url})")
+            print(
+                f"    ~ {o.rel_path}: relative URL changed ({o.relative_url} → {n.relative_url})"
+            )
         for o, n in td.reparented:
-            print(f"    ~ {o.rel_path}: reparented ({o.parent_rel_path} → {n.parent_rel_path})")
+            print(
+                f"    ~ {o.rel_path}: reparented ({o.parent_rel_path} → {n.parent_rel_path})"
+            )
         print()
 
 
 # ---------------------------------------------------------------------------
 # Core merge execution for a single repo
 # ---------------------------------------------------------------------------
+
 
 def _execute_merge_for_repo(
     repo: RepoInfo,
@@ -521,13 +561,17 @@ def _execute_merge_for_repo(
         if _auto_resolve_submodule_conflicts(repo, merged_child_rel_paths):
             # All conflicts resolved — commit
             repo.git("commit", "--no-edit", check=False)
-            _log(journal_path,
-                 f"MERGE {entry.rel_path}: clean merge (submodule pointers auto-resolved)")
+            _log(
+                journal_path,
+                f"MERGE {entry.rel_path}: clean merge (submodule pointers auto-resolved)",
+            )
         else:
             # Unresolvable conflicts
             conflicting = repo.get_unmerged_files()
-            _log(journal_path,
-                 f"MERGE {entry.rel_path}: CONFLICT ({', '.join(conflicting)})")
+            _log(
+                journal_path,
+                f"MERGE {entry.rel_path}: CONFLICT ({', '.join(conflicting)})",
+            )
             entry.status = "paused"
             entry.reason = "conflict"
             state.save(state_path)
@@ -538,7 +582,7 @@ def _execute_merge_for_repo(
                 print(line)
             print()
             print(f"  Resolve conflicts in: {repo.path}")
-            print(f"  Then run: grove worktree merge --continue")
+            print("  Then run: grove worktree merge --continue")
             return 1
     else:
         pre = entry.pre_merge_head[:8] if entry.pre_merge_head else "?"
@@ -553,18 +597,22 @@ def _execute_merge_for_repo(
             print(f"    Running tests: {test_cmd}")
             passed, duration = _run_test(repo, test_cmd)
             if passed:
-                _log(journal_path,
-                     f"TEST {entry.rel_path}: PASSED ({test_cmd}, {duration:.1f}s)")
+                _log(
+                    journal_path,
+                    f"TEST {entry.rel_path}: PASSED ({test_cmd}, {duration:.1f}s)",
+                )
             else:
-                _log(journal_path,
-                     f"TEST {entry.rel_path}: FAILED ({test_cmd}, {duration:.1f}s)")
+                _log(
+                    journal_path,
+                    f"TEST {entry.rel_path}: FAILED ({test_cmd}, {duration:.1f}s)",
+                )
                 entry.status = "paused"
                 entry.reason = "test-failed"
                 entry.post_merge_head = repo.get_commit_sha(short=False)
                 state.save(state_path)
                 _log(journal_path, f"PAUSED: test failed in {entry.rel_path}")
                 print(f"    {Colors.red('TEST FAILED')} in {entry.rel_path}")
-                print(f"    Fix the issue, then run: grove worktree merge --continue")
+                print("    Fix the issue, then run: grove worktree merge --continue")
                 return 1
 
     # Mark as merged
@@ -577,6 +625,7 @@ def _execute_merge_for_repo(
 # ---------------------------------------------------------------------------
 # Orchestrators
 # ---------------------------------------------------------------------------
+
 
 def start_merge(
     branch: str,
@@ -593,10 +642,11 @@ def start_merge(
 
     # Phase 0 — Guard
     if state_path.exists():
-        print(Colors.red(
-            "A merge is already in progress. "
-            "Use --continue, --abort, or --status."
-        ))
+        print(
+            Colors.red(
+                "A merge is already in progress. Use --continue, --abort, or --status."
+            )
+        )
         return 1
 
     # Phase 1 — Discovery
@@ -604,7 +654,9 @@ def start_merge(
     config = load_config(repo_root)
     exclude_paths = get_sync_group_exclude_paths(repo_root, config)
 
-    repos = discover_repos_from_gitmodules(repo_root, exclude_paths=exclude_paths or None)
+    repos = discover_repos_from_gitmodules(
+        repo_root, exclude_paths=exclude_paths or None
+    )
 
     # Record topology
     cache = TopologyCache.for_repo(repo_root)
@@ -648,20 +700,26 @@ def start_merge(
         current_branch = repo.get_branch()
         if not current_branch:
             print(f"  {Colors.red('✗')} {rel}: detached HEAD (not on a branch)")
-            print(f"      Fix: grove worktree checkout-branches")
+            print("      Fix: grove worktree checkout-branches")
             has_errors = True
             continue
 
         # Check if branch exists
         if not repo.has_local_branch(branch):
-            entry = RepoMergeEntry(rel_path=rel, status="skipped", reason="branch-not-found")
+            entry = RepoMergeEntry(
+                rel_path=rel, status="skipped", reason="branch-not-found"
+            )
             entries.append(entry)
-            print(f"  {Colors.yellow('·')} {rel}: skipped (branch '{branch}' not found)")
+            print(
+                f"  {Colors.yellow('·')} {rel}: skipped (branch '{branch}' not found)"
+            )
             continue
 
         # Check if already merged
         if repo.is_ancestor(branch):
-            entry = RepoMergeEntry(rel_path=rel, status="skipped", reason="already-merged")
+            entry = RepoMergeEntry(
+                rel_path=rel, status="skipped", reason="already-merged"
+            )
             entries.append(entry)
             print(f"  {Colors.yellow('·')} {rel}: skipped (already up-to-date)")
             continue
@@ -670,7 +728,9 @@ def start_merge(
         entries.append(entry)
         needs_merge_repos.append((repo, entry))
         _, behind = repo.count_divergent_commits(branch)
-        print(f"  {Colors.green('→')} {rel}: needs merge ({behind} commits from {branch})")
+        print(
+            f"  {Colors.green('→')} {rel}: needs merge ({behind} commits from {branch})"
+        )
 
     if has_errors:
         print()
@@ -693,7 +753,9 @@ def start_merge(
         if clean:
             print(f"  {Colors.green('✓')} {entry.rel_path}: clean merge expected")
         else:
-            print(f"  {Colors.yellow('⚠')} {entry.rel_path}: conflicts expected in {', '.join(conflicts)}")
+            print(
+                f"  {Colors.yellow('⚠')} {entry.rel_path}: conflicts expected in {', '.join(conflicts)}"
+            )
     print()
 
     # Phase 4.5 — Sync-group prediction (dry-run only)
@@ -706,19 +768,28 @@ def start_merge(
             if not subs:
                 continue
             canon = _find_canonical_sync_instance(
-                subs, grp.standalone_repo, branch, repo_root,
+                subs,
+                grp.standalone_repo,
+                branch,
+                repo_root,
             )
             if canon is None:
-                print(f"  {Colors.yellow('·')} sync group '{gname}': "
-                      f"branch '{branch}' not found, skipping")
+                print(
+                    f"  {Colors.yellow('·')} sync group '{gname}': "
+                    f"branch '{branch}' not found, skipping"
+                )
                 continue
             clean, conflicts = _predict_conflicts(canon, branch)
             if clean:
-                print(f"  {Colors.green('✓')} sync group '{gname}' ({canon.rel_path}): "
-                      f"clean merge expected")
+                print(
+                    f"  {Colors.green('✓')} sync group '{gname}' ({canon.rel_path}): "
+                    f"clean merge expected"
+                )
             else:
-                print(f"  {Colors.yellow('⚠')} sync group '{gname}' ({canon.rel_path}): "
-                      f"conflicts expected in {', '.join(conflicts)}")
+                print(
+                    f"  {Colors.yellow('⚠')} sync group '{gname}' ({canon.rel_path}): "
+                    f"conflicts expected in {', '.join(conflicts)}"
+                )
             instance_paths = [str(s.path.relative_to(repo_root)) for s in subs]
             print(f"    Would sync to: {', '.join(instance_paths)}")
         print()
@@ -737,10 +808,14 @@ def start_merge(
     )
     state.save(state_path)
 
-    current_branch = run_git(repo_root, "branch", "--show-current", check=False).stdout.strip()
+    current_branch = run_git(
+        repo_root, "branch", "--show-current", check=False
+    ).stdout.strip()
     _log(journal_path, f"MERGE START: {branch} into {current_branch}")
-    _log(journal_path,
-         f"DISCOVER: {len(sorted_repos)} repos found, {len(needs_merge_repos)} need merging")
+    _log(
+        journal_path,
+        f"DISCOVER: {len(sorted_repos)} repos found, {len(needs_merge_repos)} need merging",
+    )
 
     merged_child_rel_paths: set[str] = set()
 
@@ -748,7 +823,12 @@ def start_merge(
     if not no_recurse and config.sync_groups:
         print(Colors.blue("Merging sync-group submodules..."))
         rc = _merge_and_sync_groups(
-            repo_root, config, branch, state, state_path, journal_path,
+            repo_root,
+            config,
+            branch,
+            state,
+            state_path,
+            journal_path,
             merged_child_rel_paths,
         )
         if rc != 0:
@@ -761,8 +841,13 @@ def start_merge(
 
     for repo, entry in needs_merge_repos:
         rc = _execute_merge_for_repo(
-            repo, entry, state, state_path, journal_path,
-            config.merge, merged_child_rel_paths,
+            repo,
+            entry,
+            state,
+            state_path,
+            journal_path,
+            config.merge,
+            merged_child_rel_paths,
         )
         if rc != 0:
             return rc
@@ -773,10 +858,17 @@ def start_merge(
     all_entries = state.repos
     merged_count = sum(1 for e in all_entries if e.status == "merged")
     skipped_count = sum(1 for e in all_entries if e.status == "skipped")
-    _log(journal_path, f"MERGE COMPLETE: {merged_count} repos merged, {skipped_count} skipped")
+    _log(
+        journal_path,
+        f"MERGE COMPLETE: {merged_count} repos merged, {skipped_count} skipped",
+    )
 
     print()
-    print(Colors.green(f"Merge complete: {merged_count} repos merged, {skipped_count} skipped."))
+    print(
+        Colors.green(
+            f"Merge complete: {merged_count} repos merged, {skipped_count} skipped."
+        )
+    )
     return 0
 
 
@@ -836,14 +928,18 @@ def continue_merge() -> int:
                 print(f"  Running tests: {test_cmd}")
                 passed, duration = _run_test(repo, test_cmd)
                 if not passed:
-                    _log(journal_path,
-                         f"TEST {paused_entry.rel_path}: FAILED ({test_cmd}, {duration:.1f}s)")
+                    _log(
+                        journal_path,
+                        f"TEST {paused_entry.rel_path}: FAILED ({test_cmd}, {duration:.1f}s)",
+                    )
                     paused_entry.reason = "test-failed"
                     state.save(state_path)
                     print(f"  {Colors.red('TEST FAILED')} in {paused_entry.rel_path}")
                     return 1
-                _log(journal_path,
-                     f"TEST {paused_entry.rel_path}: PASSED ({test_cmd}, {duration:.1f}s)")
+                _log(
+                    journal_path,
+                    f"TEST {paused_entry.rel_path}: PASSED ({test_cmd}, {duration:.1f}s)",
+                )
 
     elif paused_entry.reason == "test-failed":
         # Re-run tests
@@ -852,13 +948,19 @@ def continue_merge() -> int:
             print(f"  Re-running tests: {test_cmd}")
             passed, duration = _run_test(repo, test_cmd)
             if not passed:
-                _log(journal_path,
-                     f"TEST {paused_entry.rel_path}: FAILED ({test_cmd}, {duration:.1f}s)")
+                _log(
+                    journal_path,
+                    f"TEST {paused_entry.rel_path}: FAILED ({test_cmd}, {duration:.1f}s)",
+                )
                 state.save(state_path)
-                print(f"  {Colors.red('TEST STILL FAILING')} in {paused_entry.rel_path}")
+                print(
+                    f"  {Colors.red('TEST STILL FAILING')} in {paused_entry.rel_path}"
+                )
                 return 1
-            _log(journal_path,
-                 f"TEST {paused_entry.rel_path}: PASSED ({test_cmd}, {duration:.1f}s)")
+            _log(
+                journal_path,
+                f"TEST {paused_entry.rel_path}: PASSED ({test_cmd}, {duration:.1f}s)",
+            )
 
     # Mark resolved
     paused_entry.status = "merged"
@@ -871,8 +973,13 @@ def continue_merge() -> int:
         merged_sha = repo.get_commit_sha(short=False)
         merged_child_rel_paths: set[str] = set()
         sync_rc = _run_sync_propagation(
-            paused_entry.sync_group, repo.path, merged_sha, repo_root,
-            config, journal_path, merged_child_rel_paths,
+            paused_entry.sync_group,
+            repo.path,
+            merged_sha,
+            repo_root,
+            config,
+            journal_path,
+            merged_child_rel_paths,
         )
         if sync_rc != 0:
             return 1
@@ -888,19 +995,20 @@ def continue_merge() -> int:
     # Add sync-group instance paths from already-completed sync groups
     if config.sync_groups:
         from grove.sync import discover_sync_submodules as _disc_subs
+
         for entry in state.repos:
             if entry.sync_group and entry.status == "merged":
                 grp = config.sync_groups.get(entry.sync_group)
                 if grp:
                     for sub in _disc_subs(repo_root, grp.url_match):
-                        merged_child_rel_paths.add(
-                            str(sub.path.relative_to(repo_root))
-                        )
+                        merged_child_rel_paths.add(str(sub.path.relative_to(repo_root)))
 
     # Continue with remaining pending repos
     # Re-discover repos to get RepoInfo objects
     exclude_paths = get_sync_group_exclude_paths(repo_root, config)
-    all_repos = discover_repos_from_gitmodules(repo_root, exclude_paths=exclude_paths or None)
+    all_repos = discover_repos_from_gitmodules(
+        repo_root, exclude_paths=exclude_paths or None
+    )
     path_to_repo = {r.path: r for r in all_repos}
 
     for entry in state.repos:
@@ -918,22 +1026,37 @@ def continue_merge() -> int:
         # Sync-group entries need merge + sync propagation
         if entry.sync_group:
             rc = _execute_merge_for_repo(
-                r, entry, state, state_path, journal_path,
-                config.merge, merged_child_rel_paths,
+                r,
+                entry,
+                state,
+                state_path,
+                journal_path,
+                config.merge,
+                merged_child_rel_paths,
             )
             if rc != 0:
                 return rc
             merged_sha = r.get_commit_sha(short=False)
             sync_rc = _run_sync_propagation(
-                entry.sync_group, r.path, merged_sha, repo_root,
-                config, journal_path, merged_child_rel_paths,
+                entry.sync_group,
+                r.path,
+                merged_sha,
+                repo_root,
+                config,
+                journal_path,
+                merged_child_rel_paths,
             )
             if sync_rc != 0:
                 return 1
         else:
             rc = _execute_merge_for_repo(
-                r, entry, state, state_path, journal_path,
-                config.merge, merged_child_rel_paths,
+                r,
+                entry,
+                state,
+                state_path,
+                journal_path,
+                config.merge,
+                merged_child_rel_paths,
             )
             if rc != 0:
                 return rc
@@ -943,10 +1066,17 @@ def continue_merge() -> int:
     MergeState.remove(state_path)
     merged_count = sum(1 for e in state.repos if e.status == "merged")
     skipped_count = sum(1 for e in state.repos if e.status == "skipped")
-    _log(journal_path, f"MERGE COMPLETE: {merged_count} repos merged, {skipped_count} skipped")
+    _log(
+        journal_path,
+        f"MERGE COMPLETE: {merged_count} repos merged, {skipped_count} skipped",
+    )
 
     print()
-    print(Colors.green(f"Merge complete: {merged_count} repos merged, {skipped_count} skipped."))
+    print(
+        Colors.green(
+            f"Merge complete: {merged_count} repos merged, {skipped_count} skipped."
+        )
+    )
     return 0
 
 
@@ -987,7 +1117,9 @@ def abort_merge() -> int:
                 rp = repo_root / entry.rel_path
             repo = RepoInfo(path=rp, repo_root=repo_root)
             repo.git("reset", "--hard", entry.pre_merge_head, check=False)
-            print(f"  {Colors.yellow('↺')} {entry.rel_path}: restored to {entry.pre_merge_head[:8]}")
+            print(
+                f"  {Colors.yellow('↺')} {entry.rel_path}: restored to {entry.pre_merge_head[:8]}"
+            )
 
     # Reverse sync propagation (to pre_sync_heads)
     # This overrides the above for repos that were both synced and merged,
@@ -1001,7 +1133,9 @@ def abort_merge() -> int:
             if rp.exists():
                 repo = RepoInfo(path=rp, repo_root=repo_root)
                 repo.git("reset", "--hard", pre_sha, check=False)
-                print(f"  {Colors.yellow('↺')} {rel_path}: restored to {pre_sha[:8]} (pre-sync)")
+                print(
+                    f"  {Colors.yellow('↺')} {rel_path}: restored to {pre_sha[:8]} (pre-sync)"
+                )
 
     MergeState.remove(state_path)
     _log(journal_path, "MERGE ABORTED")
@@ -1025,9 +1159,9 @@ def status_merge() -> int:
     print(f"Merge in progress: {Colors.blue(state.branch)}")
     print(f"  Started: {state.started_at}")
     if state.no_ff:
-        print(f"  Options: --no-ff")
+        print("  Options: --no-ff")
     if state.no_test:
-        print(f"  Options: --no-test")
+        print("  Options: --no-test")
     print()
 
     for entry in state.repos:
@@ -1055,6 +1189,7 @@ def status_merge() -> int:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def run(args) -> int:
     """Dispatch to the appropriate merge sub-action."""

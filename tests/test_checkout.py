@@ -4,7 +4,6 @@ import subprocess
 from pathlib import Path
 
 from grove.checkout import run
-from grove.repo_utils import RepoInfo
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
@@ -42,9 +41,7 @@ class TestCheckoutByBranch:
         child = tmp_submodule_tree / "technical-docs"
 
         # Create a new branch in the child origin with a new commit
-        child_origin = Path(
-            _git(child, "remote", "get-url", "origin").stdout.strip()
-        )
+        child_origin = Path(_git(child, "remote", "get-url", "origin").stdout.strip())
         _git(child_origin, "checkout", "-b", "test-branch")
         (child_origin / "new-file.txt").write_text("new content\n")
         _git(child_origin, "add", "new-file.txt")
@@ -67,9 +64,7 @@ class TestCheckoutByBranch:
         sha = _git(child, "rev-parse", "HEAD").stdout.strip()
 
         # Create a new commit in the origin
-        child_origin = Path(
-            _git(child, "remote", "get-url", "origin").stdout.strip()
-        )
+        child_origin = Path(_git(child, "remote", "get-url", "origin").stdout.strip())
         (child_origin / "extra.txt").write_text("extra\n")
         _git(child_origin, "add", "extra.txt")
         _git(child_origin, "commit", "-m", "Extra commit")
@@ -101,9 +96,7 @@ class TestRecursiveUpdate:
         assert (grandchild / "theme.txt").exists()
 
         # Make a new commit in child_origin that updates common pointer
-        child_origin = Path(
-            _git(child, "remote", "get-url", "origin").stdout.strip()
-        )
+        child_origin = Path(_git(child, "remote", "get-url", "origin").stdout.strip())
         grandchild_origin = Path(
             _git(grandchild, "remote", "get-url", "origin").stdout.strip()
         )
@@ -196,9 +189,7 @@ class TestCheckoutErrors:
 
 
 class TestNoFetch:
-    def test_no_fetch_skips_fetch(
-        self, tmp_submodule_tree: Path, capsys, monkeypatch
-    ):
+    def test_no_fetch_skips_fetch(self, tmp_submodule_tree: Path, capsys, monkeypatch):
         """--no-fetch should skip the fetch step."""
         child = tmp_submodule_tree / "technical-docs"
         sha = _git(child, "rev-parse", "HEAD").stdout.strip()

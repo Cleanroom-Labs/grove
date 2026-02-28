@@ -1,11 +1,11 @@
 """Tests for grove.filelock — file locking utilities."""
+
 from __future__ import annotations
 
 import json
 import threading
 from pathlib import Path
 
-import pytest
 
 from grove.filelock import atomic_write_json, locked_open
 
@@ -103,7 +103,12 @@ class TestConcurrentTopologySave:
     """Two threads saving TopologyCache simultaneously should produce valid JSON."""
 
     def test_concurrent_cache_saves(self, tmp_path: Path):
-        from grove.topology import TopologyCache, TopologySnapshot, SubmoduleEntry, compute_topology_hash
+        from grove.topology import (
+            TopologyCache,
+            TopologySnapshot,
+            SubmoduleEntry,
+            compute_topology_hash,
+        )
 
         cache_path = tmp_path / "topo.json"
         errors = []
@@ -112,19 +117,23 @@ class TestConcurrentTopologySave:
             try:
                 for i in range(10):
                     cache = TopologyCache(cache_path)
-                    entries = [SubmoduleEntry(
-                        rel_path=f"sub-{n}",
-                        parent_rel_path=".",
-                        url=f"git@github.com:Org/sub-{n}.git",
-                        relative_url=None,
-                        commit=f"{n:03d}{i:04d}",
-                    )]
-                    cache.snapshots = [TopologySnapshot(
-                        root_commit=f"{n:03d}{i:04d}",
-                        timestamp="2026-01-01T00:00:00",
-                        topology_hash=compute_topology_hash(entries),
-                        entries=entries,
-                    )]
+                    entries = [
+                        SubmoduleEntry(
+                            rel_path=f"sub-{n}",
+                            parent_rel_path=".",
+                            url=f"git@github.com:Org/sub-{n}.git",
+                            relative_url=None,
+                            commit=f"{n:03d}{i:04d}",
+                        )
+                    ]
+                    cache.snapshots = [
+                        TopologySnapshot(
+                            root_commit=f"{n:03d}{i:04d}",
+                            timestamp="2026-01-01T00:00:00",
+                            topology_hash=compute_topology_hash(entries),
+                            entries=entries,
+                        )
+                    ]
                     cache.save()
             except Exception as e:
                 errors.append(e)
@@ -165,6 +174,6 @@ class TestConcurrentJournalLog:
 
         assert not errors
         content = journal.read_text()
-        lines = [l for l in content.strip().split("\n") if l]
+        lines = [line for line in content.strip().split("\n") if line]
         # 4 threads × 20 iterations = 80 lines
         assert len(lines) == 80
