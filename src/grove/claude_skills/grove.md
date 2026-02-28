@@ -19,6 +19,7 @@ For well-defined workflows, delegate to the specific skill listed below rather t
 | `grove check` | Verify submodule health and sync-group consistency | `-v` for details |
 | `grove push` | Push committed changes bottom-up through submodules | `-n`/`--dry-run`, `-f`/`--skip-checks`, `--sync-group`, `--cascade`, paths |
 | `grove sync` | Synchronize sync-group instances to same commit | `--commit SHA`, `--remote`, `-n`/`--dry-run`, `-f`/`--skip-checks`, `--no-push`, `--continue/--abort` |
+| `grove checkout` | Checkout a ref on a submodule with recursive submodule update | `--no-recurse`, `--no-fetch` |
 | `grove cascade` | Propagate leaf change upward with tiered testing | `--quick`, `--system`, `--push`, `--sync-group`, `-n`/`--dry-run`, `-f`/`--skip-checks` |
 | `grove worktree add` | Create feature worktree with submodule init | `-b` (create new branch), `--no-local-remotes`, `--copy-venv` |
 | `grove worktree remove` | Remove a worktree and prune stale entries | `--force` |
@@ -36,6 +37,7 @@ For these common workflows, delegate to the dedicated skill instead of handling 
 |-------|-------------|
 | `/grove-add` | Creating a new feature branch worktree |
 | `/grove-merge` | Merging a completed feature branch back to main |
+| `/grove-checkout` | Checking out a ref on a submodule with recursive submodule update |
 | `/grove-cascade` | Propagating a submodule change upward with testing |
 | `/grove-sync` | Syncing shared dependencies across all locations |
 | `/grove-push` | Pushing with path, sync-group, or cascade filters |
@@ -48,6 +50,7 @@ For these common workflows, delegate to the dedicated skill instead of handling 
 - **Start a new feature** → `/grove-add`
 - **Merge completed work** → `/grove-merge`
 - **Push my changes upstream** → `/grove-ship` (safe, includes health check) or `/grove-push` (filtered)
+- **Update a submodule to a different ref** → `/grove-checkout`
 - **Propagate a submodule change upward** → `/grove-cascade`
 - **Sync a shared dependency** → `/grove-sync`
 - **Check if something is wrong** → `grove check -v`
