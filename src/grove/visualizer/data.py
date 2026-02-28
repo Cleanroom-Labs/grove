@@ -16,14 +16,14 @@ if TYPE_CHECKING:
 
 # Palette of visually distinct colors for sync-group borders
 SYNC_GROUP_PALETTE = [
-    '#2196F3',  # Blue
-    '#9C27B0',  # Purple
-    '#009688',  # Teal
-    '#E91E63',  # Pink
-    '#3F51B5',  # Indigo
-    '#00BCD4',  # Cyan
-    '#795548',  # Brown
-    '#607D8B',  # Blue Gray
+    "#2196F3",  # Blue
+    "#9C27B0",  # Purple
+    "#009688",  # Teal
+    "#E91E63",  # Pink
+    "#3F51B5",  # Indigo
+    "#00BCD4",  # Cyan
+    "#795548",  # Brown
+    "#607D8B",  # Blue Gray
 ]
 
 
@@ -47,7 +47,9 @@ def repo_to_dict(repo: RepoInfo) -> dict:
         "remote_url": repo.get_remote_url(),
         "commit_tag": repo.get_commit_tag(),
         "commit_message": repo.get_commit_message(),
-        "changed_files": repo.get_changed_files() if repo.status and repo.status.name == "UNCOMMITTED" else [],
+        "changed_files": repo.get_changed_files()
+        if repo.status and repo.status.name == "UNCOMMITTED"
+        else [],
         "local_branches": repo.get_local_branches(),
         "remote_branches": repo.get_remote_branches(),
     }
@@ -101,7 +103,9 @@ def discover_worktrees(repo_root: Path) -> list[dict]:
     """
     result = subprocess.run(
         ["git", "-C", str(repo_root), "worktree", "list", "--porcelain"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if result.returncode != 0:
         return []
@@ -178,7 +182,9 @@ def _submodule_commits(repo_path: Path) -> dict[str, str]:
     """Get a mapping of submodule relative path -> current commit SHA."""
     result = subprocess.run(
         ["git", "-C", str(repo_path), "submodule", "status", "--recursive"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if result.returncode != 0:
         return {}
@@ -234,31 +240,47 @@ def compare_worktrees(base_path: Path, other_path: Path) -> dict:
             o_commit = o.get_commit_sha(short=True)
 
             if b_commit == o_commit and b.branch == o.branch:
-                same.append({
-                    "rel_path": rel_path,
-                    "branch": b.branch,
-                    "commit": b_commit,
-                })
+                same.append(
+                    {
+                        "rel_path": rel_path,
+                        "branch": b.branch,
+                        "commit": b_commit,
+                    }
+                )
             else:
-                different.append({
-                    "rel_path": rel_path,
-                    "base": {"branch": b.branch, "commit": b_commit, "status": b.status.name},
-                    "other": {"branch": o.branch, "commit": o_commit, "status": o.status.name},
-                })
+                different.append(
+                    {
+                        "rel_path": rel_path,
+                        "base": {
+                            "branch": b.branch,
+                            "commit": b_commit,
+                            "status": b.status.name,
+                        },
+                        "other": {
+                            "branch": o.branch,
+                            "commit": o_commit,
+                            "status": o.status.name,
+                        },
+                    }
+                )
         elif in_base:
             b = base_map[rel_path]
-            only_base.append({
-                "rel_path": rel_path,
-                "branch": b.branch,
-                "commit": b.get_commit_sha(short=True),
-            })
+            only_base.append(
+                {
+                    "rel_path": rel_path,
+                    "branch": b.branch,
+                    "commit": b.get_commit_sha(short=True),
+                }
+            )
         else:
             o = other_map[rel_path]
-            only_other.append({
-                "rel_path": rel_path,
-                "branch": o.branch,
-                "commit": o.get_commit_sha(short=True),
-            })
+            only_other.append(
+                {
+                    "rel_path": rel_path,
+                    "branch": o.branch,
+                    "commit": o.get_commit_sha(short=True),
+                }
+            )
 
     # Get branch names for display
     base_wts = discover_worktrees(base_path)

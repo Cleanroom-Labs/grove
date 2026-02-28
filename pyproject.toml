@@ -36,5 +36,8 @@ include = ["grove", "grove.*"]
 "grove.claude_skills" = ["*.md"]
 "grove.visualizer.web" = ["*.html", "*.css", "*.js"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/test_cascade.py" = ["E402"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

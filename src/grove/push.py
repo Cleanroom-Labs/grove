@@ -76,12 +76,16 @@ def _compute_push_filter_set(
         group = config.sync_groups[sync_group_name]
         submodules = discover_sync_submodules(repo_root, group.url_match)
         if not submodules:
-            print(Colors.yellow(
-                f"Warning: No submodule instances found for sync group '{sync_group_name}'."
-            ))
+            print(
+                Colors.yellow(
+                    f"Warning: No submodule instances found for sync group '{sync_group_name}'."
+                )
+            )
         else:
             parent_repos = get_parent_repos_for_submodules(
-                submodules, repo_root, all_repos,
+                submodules,
+                repo_root,
+                all_repos,
             )
             for repo in parent_repos:
                 result.add(repo.path)
@@ -130,7 +134,8 @@ def run(args) -> int:
         # Default: exclude sync-group submodules (managed by grove sync)
         exclude_paths = get_sync_group_exclude_paths(repo_root, config)
         repos = discover_repos_from_gitmodules(
-            repo_root, exclude_paths=exclude_paths or None,
+            repo_root,
+            exclude_paths=exclude_paths or None,
         )
 
     print(f"Found {Colors.green(str(len(repos)))} repositories")
@@ -138,8 +143,12 @@ def run(args) -> int:
 
     # Compute filter set
     filter_set = _compute_push_filter_set(
-        filter_paths, sync_group_name, cascade_path,
-        repo_root, config, repos,
+        filter_paths,
+        sync_group_name,
+        cascade_path,
+        repo_root,
+        config,
+        repos,
     )
     # Empty set means an error occurred during filter resolution
     if filter_set is not None and not filter_set:
@@ -147,7 +156,9 @@ def run(args) -> int:
 
     if filter_set is not None:
         filter_count = len(filter_set)
-        print(f"Filter active: targeting {Colors.green(str(filter_count))} repositories")
+        print(
+            f"Filter active: targeting {Colors.green(str(filter_count))} repositories"
+        )
         print()
 
     # Validation phase
@@ -178,13 +189,19 @@ def run(args) -> int:
 
     # Handle validation failures
     if validation_failed and not args.skip_checks:
-        print(Colors.red(
-            "Validation failed. Fix the issues above or use --skip-checks to skip validation.",
-        ))
+        print(
+            Colors.red(
+                "Validation failed. Fix the issues above or use --skip-checks to skip validation.",
+            )
+        )
         return 1
 
     if validation_failed and args.skip_checks:
-        print(Colors.yellow("Warning: Proceeding despite validation failures (--skip-checks)"))
+        print(
+            Colors.yellow(
+                "Warning: Proceeding despite validation failures (--skip-checks)"
+            )
+        )
         print()
 
     # Sync-group consistency check (skip when filters are active —
@@ -195,15 +212,19 @@ def run(args) -> int:
         sync_ok = check_sync_groups(repo_root, verbose=False)
         if not sync_ok and not args.skip_checks:
             print()
-            print(Colors.red(
-                "Sync groups are out of sync. Run 'grove sync' first or use --skip-checks to skip.",
-            ))
+            print(
+                Colors.red(
+                    "Sync groups are out of sync. Run 'grove sync' first or use --skip-checks to skip.",
+                )
+            )
             return 1
         if not sync_ok and args.skip_checks:
             print()
-            print(Colors.yellow(
-                "Warning: Proceeding despite sync-group inconsistency (--skip-checks)",
-            ))
+            print(
+                Colors.yellow(
+                    "Warning: Proceeding despite sync-group inconsistency (--skip-checks)",
+                )
+            )
             print()
 
     # Check if anything to push
@@ -234,7 +255,9 @@ def run(args) -> int:
 
     # Final summary
     if args.dry_run:
-        print(f"{Colors.yellow('Dry run complete.')} Would push {pushed_count} repositories.")
+        print(
+            f"{Colors.yellow('Dry run complete.')} Would push {pushed_count} repositories."
+        )
         print()
         print(Colors.blue("To execute:"))
         # Reconstruct the command with filters

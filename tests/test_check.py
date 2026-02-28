@@ -10,7 +10,7 @@ from grove.check import (
     check_sync_groups,
     get_tag_or_branch,
 )
-from grove.config import CONFIG_FILENAME, SyncGroup
+from grove.config import CONFIG_FILENAME
 from grove.repo_utils import RepoInfo
 from grove.sync import SyncSubmodule
 
@@ -18,6 +18,7 @@ from grove.sync import SyncSubmodule
 # ---------------------------------------------------------------------------
 # get_tag_or_branch / check_repo_state
 # ---------------------------------------------------------------------------
+
 
 class TestGetTagOrBranch:
     def test_returns_branch_name(self, tmp_git_repo: Path):
@@ -60,6 +61,7 @@ class TestCheckRepoState:
 # check_sync_groups
 # ---------------------------------------------------------------------------
 
+
 class TestCheckSyncGroups:
     def test_in_sync(self, tmp_submodule_tree: Path, capsys):
         """When there's only one submodule location per group, sync check passes."""
@@ -80,9 +82,7 @@ class TestCheckSyncGroups:
 
         # Config with allow-drift
         (repo_root / CONFIG_FILENAME).write_text(
-            '[sync-groups.common]\n'
-            'url-match = "my-lib"\n'
-            'allow-drift = ["sub-b"]\n'
+            '[sync-groups.common]\nurl-match = "my-lib"\nallow-drift = ["sub-b"]\n'
         )
 
         # Mock two submodule instances at different commits
@@ -110,6 +110,7 @@ class TestCheckSyncGroups:
 # ---------------------------------------------------------------------------
 # run() -- integration with the real check module
 # ---------------------------------------------------------------------------
+
 
 class TestCheckRun:
     def test_all_healthy(self, tmp_submodule_tree: Path, capsys):
@@ -164,6 +165,7 @@ class TestCheckRun:
 # ---------------------------------------------------------------------------
 # _discover_branch_check_repos
 # ---------------------------------------------------------------------------
+
 
 class TestDiscoverBranchCheckRepos:
     def test_finds_submodules(self, tmp_submodule_tree: Path):

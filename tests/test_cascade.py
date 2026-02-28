@@ -12,8 +12,11 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
     """Run a git command inside *cwd*."""
     return subprocess.run(
         ["git", "-C", str(cwd)] + list(args),
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
+
 
 from grove.cascade import (
     CascadeState,
@@ -40,6 +43,7 @@ from grove.repo_utils import discover_repos_from_gitmodules
 # State management
 # ---------------------------------------------------------------------------
 
+
 class TestCascadeState:
     def _make_state(self) -> CascadeState:
         return CascadeState(
@@ -48,9 +52,15 @@ class TestCascadeState:
             system_mode="default",
             quick=False,
             repos=[
-                RepoCascadeEntry(rel_path="libs/common", role="leaf", status="committed"),
-                RepoCascadeEntry(rel_path="services/api", role="intermediate", status="paused",
-                                 failed_tier="integration-tests"),
+                RepoCascadeEntry(
+                    rel_path="libs/common", role="leaf", status="committed"
+                ),
+                RepoCascadeEntry(
+                    rel_path="services/api",
+                    role="intermediate",
+                    status="paused",
+                    failed_tier="integration-tests",
+                ),
                 RepoCascadeEntry(rel_path=".", role="root", status="pending"),
             ],
         )
@@ -109,6 +119,7 @@ class TestCascadeState:
 # _determine_tiers
 # ---------------------------------------------------------------------------
 
+
 class TestDetermineTiers:
     def test_leaf_default(self):
         """Leaf in default mode: local + contract only."""
@@ -123,7 +134,12 @@ class TestDetermineTiers:
     def test_root_default(self):
         """Root in default mode: all four tiers."""
         tiers = _determine_tiers("root", "default", quick=False)
-        assert tiers == ["local-tests", "contract-tests", "integration-tests", "system-tests"]
+        assert tiers == [
+            "local-tests",
+            "contract-tests",
+            "integration-tests",
+            "system-tests",
+        ]
 
     def test_leaf_system_all(self):
         """Leaf with --system: adds system-tests."""
@@ -145,13 +161,17 @@ class TestDetermineTiers:
         """Intermediate with --system: includes system-tests."""
         tiers = _determine_tiers("intermediate", "all", quick=False)
         assert tiers == [
-            "local-tests", "contract-tests", "integration-tests", "system-tests",
+            "local-tests",
+            "contract-tests",
+            "integration-tests",
+            "system-tests",
         ]
 
 
 # ---------------------------------------------------------------------------
 # _discover_cascade_chain
 # ---------------------------------------------------------------------------
+
 
 class TestDiscoverCascadeChain:
     def test_chain_from_grandchild(self, tmp_submodule_tree: Path):
@@ -192,6 +212,7 @@ class TestDiscoverCascadeChain:
 # Sync-group awareness (Feature 2)
 # ---------------------------------------------------------------------------
 
+
 class TestFindSyncGroupForPath:
     """Tests for _find_sync_group_for_path()."""
 
@@ -208,7 +229,9 @@ class TestFindSyncGroupForPath:
         assert name == "common"
         assert "common_origin" in group.url_match
 
-    def test_non_sync_group_submodule_returns_none(self, tmp_sync_group_multi_instance: Path):
+    def test_non_sync_group_submodule_returns_none(
+        self, tmp_sync_group_multi_instance: Path
+    ):
         """A regular submodule (not in a sync group) should return None."""
         root = tmp_sync_group_multi_instance
         config = load_config(root)
@@ -238,7 +261,10 @@ class TestCheckSyncGroupConsistency:
         """When all instances are at the same commit, the check should pass."""
         root = tmp_sync_group_multi_instance
         result = _check_sync_group_consistency(
-            "common", root, "common_origin", force=False,
+            "common",
+            root,
+            "common_origin",
+            force=False,
         )
         assert result is True
 
@@ -246,7 +272,10 @@ class TestCheckSyncGroupConsistency:
         """When instances have different commits, the check should fail."""
         root = tmp_sync_group_diverged
         result = _check_sync_group_consistency(
-            "common", root, "common_origin", force=False,
+            "common",
+            root,
+            "common_origin",
+            force=False,
         )
         assert result is False
         output = capsys.readouterr().out
@@ -257,7 +286,10 @@ class TestCheckSyncGroupConsistency:
         """With --force, diverged instances should still proceed."""
         root = tmp_sync_group_diverged
         result = _check_sync_group_consistency(
-            "common", root, "common_origin", force=True,
+            "common",
+            root,
+            "common_origin",
+            force=True,
         )
         assert result is True
         output = capsys.readouterr().out
@@ -271,9 +303,9 @@ class TestCascadeSyncGroupCheck:
         """Cascading a non-sync-group submodule should skip the check entirely."""
         root = tmp_submodule_tree
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "grandchild_origin"\n'
-            '\n'
+            "\n"
             '[cascade]\nlocal-tests = "true"\n'
         )
         with patch("grove.cascade.find_repo_root", return_value=root):
@@ -284,7 +316,9 @@ class TestCascadeSyncGroupCheck:
         assert "sync-group detected" not in output.lower()
 
     def test_consistent_sync_group_proceeds(
-        self, tmp_sync_group_multi_instance: Path, capsys,
+        self,
+        tmp_sync_group_multi_instance: Path,
+        capsys,
     ):
         """Cascading a consistent sync-group submodule should proceed."""
         root = tmp_sync_group_multi_instance
@@ -295,7 +329,9 @@ class TestCascadeSyncGroupCheck:
         assert "sync-group detected" in output.lower()
 
     def test_inconsistent_sync_group_fails(
-        self, tmp_sync_group_diverged: Path, capsys,
+        self,
+        tmp_sync_group_diverged: Path,
+        capsys,
     ):
         """Cascading a diverged sync-group submodule should fail."""
         root = tmp_sync_group_diverged
@@ -306,7 +342,9 @@ class TestCascadeSyncGroupCheck:
         assert "not in sync" in output.lower()
 
     def test_inconsistent_sync_group_force_proceeds(
-        self, tmp_sync_group_diverged: Path, capsys,
+        self,
+        tmp_sync_group_diverged: Path,
+        capsys,
     ):
         """--force should bypass the sync-group consistency check."""
         root = tmp_sync_group_diverged
@@ -321,6 +359,7 @@ class TestCascadeSyncGroupCheck:
 # Integration tests: run_cascade
 # ---------------------------------------------------------------------------
 
+
 class TestRunCascade:
     def test_dry_run(self, tmp_submodule_tree: Path, capsys):
         """Dry run should preview the cascade without making changes."""
@@ -328,9 +367,7 @@ class TestRunCascade:
         # Add cascade config with a test command
         config_path = root / ".grove.toml"
         config_path.write_text(
-            config_path.read_text() +
-            '\n[cascade]\n'
-            'local-tests = "true"\n'
+            config_path.read_text() + '\n[cascade]\nlocal-tests = "true"\n'
         )
 
         with patch("grove.cascade.find_repo_root", return_value=root):
@@ -348,9 +385,7 @@ class TestRunCascade:
         # Configure cascade with always-passing test
         config_path = root / ".grove.toml"
         config_path.write_text(
-            config_path.read_text() +
-            '\n[cascade]\n'
-            'local-tests = "true"\n'
+            config_path.read_text() + '\n[cascade]\nlocal-tests = "true"\n'
         )
 
         # Make a change in the grandchild to cascade
@@ -389,9 +424,7 @@ class TestRunCascade:
         root = tmp_submodule_tree
         config_path = root / ".grove.toml"
         config_path.write_text(
-            config_path.read_text() +
-            '\n[cascade]\n'
-            'local-tests = "true"\n'
+            config_path.read_text() + '\n[cascade]\nlocal-tests = "true"\n'
         )
 
         with patch("grove.cascade.find_repo_root", return_value=root):
@@ -405,8 +438,7 @@ class TestRunCascade:
         root = tmp_submodule_tree
         # Rewrite config without any test commands or cascade section
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
-            'url-match = "grandchild_origin"\n'
+            '[sync-groups.common]\nurl-match = "grandchild_origin"\n'
         )
 
         grandchild = root / "technical-docs" / "common"
@@ -427,6 +459,7 @@ class TestRunCascade:
 # Integration tests: pause / continue / abort
 # ---------------------------------------------------------------------------
 
+
 class TestCascadePauseResume:
     def test_failing_test_pauses(self, tmp_submodule_tree: Path, capsys):
         """A failing test should pause the cascade and save state."""
@@ -435,10 +468,10 @@ class TestCascadePauseResume:
 
         # Configure with a failing test
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "grandchild_origin"\n'
-            '\n'
-            '[cascade]\n'
+            "\n"
+            "[cascade]\n"
             'local-tests = "false"\n'
         )
 
@@ -466,10 +499,10 @@ class TestCascadePauseResume:
 
         # Step 1: Start with a failing test
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "grandchild_origin"\n'
-            '\n'
-            '[cascade]\n'
+            "\n"
+            "[cascade]\n"
             'local-tests = "false"\n'
         )
 
@@ -484,10 +517,10 @@ class TestCascadePauseResume:
 
         # Step 2: Fix the test (change to passing)
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "grandchild_origin"\n'
-            '\n'
-            '[cascade]\n'
+            "\n"
+            "[cascade]\n"
             'local-tests = "true"\n'
         )
 
@@ -514,14 +547,14 @@ class TestCascadeAbort:
 
         # Record original child HEAD
 
-        original_child_head = _git(child, "rev-parse", "HEAD").stdout.strip()
+        _git(child, "rev-parse", "HEAD").stdout.strip()
 
         # Configure with passing tests so cascade commits
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "grandchild_origin"\n'
-            '\n'
-            '[cascade]\n'
+            "\n"
+            "[cascade]\n"
             'local-tests = "true"\n'
             'integration-tests = "false"\n'  # fail at intermediate
         )
@@ -564,6 +597,7 @@ class TestCascadeAbort:
 # Status
 # ---------------------------------------------------------------------------
 
+
 class TestCascadeStatus:
     def test_status_no_cascade(self, tmp_submodule_tree: Path, capsys):
         """Status with no cascade should report cleanly."""
@@ -582,10 +616,10 @@ class TestCascadeStatus:
 
         # Start a cascade that will pause
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "grandchild_origin"\n'
-            '\n'
-            '[cascade]\n'
+            "\n"
+            "[cascade]\n"
             'local-tests = "false"\n'
         )
 
@@ -611,14 +645,22 @@ class TestCascadeStatus:
 # CLI dispatcher
 # ---------------------------------------------------------------------------
 
+
 class TestRunDispatcher:
     def test_no_path_no_flags(self, capsys):
         """run() with no path and no flags should return usage error."""
         from grove.cascade import run as cascade_run
         from argparse import Namespace
+
         args = Namespace(
-            continue_cascade=False, abort=False, status=False,
-            path=None, dry_run=False, system=False, no_system=False, quick=False,
+            continue_cascade=False,
+            abort=False,
+            status=False,
+            path=None,
+            dry_run=False,
+            system=False,
+            no_system=False,
+            quick=False,
         )
         result = cascade_run(args)
         assert result == 2
@@ -627,17 +669,23 @@ class TestRunDispatcher:
         """--system flag should set system_mode='all'."""
         from grove.cascade import run as cascade_run
         from argparse import Namespace
+
         args = Namespace(
-            continue_cascade=False, abort=False, status=False,
-            path="technical-docs/common", dry_run=True,
-            system=True, no_system=False, quick=False,
+            continue_cascade=False,
+            abort=False,
+            status=False,
+            path="technical-docs/common",
+            dry_run=True,
+            system=True,
+            no_system=False,
+            quick=False,
         )
         root = tmp_submodule_tree
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "grandchild_origin"\n'
-            '\n'
-            '[cascade]\n'
+            "\n"
+            "[cascade]\n"
             'local-tests = "true"\n'
         )
         with patch("grove.cascade.find_repo_root", return_value=root):
@@ -648,17 +696,23 @@ class TestRunDispatcher:
         """--no-system flag should set system_mode='none'."""
         from grove.cascade import run as cascade_run
         from argparse import Namespace
+
         args = Namespace(
-            continue_cascade=False, abort=False, status=False,
-            path="technical-docs/common", dry_run=True,
-            system=False, no_system=True, quick=False,
+            continue_cascade=False,
+            abort=False,
+            status=False,
+            path="technical-docs/common",
+            dry_run=True,
+            system=False,
+            no_system=True,
+            quick=False,
         )
         root = tmp_submodule_tree
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "grandchild_origin"\n'
-            '\n'
-            '[cascade]\n'
+            "\n"
+            "[cascade]\n"
             'local-tests = "true"\n'
         )
         with patch("grove.cascade.find_repo_root", return_value=root):
@@ -669,6 +723,7 @@ class TestRunDispatcher:
 # ---------------------------------------------------------------------------
 # DAG cascade plan building (Feature 3)
 # ---------------------------------------------------------------------------
+
 
 class TestBuildLinearEntries:
     """Tests for _build_linear_entries()."""
@@ -708,13 +763,17 @@ class TestBuildUnifiedCascadePlan:
     """Tests for _build_unified_cascade_plan()."""
 
     def test_dag_includes_all_instances_as_leaves(
-        self, tmp_sync_group_multi_instance: Path,
+        self,
+        tmp_sync_group_multi_instance: Path,
     ):
         """DAG plan should include all sync-group instances as leaves."""
         root = tmp_sync_group_multi_instance
         repos = discover_repos_from_gitmodules(root)
         chain, entries, _isg = _build_unified_cascade_plan(
-            "common", "common_origin", root, repos,
+            "common",
+            "common_origin",
+            root,
+            repos,
         )
 
         leaf_entries = [e for e in entries if e.role == "leaf"]
@@ -730,7 +789,10 @@ class TestBuildUnifiedCascadePlan:
         root = tmp_sync_group_multi_instance
         repos = discover_repos_from_gitmodules(root)
         chain, entries, _isg = _build_unified_cascade_plan(
-            "common", "common_origin", root, repos,
+            "common",
+            "common_origin",
+            root,
+            repos,
         )
 
         root_entries = [e for e in entries if e.role == "root"]
@@ -742,7 +804,10 @@ class TestBuildUnifiedCascadePlan:
         root = tmp_sync_group_multi_instance
         repos = discover_repos_from_gitmodules(root)
         chain, entries, _isg = _build_unified_cascade_plan(
-            "common", "common_origin", root, repos,
+            "common",
+            "common_origin",
+            root,
+            repos,
         )
 
         # All leaves should come before all intermediates, which come before root
@@ -759,7 +824,10 @@ class TestBuildUnifiedCascadePlan:
         root = tmp_sync_group_multi_instance
         repos = discover_repos_from_gitmodules(root)
         chain, entries, _isg = _build_unified_cascade_plan(
-            "common", "common_origin", root, repos,
+            "common",
+            "common_origin",
+            root,
+            repos,
         )
 
         entry_map = {e.rel_path: e for e in entries}
@@ -784,7 +852,10 @@ class TestBuildUnifiedCascadePlan:
         root = tmp_sync_group_multi_instance
         repos = discover_repos_from_gitmodules(root)
         chain, entries, _isg = _build_unified_cascade_plan(
-            "common", "common_origin", root, repos,
+            "common",
+            "common_origin",
+            root,
+            repos,
         )
 
         assert len(entries) == 7
@@ -804,7 +875,9 @@ class TestBuildMultiPathPlan:
         leaf_b = root / "docs-b"
 
         _chain, entries, _isg = _build_multi_path_plan(
-            [leaf_a, leaf_b], repos, root,
+            [leaf_a, leaf_b],
+            repos,
+            root,
         )
 
         root_entries = [e for e in entries if e.role == "root"]
@@ -819,7 +892,9 @@ class TestBuildMultiPathPlan:
         leaf_b = root / "docs-b"
 
         _chain, entries, _isg = _build_multi_path_plan(
-            [leaf_a, leaf_b], repos, root,
+            [leaf_a, leaf_b],
+            repos,
+            root,
         )
 
         leaf_entries = [e for e in entries if e.role == "leaf"]
@@ -828,7 +903,9 @@ class TestBuildMultiPathPlan:
         assert "docs-a" in leaf_rels
         assert "docs-b" in leaf_rels
 
-    def test_root_child_rel_paths_includes_both_siblings(self, tmp_sibling_submodules: Path):
+    def test_root_child_rel_paths_includes_both_siblings(
+        self, tmp_sibling_submodules: Path
+    ):
         """Root entry should have child_rel_paths listing both sibling submodules."""
         root = tmp_sibling_submodules
         repos = discover_repos_from_gitmodules(root)
@@ -836,7 +913,9 @@ class TestBuildMultiPathPlan:
         leaf_b = root / "docs-b"
 
         _chain, entries, _isg = _build_multi_path_plan(
-            [leaf_a, leaf_b], repos, root,
+            [leaf_a, leaf_b],
+            repos,
+            root,
         )
 
         root_entry = next(e for e in entries if e.role == "root")
@@ -852,7 +931,9 @@ class TestBuildMultiPathPlan:
         leaf_b = root / "docs-b"
 
         _chain, entries, _isg = _build_multi_path_plan(
-            [leaf_a, leaf_b], repos, root,
+            [leaf_a, leaf_b],
+            repos,
+            root,
         )
 
         roles = [e.role for e in entries]
@@ -871,10 +952,10 @@ class TestBuildMultiPathPlan:
         linear_entries = _build_linear_entries(linear_chain, root)
 
         assert len(multi_entries) == len(linear_entries)
-        for m, l in zip(multi_entries, linear_entries):
-            assert m.rel_path == l.rel_path
-            assert m.role == l.role
-            assert m.child_rel_paths == l.child_rel_paths
+        for m, lin in zip(multi_entries, linear_entries):
+            assert m.rel_path == lin.rel_path
+            assert m.role == lin.role
+            assert m.child_rel_paths == lin.child_rel_paths
 
     def test_invalid_path_raises(self, tmp_sibling_submodules: Path):
         """An unrecognized path should raise ValueError."""
@@ -890,13 +971,16 @@ class TestMultiPathCascadeExecution:
     """Integration tests for multi-path cascade execution."""
 
     def test_multi_path_dry_run_shows_two_leaves(
-        self, tmp_sibling_submodules: Path, capsys,
+        self,
+        tmp_sibling_submodules: Path,
+        capsys,
     ):
         """Dry-run with two paths should report both as leaves without making changes."""
         root = tmp_sibling_submodules
         with patch("grove.cascade.find_repo_root", return_value=root):
             result = run_cascade(
-                submodule_paths=["docs-a", "docs-b"], dry_run=True,
+                submodule_paths=["docs-a", "docs-b"],
+                dry_run=True,
             )
         assert result == 0
 
@@ -911,7 +995,8 @@ class TestMultiPathCascadeExecution:
             # Submodules are in detached HEAD after submodule update; put on main
             result = subprocess.run(
                 ["git", "-C", str(sub), "checkout", "main"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             if result.returncode != 0:
                 _git(sub, "checkout", "-b", "main")
@@ -920,31 +1005,41 @@ class TestMultiPathCascadeExecution:
             _git(sub, "commit", "-m", f"update {sub_name}")
 
     def test_multi_path_cascade_creates_one_root_commit(
-        self, tmp_sibling_submodules: Path,
+        self,
+        tmp_sibling_submodules: Path,
     ):
         """Cascading two siblings should create exactly one commit at root, not two."""
         root = tmp_sibling_submodules
         self._make_sibling_changes(root)
 
-        root_commits_before = int(subprocess.run(
-            ["git", "-C", str(root), "rev-list", "--count", "HEAD"],
-            capture_output=True, text=True, check=True,
-        ).stdout.strip())
+        root_commits_before = int(
+            subprocess.run(
+                ["git", "-C", str(root), "rev-list", "--count", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+        )
 
         with patch("grove.cascade.find_repo_root", return_value=root):
             result = run_cascade(submodule_paths=["docs-a", "docs-b"])
 
         assert result == 0
 
-        root_commits_after = int(subprocess.run(
-            ["git", "-C", str(root), "rev-list", "--count", "HEAD"],
-            capture_output=True, text=True, check=True,
-        ).stdout.strip())
+        root_commits_after = int(
+            subprocess.run(
+                ["git", "-C", str(root), "rev-list", "--count", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+        )
         # Exactly one new commit at root (both pointer updates in one commit)
         assert root_commits_after == root_commits_before + 1
 
     def test_multi_path_root_commit_stages_both_pointers(
-        self, tmp_sibling_submodules: Path,
+        self,
+        tmp_sibling_submodules: Path,
     ):
         """The single root commit should contain both submodule pointer updates."""
         root = tmp_sibling_submodules
@@ -956,7 +1051,9 @@ class TestMultiPathCascadeExecution:
         # The HEAD commit diff should touch both submodule paths
         diff = subprocess.run(
             ["git", "-C", str(root), "diff", "HEAD~1", "HEAD", "--name-only"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
         assert "docs-a" in diff
         assert "docs-b" in diff
@@ -989,15 +1086,18 @@ class TestCascadeDAGExecution:
             quick=False,
             repos=[
                 RepoCascadeEntry(
-                    rel_path="frontend/libs/common", role="leaf",
+                    rel_path="frontend/libs/common",
+                    role="leaf",
                     child_rel_paths=None,
                 ),
                 RepoCascadeEntry(
-                    rel_path="frontend", role="intermediate",
+                    rel_path="frontend",
+                    role="intermediate",
                     child_rel_paths=["libs/common"],
                 ),
                 RepoCascadeEntry(
-                    rel_path=".", role="root",
+                    rel_path=".",
+                    role="root",
                     child_rel_paths=["frontend", "backend", "shared"],
                 ),
             ],
@@ -1022,9 +1122,9 @@ class TestCascadeDAGExecution:
         child = root / "technical-docs"
 
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "grandchild_origin"\n'
-            '\n'
+            "\n"
             '[cascade]\nlocal-tests = "true"\n'
         )
 
@@ -1047,11 +1147,13 @@ class TestCascadeDAGExecution:
 # Intermediate sync-group expansion
 # ---------------------------------------------------------------------------
 
+
 class TestIntermediateSyncGroupExpansion:
     """Tests for intermediate sync-group detection and plan expansion."""
 
     def test_expansion_detects_intermediate_sync_group(
-        self, tmp_intermediate_sync_group: Path,
+        self,
+        tmp_intermediate_sync_group: Path,
     ):
         """Plan for leaf cascade should detect intermediate sync-group peers."""
         root = tmp_intermediate_sync_group
@@ -1064,7 +1166,11 @@ class TestIntermediateSyncGroupExpansion:
         entries = _build_linear_entries(chain, root)
 
         sg_names = _expand_linear_for_intermediate_sync_groups(
-            chain, entries, root, config, repos,
+            chain,
+            entries,
+            root,
+            config,
+            repos,
         )
 
         assert "services" in sg_names
@@ -1074,7 +1180,8 @@ class TestIntermediateSyncGroupExpansion:
         assert "workspace-a" in rel_paths
 
     def test_expansion_designates_primary_and_sync_targets(
-        self, tmp_intermediate_sync_group: Path,
+        self,
+        tmp_intermediate_sync_group: Path,
     ):
         """Exactly one instance should be primary, others sync targets."""
         root = tmp_intermediate_sync_group
@@ -1086,7 +1193,11 @@ class TestIntermediateSyncGroupExpansion:
         entries = _build_linear_entries(chain, root)
 
         _expand_linear_for_intermediate_sync_groups(
-            chain, entries, root, config, repos,
+            chain,
+            entries,
+            root,
+            config,
+            repos,
         )
 
         # workspace-a should be primary (has sync_peers)
@@ -1101,7 +1212,8 @@ class TestIntermediateSyncGroupExpansion:
         assert ws_b.sync_primary_rel == "workspace-a"
 
     def test_expansion_adds_parent_chains_for_peers(
-        self, tmp_intermediate_sync_group: Path,
+        self,
+        tmp_intermediate_sync_group: Path,
     ):
         """Root should appear in the plan and have both workspaces as children."""
         root = tmp_intermediate_sync_group
@@ -1113,7 +1225,11 @@ class TestIntermediateSyncGroupExpansion:
         entries = _build_linear_entries(chain, root)
 
         _expand_linear_for_intermediate_sync_groups(
-            chain, entries, root, config, repos,
+            chain,
+            entries,
+            root,
+            config,
+            repos,
         )
 
         entry_map = {e.rel_path: e for e in entries}
@@ -1123,7 +1239,8 @@ class TestIntermediateSyncGroupExpansion:
         assert "workspace-b" in root_entry.child_rel_paths
 
     def test_no_expansion_without_intermediate_sync_groups(
-        self, tmp_submodule_tree: Path,
+        self,
+        tmp_submodule_tree: Path,
     ):
         """Non-sync-group intermediates should not cause expansion."""
         root = tmp_submodule_tree
@@ -1131,9 +1248,9 @@ class TestIntermediateSyncGroupExpansion:
 
         # Write a config with a sync group that doesn't match intermediates
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "nonexistent_origin"\n'
-            '\n'
+            "\n"
             '[cascade]\nlocal-tests = "true"\n'
         )
         config = load_config(root)
@@ -1144,7 +1261,11 @@ class TestIntermediateSyncGroupExpansion:
 
         original_count = len(entries)
         sg_names = _expand_linear_for_intermediate_sync_groups(
-            chain, entries, root, config, repos,
+            chain,
+            entries,
+            root,
+            config,
+            repos,
         )
 
         assert sg_names == []
@@ -1155,7 +1276,9 @@ class TestIntermediateSyncGroupExecution:
     """Integration tests for cascade with intermediate sync groups."""
 
     def test_cascade_syncs_intermediate_peers(
-        self, tmp_intermediate_sync_group: Path, capsys,
+        self,
+        tmp_intermediate_sync_group: Path,
+        capsys,
     ):
         """Cascade from leaf should sync workspace-b after committing workspace-a."""
         root = tmp_intermediate_sync_group
@@ -1180,7 +1303,9 @@ class TestIntermediateSyncGroupExecution:
         assert ws_a_sha == ws_b_sha
 
     def test_dry_run_shows_sync_targets(
-        self, tmp_intermediate_sync_group: Path, capsys,
+        self,
+        tmp_intermediate_sync_group: Path,
+        capsys,
     ):
         """Dry run should show sync-target entries."""
         root = tmp_intermediate_sync_group
@@ -1201,7 +1326,9 @@ class TestIntermediateSyncGroupExecution:
         assert "workspace-b" in output
 
     def test_linear_to_dag_promotion(
-        self, tmp_intermediate_sync_group: Path, capsys,
+        self,
+        tmp_intermediate_sync_group: Path,
+        capsys,
     ):
         """Cascade starting from non-sync-group leaf should become DAG."""
         root = tmp_intermediate_sync_group
@@ -1222,14 +1349,18 @@ class TestIntermediateSyncGroupExecution:
         assert "dag" in output.lower()
 
     def test_abort_restores_synced_entries(
-        self, tmp_intermediate_sync_group: Path, capsys,
+        self,
+        tmp_intermediate_sync_group: Path,
+        capsys,
     ):
         """Aborting after sync should restore workspace-b to original commit."""
         root = tmp_intermediate_sync_group
 
         # Record original workspace-b HEAD
         original_ws_b_sha = _git(
-            root / "workspace-b", "rev-parse", "HEAD",
+            root / "workspace-b",
+            "rev-parse",
+            "HEAD",
         ).stdout.strip()
 
         # Make a change in workspace-a/libs/common
@@ -1242,10 +1373,10 @@ class TestIntermediateSyncGroupExecution:
         # Run cascade, then abort (cascade succeeds, so we need to
         # test abort on a paused state — use a failing test command)
         (root / ".grove.toml").write_text(
-            '[sync-groups.services]\n'
-            f'url-match = "service_origin"\n'
-            '\n'
-            '[cascade]\n'
+            "[sync-groups.services]\n"
+            'url-match = "service_origin"\n'
+            "\n"
+            "[cascade]\n"
             'local-tests = "true"\n'
             'integration-tests = "false"\n'  # will fail at root level
         )
@@ -1265,7 +1396,9 @@ class TestIntermediateSyncGroupExecution:
 
         # workspace-b should be restored to its original commit
         restored_ws_b_sha = _git(
-            root / "workspace-b", "rev-parse", "HEAD",
+            root / "workspace-b",
+            "rev-parse",
+            "HEAD",
         ).stdout.strip()
         assert restored_ws_b_sha == original_ws_b_sha
 
@@ -1274,7 +1407,9 @@ class TestIntermediateDivergenceResolution:
     """Tests for diverged intermediate sync-group resolution."""
 
     def test_pre_cascade_auto_resolves_clean_divergence(
-        self, tmp_intermediate_sync_group_diverged: Path, capsys,
+        self,
+        tmp_intermediate_sync_group_diverged: Path,
+        capsys,
     ):
         """Cleanly diverged intermediate sync group should be auto-resolved."""
         root = tmp_intermediate_sync_group_diverged
@@ -1294,7 +1429,9 @@ class TestIntermediateDivergenceResolution:
         assert "auto-resolved" in output.lower()
 
     def test_force_bypasses_divergence_checks(
-        self, tmp_intermediate_sync_group_diverged: Path, capsys,
+        self,
+        tmp_intermediate_sync_group_diverged: Path,
+        capsys,
     ):
         """--force should skip pre-cascade divergence resolution."""
         root = tmp_intermediate_sync_group_diverged
@@ -1307,7 +1444,7 @@ class TestIntermediateDivergenceResolution:
         _git(leaf, "commit", "-m", "Add new feature")
 
         with patch("grove.cascade.find_repo_root", return_value=root):
-            result = run_cascade("workspace-a/libs/common", force=True)
+            run_cascade("workspace-a/libs/common", force=True)
 
         # Should complete (or fail) without auto-resolving divergence
         output = capsys.readouterr().out
@@ -1318,11 +1455,14 @@ class TestIntermediateDivergenceResolution:
 # --sync-group flag (Feature 5)
 # ---------------------------------------------------------------------------
 
+
 class TestCascadeSyncGroupFlag:
     """Tests for the --sync-group NAME entry point."""
 
     def test_sync_group_flag_cascades_all_instances(
-        self, tmp_sync_group_multi_instance: Path, capsys,
+        self,
+        tmp_sync_group_multi_instance: Path,
+        capsys,
     ):
         """run_cascade(sync_group_name=...) should build a DAG and cascade all instances."""
         root = tmp_sync_group_multi_instance
@@ -1349,7 +1489,9 @@ class TestCascadeSyncGroupFlag:
         assert "sync group" in output.lower()
 
     def test_sync_group_flag_dry_run(
-        self, tmp_sync_group_multi_instance: Path, capsys,
+        self,
+        tmp_sync_group_multi_instance: Path,
+        capsys,
     ):
         """Dry run with --sync-group should show all instances in the plan."""
         root = tmp_sync_group_multi_instance
@@ -1364,7 +1506,9 @@ class TestCascadeSyncGroupFlag:
         assert "backend" in output
         assert "shared" in output
 
-    def test_sync_group_flag_unknown_group(self, tmp_sync_group_multi_instance: Path, capsys):
+    def test_sync_group_flag_unknown_group(
+        self, tmp_sync_group_multi_instance: Path, capsys
+    ):
         """Unknown sync-group name should return error with available groups."""
         root = tmp_sync_group_multi_instance
 
@@ -1382,9 +1526,15 @@ class TestCascadeSyncGroupFlag:
         from argparse import Namespace
 
         args = Namespace(
-            continue_cascade=False, abort=False, status=False,
-            path="frontend/libs/common", sync_group="common",
-            dry_run=False, system=False, no_system=False, quick=False,
+            continue_cascade=False,
+            abort=False,
+            status=False,
+            path="frontend/libs/common",
+            sync_group="common",
+            dry_run=False,
+            system=False,
+            no_system=False,
+            quick=False,
             force=False,
         )
         result = cascade_run(args)
@@ -1393,7 +1543,9 @@ class TestCascadeSyncGroupFlag:
         assert "not both" in output.lower()
 
     def test_sync_group_flag_consistency_check(
-        self, tmp_sync_group_diverged: Path, capsys,
+        self,
+        tmp_sync_group_diverged: Path,
+        capsys,
     ):
         """Diverged instances should fail without --force."""
         root = tmp_sync_group_diverged
@@ -1406,13 +1558,15 @@ class TestCascadeSyncGroupFlag:
         assert "not in sync" in output.lower() or "sync" in output.lower()
 
     def test_sync_group_flag_consistency_force(
-        self, tmp_sync_group_diverged: Path, capsys,
+        self,
+        tmp_sync_group_diverged: Path,
+        capsys,
     ):
         """Diverged instances should proceed with --force."""
         root = tmp_sync_group_diverged
 
         with patch("grove.cascade.find_repo_root", return_value=root):
-            result = run_cascade(sync_group_name="common", force=True)
+            run_cascade(sync_group_name="common", force=True)
 
         # Should proceed (may pass or fail on tests, but shouldn't return 1 for consistency)
         output = capsys.readouterr().out
@@ -1422,6 +1576,7 @@ class TestCascadeSyncGroupFlag:
 # ---------------------------------------------------------------------------
 # --push flag (Feature 7)
 # ---------------------------------------------------------------------------
+
 
 class TestCascadePushFlag:
     """Tests for the --push flag that pushes repos after successful cascade."""
@@ -1434,9 +1589,7 @@ class TestCascadePushFlag:
         # Configure cascade with always-passing test
         config_path = root / ".grove.toml"
         config_path.write_text(
-            config_path.read_text() +
-            '\n[cascade]\n'
-            'local-tests = "true"\n'
+            config_path.read_text() + '\n[cascade]\nlocal-tests = "true"\n'
         )
 
         # Make a change in the leaf
@@ -1445,8 +1598,10 @@ class TestCascadePushFlag:
         _git(grandchild, "commit", "-m", "leaf change for push")
 
         # Mock RepoInfo.push since test fixtures use non-bare remotes
-        with patch("grove.cascade.find_repo_root", return_value=root), \
-             patch("grove.repo_utils.RepoInfo.push", return_value=True) as mock_push:
+        with (
+            patch("grove.cascade.find_repo_root", return_value=root),
+            patch("grove.repo_utils.RepoInfo.push", return_value=True) as mock_push,
+        ):
             result = run_cascade("technical-docs/common", push=True)
 
         assert result == 0
@@ -1463,9 +1618,7 @@ class TestCascadePushFlag:
         root = tmp_submodule_tree
         config_path = root / ".grove.toml"
         config_path.write_text(
-            config_path.read_text() +
-            '\n[cascade]\n'
-            'local-tests = "true"\n'
+            config_path.read_text() + '\n[cascade]\nlocal-tests = "true"\n'
         )
 
         with patch("grove.cascade.find_repo_root", return_value=root):
@@ -1485,10 +1638,10 @@ class TestCascadePushFlag:
 
         # Configure with a failing test
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "grandchild_origin"\n'
-            '\n'
-            '[cascade]\n'
+            "\n"
+            "[cascade]\n"
             'local-tests = "false"\n'
         )
 
@@ -1544,10 +1697,10 @@ class TestCascadePushFlag:
 
         # Step 1: Start with a failing test and --push
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "grandchild_origin"\n'
-            '\n'
-            '[cascade]\n'
+            "\n"
+            "[cascade]\n"
             'local-tests = "false"\n'
         )
 
@@ -1566,17 +1719,19 @@ class TestCascadePushFlag:
 
         # Step 2: Fix the test
         (root / ".grove.toml").write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "grandchild_origin"\n'
-            '\n'
-            '[cascade]\n'
+            "\n"
+            "[cascade]\n"
             'local-tests = "true"\n'
         )
 
         # Step 3: Continue — should complete and push
         capsys.readouterr()  # clear previous output
-        with patch("grove.cascade.find_repo_root", return_value=root), \
-             patch("grove.repo_utils.RepoInfo.push", return_value=True):
+        with (
+            patch("grove.cascade.find_repo_root", return_value=root),
+            patch("grove.repo_utils.RepoInfo.push", return_value=True),
+        ):
             result = continue_cascade()
 
         assert result == 0

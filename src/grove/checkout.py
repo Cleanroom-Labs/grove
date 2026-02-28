@@ -13,7 +13,6 @@ Usage (via entry point):
 
 from __future__ import annotations
 
-from pathlib import Path
 
 from grove.repo_utils import Colors, RepoInfo, find_repo_root, run_git
 
@@ -42,7 +41,7 @@ def run(args) -> int:
         print(f"  {Colors.blue('Fetching')} origin in {repo.rel_path}...")
         result = repo.git("fetch", "origin", check=False)
         if result.returncode != 0:
-            print(Colors.yellow(f"  Warning: fetch failed — continuing with local refs"))
+            print(Colors.yellow("  Warning: fetch failed — continuing with local refs"))
 
     # Step 2: Checkout the requested ref
     print(f"  {Colors.blue('Checking out')} {ref} in {repo.rel_path}...")
@@ -60,7 +59,10 @@ def run(args) -> int:
         print(f"  {Colors.blue('Updating')} submodules recursively...")
         result = run_git(
             target,
-            "submodule", "update", "--init", "--recursive",
+            "submodule",
+            "update",
+            "--init",
+            "--recursive",
             check=False,
         )
         if result.returncode != 0:

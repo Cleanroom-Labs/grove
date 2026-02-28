@@ -9,6 +9,7 @@ workspace (the standalone repo or first instance).
 Supports pause/resume on merge conflicts, following the same state
 machine pattern as ``worktree_merge.py`` and ``cascade.py``.
 """
+
 from __future__ import annotations
 
 import json
@@ -29,9 +30,11 @@ from grove.repo_utils import (
 # State management
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SyncMergeState:
     """Persistent state for sync-group divergence merge."""
+
     group_name: str
     started_at: str
     workspace_path: str  # where the merge happens
@@ -63,6 +66,7 @@ def _get_state_path(repo_root: Path) -> Path:
 # ---------------------------------------------------------------------------
 # Core merge logic
 # ---------------------------------------------------------------------------
+
 
 def attempt_divergence_merge(
     group_name: str,
@@ -123,9 +127,9 @@ def attempt_divergence_merge(
         if source.resolve() != workspace.resolve():
             result = run_git(workspace, "fetch", str(source), sha, check=False)
             if result.returncode != 0:
-                print(Colors.yellow(
-                    f"  Warning: Could not fetch {sha[:8]} from {source}"
-                ))
+                print(
+                    Colors.yellow(f"  Warning: Could not fetch {sha[:8]} from {source}")
+                )
 
     # Find merge-base of the first two commits
     mb_result = run_git(workspace, "merge-base", shas[0], shas[1], check=False)
@@ -142,15 +146,21 @@ def attempt_divergence_merge(
     if len(remaining) == 1:
         # Two-way merge
         merge_result = run_git(
-            workspace, "merge", remaining[0],
-            "-m", f"grove sync: merge diverged instances of '{group_name}'",
+            workspace,
+            "merge",
+            remaining[0],
+            "-m",
+            f"grove sync: merge diverged instances of '{group_name}'",
             check=False,
         )
     else:
         # Octopus merge
         merge_result = run_git(
-            workspace, "merge", *remaining,
-            "-m", f"grove sync: merge {len(shas)} diverged instances of '{group_name}'",
+            workspace,
+            "merge",
+            *remaining,
+            "-m",
+            f"grove sync: merge {len(shas)} diverged instances of '{group_name}'",
             check=False,
         )
 
@@ -192,6 +202,7 @@ def attempt_divergence_merge(
 # Continue / Abort / Status
 # ---------------------------------------------------------------------------
 
+
 def continue_sync_merge() -> int:
     """Resume after resolving merge conflicts."""
     repo_root = find_repo_root()
@@ -220,7 +231,10 @@ def continue_sync_merge() -> int:
     if merge_status.stdout.strip():
         # There are uncommitted changes — commit the merge
         run_git(
-            workspace, "commit", "--no-edit", check=False,
+            workspace,
+            "commit",
+            "--no-edit",
+            check=False,
         )
 
     # Get the merged SHA
@@ -232,8 +246,10 @@ def continue_sync_merge() -> int:
 
     print(Colors.green(f"Merge resolved: {merged_sha[:8]}"))
     print()
-    print(f"Run {Colors.blue(f'grove sync {state.group_name} {merged_sha}')} "
-          f"to sync all instances to the merged commit.")
+    print(
+        f"Run {Colors.blue(f'grove sync {state.group_name} {merged_sha}')} "
+        f"to sync all instances to the merged commit."
+    )
     return 0
 
 

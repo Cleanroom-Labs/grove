@@ -38,4 +38,5 @@ def run(args) -> int:
 
 if __name__ == "__main__":
     from grove.cli import build_parser
+
     sys.exit(run(build_parser().parse_args(["visualize"] + sys.argv[1:])))

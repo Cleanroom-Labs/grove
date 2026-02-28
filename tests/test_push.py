@@ -18,7 +18,9 @@ class TestMultiInstanceFixture:
         for parent_name in ["frontend", "backend", "shared"]:
             common = root / parent_name / "libs" / "common"
             assert common.exists(), f"{parent_name}/libs/common should exist"
-            assert (common / ".git").exists(), f"{parent_name}/libs/common should be a git repo"
+            assert (common / ".git").exists(), (
+                f"{parent_name}/libs/common should be a git repo"
+            )
 
     def test_fixture_discovers_all_repos(self, tmp_sync_group_multi_instance: Path):
         """Discovery should find root + 3 parents + 3 common instances = 7 repos."""
@@ -30,14 +32,18 @@ class TestMultiInstanceFixture:
             assert name in rel_paths
             assert f"{name}/libs/common" in rel_paths
 
-    def test_diverged_fixture_has_different_commits(self, tmp_sync_group_diverged: Path):
+    def test_diverged_fixture_has_different_commits(
+        self, tmp_sync_group_diverged: Path
+    ):
         """The diverged fixture should have different HEADs in frontend/backend common."""
         import subprocess
 
         def get_head(repo_path):
             return subprocess.run(
                 ["git", "-C", str(repo_path), "rev-parse", "HEAD"],
-                capture_output=True, text=True, check=True,
+                capture_output=True,
+                text=True,
+                check=True,
             ).stdout.strip()
 
         root = tmp_sync_group_diverged
@@ -146,7 +152,12 @@ class TestPushFilterSet:
         config = load_config(root)
         repos = discover_repos_from_gitmodules(root)
         result = _compute_push_filter_set(
-            ["frontend", "backend"], None, None, root, config, repos,
+            ["frontend", "backend"],
+            None,
+            None,
+            root,
+            config,
+            repos,
         )
         assert result is not None
         assert len(result) == 2
@@ -159,11 +170,18 @@ class TestPushFilterSet:
         config = load_config(root)
         repos = discover_repos_from_gitmodules(root)
         result = _compute_push_filter_set(
-            ["nonexistent"], None, None, root, config, repos,
+            ["nonexistent"],
+            None,
+            None,
+            root,
+            config,
+            repos,
         )
         assert result == set()
 
-    def test_sync_group_filter_includes_parents(self, tmp_sync_group_multi_instance: Path):
+    def test_sync_group_filter_includes_parents(
+        self, tmp_sync_group_multi_instance: Path
+    ):
         """--sync-group should include all parent repos of the sync group."""
         root = tmp_sync_group_multi_instance
         config = load_config(root)
@@ -176,7 +194,9 @@ class TestPushFilterSet:
         assert Path("backend") in paths
         assert Path("shared") in paths
 
-    def test_unknown_sync_group_returns_empty(self, tmp_sync_group_multi_instance: Path):
+    def test_unknown_sync_group_returns_empty(
+        self, tmp_sync_group_multi_instance: Path
+    ):
         """An unknown sync group name should return empty set (error)."""
         root = tmp_sync_group_multi_instance
         config = load_config(root)
@@ -190,7 +210,12 @@ class TestPushFilterSet:
         config = load_config(root)
         repos = discover_repos_from_gitmodules(root)
         result = _compute_push_filter_set(
-            [], None, "frontend/libs/common", root, config, repos,
+            [],
+            None,
+            "frontend/libs/common",
+            root,
+            config,
+            repos,
         )
         assert result is not None
         # Chain: frontend/libs/common → frontend → root
@@ -200,14 +225,20 @@ class TestPushFilterSet:
         assert len(result) == 3
 
     def test_cascade_filter_invalid_path_returns_empty(
-        self, tmp_sync_group_multi_instance: Path,
+        self,
+        tmp_sync_group_multi_instance: Path,
     ):
         """--cascade with an invalid path should return empty set (error)."""
         root = tmp_sync_group_multi_instance
         config = load_config(root)
         repos = discover_repos_from_gitmodules(root)
         result = _compute_push_filter_set(
-            [], None, "nonexistent/path", root, config, repos,
+            [],
+            None,
+            "nonexistent/path",
+            root,
+            config,
+            repos,
         )
         assert result == set()
 
@@ -218,7 +249,12 @@ class TestPushFilterSet:
         repos = discover_repos_from_gitmodules(root)
         # Combine positional ("shared") + cascade (frontend chain)
         result = _compute_push_filter_set(
-            ["shared"], None, "frontend/libs/common", root, config, repos,
+            ["shared"],
+            None,
+            "frontend/libs/common",
+            root,
+            config,
+            repos,
         )
         assert result is not None
         # Union: {shared} ∪ {frontend/libs/common, frontend, root}
@@ -227,13 +263,20 @@ class TestPushFilterSet:
         assert root / "frontend" in result
         assert root in result
 
-    def test_cascade_includes_sync_group_leaf(self, tmp_sync_group_multi_instance: Path):
+    def test_cascade_includes_sync_group_leaf(
+        self, tmp_sync_group_multi_instance: Path
+    ):
         """--cascade should include a sync-group submodule as the leaf."""
         root = tmp_sync_group_multi_instance
         config = load_config(root)
         repos = discover_repos_from_gitmodules(root)
         result = _compute_push_filter_set(
-            [], None, "frontend/libs/common", root, config, repos,
+            [],
+            None,
+            "frontend/libs/common",
+            root,
+            config,
+            repos,
         )
         assert result is not None
         # The leaf (frontend/libs/common) IS a sync-group submodule,
@@ -258,10 +301,15 @@ class TestPushRunWithFilters:
         from grove.push import run
 
         args = argparse.Namespace(
-            dry_run=True, skip_checks=False,
-            paths=["frontend"], sync_group=None, cascade=None,
+            dry_run=True,
+            skip_checks=False,
+            paths=["frontend"],
+            sync_group=None,
+            cascade=None,
         )
-        with patch("grove.push.find_repo_root", return_value=tmp_sync_group_multi_instance):
+        with patch(
+            "grove.push.find_repo_root", return_value=tmp_sync_group_multi_instance
+        ):
             # This should NOT call check_sync_groups at all
             with patch("grove.push.check_sync_groups") as mock_check:
                 result = run(args)
@@ -273,9 +321,14 @@ class TestPushRunWithFilters:
         from grove.push import run
 
         args = argparse.Namespace(
-            dry_run=False, skip_checks=False,
-            paths=["nonexistent"], sync_group=None, cascade=None,
+            dry_run=False,
+            skip_checks=False,
+            paths=["nonexistent"],
+            sync_group=None,
+            cascade=None,
         )
-        with patch("grove.push.find_repo_root", return_value=tmp_sync_group_multi_instance):
+        with patch(
+            "grove.push.find_repo_root", return_value=tmp_sync_group_multi_instance
+        ):
             result = run(args)
         assert result == 1

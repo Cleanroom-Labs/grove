@@ -47,12 +47,15 @@ from grove.repo_utils import (
 @dataclass
 class SyncSubmodule:
     """Information about a sync-group submodule location."""
+
     path: Path
     parent_repo: Path
     submodule_rel_path: str  # Path relative to parent repo
     current_commit: str | None = None
 
-    def git(self, *args: str, check: bool = True, capture: bool = True) -> subprocess.CompletedProcess:
+    def git(
+        self, *args: str, check: bool = True, capture: bool = True
+    ) -> subprocess.CompletedProcess:
         """Run a git command in this submodule."""
         return run_git(self.path, *args, check=check, capture=capture)
 
@@ -143,6 +146,7 @@ def get_parent_repos_for_submodules(
     """
     if all_repos is None:
         from grove.repo_utils import discover_repos_from_gitmodules
+
         all_repos = discover_repos_from_gitmodules(repo_root)
 
     path_to_repo = {r.path: r for r in all_repos}
@@ -270,7 +274,12 @@ def resolve_local_tip(
     for sha, sub in items[1:]:
         # Is current tip an ancestor of sha?  Then sha is more advanced.
         result = run_git(
-            sub.path, "merge-base", "--is-ancestor", tip_sha, sha, check=False,
+            sub.path,
+            "merge-base",
+            "--is-ancestor",
+            tip_sha,
+            sha,
+            check=False,
         )
         if result.returncode == 0:
             tip_sha, tip_sub = sha, sub
@@ -278,7 +287,12 @@ def resolve_local_tip(
 
         # Is sha an ancestor of current tip?  Then tip stays.
         result = run_git(
-            tip_sub.path, "merge-base", "--is-ancestor", sha, tip_sha, check=False,
+            tip_sub.path,
+            "merge-base",
+            "--is-ancestor",
+            sha,
+            tip_sha,
+            check=False,
         )
         if result.returncode == 0:
             continue
@@ -291,7 +305,12 @@ def resolve_local_tip(
         if sha == tip_sha:
             continue
         result = run_git(
-            tip_sub.path, "merge-base", "--is-ancestor", sha, tip_sha, check=False,
+            tip_sub.path,
+            "merge-base",
+            "--is-ancestor",
+            sha,
+            tip_sha,
+            check=False,
         )
         if result.returncode != 0:
             return None
@@ -368,11 +387,17 @@ def push_ahead_submodules(
         if ahead_count and ahead_count != "0":
             rel_path = submodule.submodule_rel_path
             if dry_run:
-                print(f"  {Colors.yellow('Would push')} {rel_path} ({ahead_count} commits ahead)")
+                print(
+                    f"  {Colors.yellow('Would push')} {rel_path} ({ahead_count} commits ahead)"
+                )
             else:
-                result = submodule.git("push", "origin", branch, check=False, capture=False)
+                result = submodule.git(
+                    "push", "origin", branch, check=False, capture=False
+                )
                 if result.returncode == 0:
-                    print(f"  {Colors.green('Pushed')} {rel_path} ({ahead_count} commits)")
+                    print(
+                        f"  {Colors.green('Pushed')} {rel_path} ({ahead_count} commits)"
+                    )
                     pushed_any = True
                 else:
                     print(f"  {Colors.red('Failed to push')} {rel_path}")
@@ -414,7 +439,8 @@ def _sync_group(
 
     allow_drift = set(group.allow_drift)
     submodules = [
-        s for s in all_submodules
+        s
+        for s in all_submodules
         if str(s.path.relative_to(repo_root)) not in allow_drift
     ]
 
@@ -425,7 +451,8 @@ def _sync_group(
             print(Colors.blue("Resolving target commit..."))
         try:
             target_commit, commit_source = resolve_target_commit(
-                commit_arg, None,
+                commit_arg,
+                None,
             )
         except ValueError as e:
             print(Colors.red(f"Error: {e}"))
@@ -443,7 +470,9 @@ def _sync_group(
         try:
             remote_url = resolve_remote_url(repo_root, group.url_match)
             target_commit, commit_source = resolve_target_commit(
-                None, group.standalone_repo, remote_url=remote_url,
+                None,
+                group.standalone_repo,
+                remote_url=remote_url,
             )
         except ValueError as e:
             print(Colors.red(f"Error: {e}"))
@@ -458,8 +487,12 @@ def _sync_group(
             from grove.sync_merge import attempt_divergence_merge
 
             merge_result = attempt_divergence_merge(
-                group.name, submodules, repo_root,
-                group.standalone_repo, dry_run, force,
+                group.name,
+                submodules,
+                repo_root,
+                group.standalone_repo,
+                dry_run,
+                force,
             )
             if merge_result is None:
                 return 1  # paused (conflict) or failed
@@ -475,11 +508,15 @@ def _sync_group(
         print(f"Found {Colors.green(str(len(all_submodules)))} submodule locations:")
         for submodule in all_submodules:
             rel_path = str(submodule.path.relative_to(repo_root))
-            current = submodule.current_commit[:7] if submodule.current_commit else "unknown"
+            current = (
+                submodule.current_commit[:7] if submodule.current_commit else "unknown"
+            )
             target_short = target_commit[:7]
 
             if rel_path in allow_drift:
-                print(f"  {Colors.yellow('~')} {rel_path} ({current}) {Colors.yellow('(allow-drift, skipped)')}")
+                print(
+                    f"  {Colors.yellow('~')} {rel_path} ({current}) {Colors.yellow('(allow-drift, skipped)')}"
+                )
             elif current == target_short:
                 print(f"  {Colors.green('✓')} {rel_path} (already at {current})")
             else:
@@ -488,13 +525,18 @@ def _sync_group(
 
     # Check if any updates needed
     submodules_to_update = [
-        s for s in submodules
+        s
+        for s in submodules
         if not s.current_commit or not s.current_commit.startswith(target_commit[:7])
     ]
 
     if not submodules_to_update:
         if not quiet:
-            print(Colors.green(f"All {group.name} submodules already at target commit. Nothing to do."))
+            print(
+                Colors.green(
+                    f"All {group.name} submodules already at target commit. Nothing to do."
+                )
+            )
         return 0
 
     # Phase 3: Validate parent repos
@@ -519,7 +561,11 @@ def _sync_group(
         print_status_table(parent_repos, show_behind=True)
 
     if validation_failed and not force:
-        print(Colors.red("Validation failed. Fix the issues above or use --skip-checks to skip."))
+        print(
+            Colors.red(
+                "Validation failed. Fix the issues above or use --skip-checks to skip."
+            )
+        )
         if not quiet:
             print()
             print(Colors.blue("Common fixes:"))
@@ -528,7 +574,11 @@ def _sync_group(
         return 1
 
     if validation_failed and force and not quiet:
-        print(Colors.yellow("Warning: Proceeding despite validation failures (--skip-checks)"))
+        print(
+            Colors.yellow(
+                "Warning: Proceeding despite validation failures (--skip-checks)"
+            )
+        )
         print()
 
     if dry_run and not quiet:
@@ -604,8 +654,10 @@ def _sync_group(
     # Phase 6: Push (unless --no-push)
     if no_push:
         if quiet:
-            print(f"    Synced {group.name} to {target_commit[:7]} "
-                  f"across {len(updated_submodules)} locations")
+            print(
+                f"    Synced {group.name} to {target_commit[:7]} "
+                f"across {len(updated_submodules)} locations"
+            )
         else:
             print(Colors.yellow("Skipping push (--no-push specified)"))
             print()
@@ -682,8 +734,10 @@ def _sync_group(
         return 1
     else:
         if quiet:
-            print(f"    Synced {group.name} to {target_commit[:7]} "
-                  f"({len(updated_submodules)} updated, {pushed_count} pushed)")
+            print(
+                f"    Synced {group.name} to {target_commit[:7]} "
+                f"({len(updated_submodules)} updated, {pushed_count} pushed)"
+            )
         else:
             print(Colors.green(f"Sync complete for {group.name}!"))
             print()
@@ -702,12 +756,15 @@ def run(args) -> int:
     # Dispatch sync merge operations
     if getattr(args, "continue_sync", False):
         from grove.sync_merge import continue_sync_merge
+
         return continue_sync_merge()
     if getattr(args, "abort", False):
         from grove.sync_merge import abort_sync_merge
+
         return abort_sync_merge()
     if getattr(args, "status", False):
         from grove.sync_merge import show_sync_merge_status
+
         return show_sync_merge_status()
 
     try:

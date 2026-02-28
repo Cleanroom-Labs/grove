@@ -2,6 +2,7 @@
 grove/config.py
 Load and validate .grove.toml configuration.
 """
+
 from __future__ import annotations
 
 import tomllib
@@ -15,6 +16,7 @@ DEFAULT_COMMIT_MESSAGE = "chore: sync {group} submodule to {sha}"
 @dataclass
 class SyncGroup:
     """A group of submodules that should all be at the same commit."""
+
     name: str
     url_match: str
     standalone_repo: Path | None = None
@@ -25,6 +27,7 @@ class SyncGroup:
 @dataclass
 class MergeConfig:
     """Configuration for ``grove worktree merge``."""
+
     test_command: str | None = None
     test_overrides: dict[str, str] = field(default_factory=dict)
 
@@ -32,6 +35,7 @@ class MergeConfig:
 @dataclass
 class WorktreeConfig:
     """Configuration for ``grove worktree add``."""
+
     copy_venv: bool = False
 
 
@@ -57,6 +61,7 @@ class CascadeConfig:
     Per-repo overrides are stored as
     ``{repo_rel_path: {tier_name: command}}``.
     """
+
     local_tests: str | None = None
     contract_tests: str | None = None
     integration_tests: str | None = None
@@ -75,12 +80,14 @@ class CascadeConfig:
 @dataclass
 class AliasConfig:
     """Command aliases mapping short names to full command strings."""
+
     mapping: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
 class GroveConfig:
     """Top-level configuration loaded from .grove.toml."""
+
     sync_groups: dict[str, SyncGroup] = field(default_factory=dict)
     merge: MergeConfig = field(default_factory=MergeConfig)
     worktree: WorktreeConfig = field(default_factory=WorktreeConfig)
@@ -92,6 +99,7 @@ class GroveConfig:
 # Parsing helpers
 # ---------------------------------------------------------------------------
 
+
 def _parse_cascade_section(raw: dict, merge: MergeConfig) -> CascadeConfig:
     """Parse the ``[cascade]`` section from raw TOML data.
 
@@ -100,15 +108,15 @@ def _parse_cascade_section(raw: dict, merge: MergeConfig) -> CascadeConfig:
     """
     cascade_raw = raw.get("cascade", {})
     if not isinstance(cascade_raw, dict):
-        raise ValueError(
-            f"cascade: expected a table, got {type(cascade_raw).__name__}"
-        )
+        raise ValueError(f"cascade: expected a table, got {type(cascade_raw).__name__}")
 
     tier_values: dict[str, str | None] = {}
     for tier in CASCADE_TIERS:
         val = cascade_raw.get(tier)
         if val is not None and not isinstance(val, str):
-            raise ValueError(f"cascade.{tier}: expected a string, got {type(val).__name__}")
+            raise ValueError(
+                f"cascade.{tier}: expected a string, got {type(val).__name__}"
+            )
         tier_values[tier] = val
 
     # Fallback: local-tests inherits from worktree-merge.test-command
@@ -155,6 +163,7 @@ def _parse_cascade_section(raw: dict, merge: MergeConfig) -> CascadeConfig:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def load_config(repo_root: Path) -> GroveConfig:
     """Load .grove.toml from *repo_root*.
 
@@ -187,7 +196,9 @@ def load_config(repo_root: Path) -> GroveConfig:
             raise ValueError(f"sync-groups.{name}: 'url-match' is required")
 
         standalone_repo_str = group_data.get("standalone-repo")
-        standalone_repo = Path(standalone_repo_str).expanduser() if standalone_repo_str else None
+        standalone_repo = (
+            Path(standalone_repo_str).expanduser() if standalone_repo_str else None
+        )
 
         commit_message = group_data.get("commit-message", DEFAULT_COMMIT_MESSAGE)
 
@@ -250,9 +261,7 @@ def load_config(repo_root: Path) -> GroveConfig:
     # --- [aliases] section ---
     aliases_raw = raw.get("aliases", {})
     if not isinstance(aliases_raw, dict):
-        raise ValueError(
-            f"aliases: expected a table, got {type(aliases_raw).__name__}"
-        )
+        raise ValueError(f"aliases: expected a table, got {type(aliases_raw).__name__}")
     for key, val in aliases_raw.items():
         if not isinstance(val, str):
             raise ValueError(
@@ -261,8 +270,11 @@ def load_config(repo_root: Path) -> GroveConfig:
     aliases = AliasConfig(mapping=dict(aliases_raw))
 
     return GroveConfig(
-        sync_groups=sync_groups, merge=merge, worktree=worktree_config,
-        cascade=cascade, aliases=aliases,
+        sync_groups=sync_groups,
+        merge=merge,
+        worktree=worktree_config,
+        cascade=cascade,
+        aliases=aliases,
     )
 
 

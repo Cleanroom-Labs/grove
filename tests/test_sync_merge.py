@@ -10,7 +10,6 @@ from grove.sync_merge import (
     _get_state_path,
     abort_sync_merge,
     attempt_divergence_merge,
-    continue_sync_merge,
     show_sync_merge_status,
 )
 
@@ -19,7 +18,9 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
     """Run a git command inside *cwd*."""
     return subprocess.run(
         ["git", "-C", str(cwd)] + list(args),
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
 
 
@@ -64,7 +65,9 @@ class TestAttemptDivergenceMerge:
     """Tests for attempt_divergence_merge()."""
 
     def test_clean_merge_returns_result(
-        self, tmp_sync_group_diverged: Path, capsys,
+        self,
+        tmp_sync_group_diverged: Path,
+        capsys,
     ):
         """Two diverged instances with non-conflicting changes should merge cleanly."""
         root = tmp_sync_group_diverged
@@ -72,9 +75,12 @@ class TestAttemptDivergenceMerge:
 
         with patch("grove.sync_merge.find_repo_root", return_value=root):
             result = attempt_divergence_merge(
-                "common", submodules, root,
+                "common",
+                submodules,
+                root,
                 standalone_repo=None,
-                dry_run=False, force=False,
+                dry_run=False,
+                force=False,
             )
 
         assert result is not None
@@ -85,7 +91,9 @@ class TestAttemptDivergenceMerge:
         assert "merge successful" in output.lower()
 
     def test_dry_run_returns_placeholder(
-        self, tmp_sync_group_diverged: Path, capsys,
+        self,
+        tmp_sync_group_diverged: Path,
+        capsys,
     ):
         """Dry run should return a placeholder result without merging."""
         root = tmp_sync_group_diverged
@@ -93,9 +101,12 @@ class TestAttemptDivergenceMerge:
 
         with patch("grove.sync_merge.find_repo_root", return_value=root):
             result = attempt_divergence_merge(
-                "common", submodules, root,
+                "common",
+                submodules,
+                root,
                 standalone_repo=None,
-                dry_run=True, force=False,
+                dry_run=True,
+                force=False,
             )
 
         assert result is not None
@@ -103,7 +114,9 @@ class TestAttemptDivergenceMerge:
         assert "dry-run" in desc.lower()
 
     def test_standalone_repo_preferred(
-        self, tmp_sync_group_diverged: Path, capsys,
+        self,
+        tmp_sync_group_diverged: Path,
+        capsys,
     ):
         """When a standalone repo is configured, it should be used as workspace."""
         root = tmp_sync_group_diverged
@@ -115,9 +128,12 @@ class TestAttemptDivergenceMerge:
 
         with patch("grove.sync_merge.find_repo_root", return_value=root):
             result = attempt_divergence_merge(
-                "common", submodules, root,
+                "common",
+                submodules,
+                root,
                 standalone_repo=common_origin,
-                dry_run=False, force=False,
+                dry_run=False,
+                force=False,
             )
 
         assert result is not None
@@ -125,7 +141,9 @@ class TestAttemptDivergenceMerge:
         assert workspace == common_origin
 
     def test_already_in_progress(
-        self, tmp_sync_group_diverged: Path, capsys,
+        self,
+        tmp_sync_group_diverged: Path,
+        capsys,
     ):
         """Should fail if a sync merge is already in progress."""
         root = tmp_sync_group_diverged
@@ -138,9 +156,12 @@ class TestAttemptDivergenceMerge:
 
         with patch("grove.sync_merge.find_repo_root", return_value=root):
             result = attempt_divergence_merge(
-                "common", submodules, root,
+                "common",
+                submodules,
+                root,
                 standalone_repo=None,
-                dry_run=False, force=False,
+                dry_run=False,
+                force=False,
             )
 
         assert result is None
@@ -186,12 +207,16 @@ class TestShowSyncMergeStatus:
             workspace_path=str(root / "frontend" / "libs" / "common"),
             base_commit="abc1234567890123456789012345678901234567",
             diverged_commits=[
-                {"sha": "aaa1234567890123456789012345678901234567",
-                 "source_path": str(root / "frontend" / "libs" / "common"),
-                 "status": "diverged"},
-                {"sha": "bbb1234567890123456789012345678901234567",
-                 "source_path": str(root / "backend" / "libs" / "common"),
-                 "status": "diverged"},
+                {
+                    "sha": "aaa1234567890123456789012345678901234567",
+                    "source_path": str(root / "frontend" / "libs" / "common"),
+                    "status": "diverged",
+                },
+                {
+                    "sha": "bbb1234567890123456789012345678901234567",
+                    "source_path": str(root / "backend" / "libs" / "common"),
+                    "status": "diverged",
+                },
             ],
         )
         state.save(state_path)

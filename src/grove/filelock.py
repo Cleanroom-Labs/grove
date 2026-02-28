@@ -5,6 +5,7 @@ File locking utilities for concurrent safety.
 Provides advisory locking via ``fcntl.flock`` so that multiple worktrees
 (or parallel grove invocations) cannot corrupt shared JSON state files.
 """
+
 from __future__ import annotations
 
 import fcntl

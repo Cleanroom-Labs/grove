@@ -8,8 +8,6 @@ from grove.config import (
     CONFIG_FILENAME,
     DEFAULT_COMMIT_MESSAGE,
     MergeConfig,
-    GroveConfig,
-    SyncGroup,
     get_sync_group_exclude_paths,
     load_config,
 )
@@ -19,7 +17,7 @@ class TestLoadConfig:
     def test_valid_config(self, tmp_path: Path):
         """A well-formed config should load correctly."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "my-shared-lib"\n'
             'standalone-repo = "/tmp/my-shared-lib"\n'
         )
@@ -34,7 +32,7 @@ class TestLoadConfig:
     def test_custom_commit_message(self, tmp_path: Path):
         """A custom commit-message should override the default."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[sync-groups.icons]\n'
+            "[sync-groups.icons]\n"
             'url-match = "my-icons"\n'
             'standalone-repo = "/tmp/my-icons"\n'
             'commit-message = "chore: update {group} to {sha}"\n'
@@ -46,7 +44,7 @@ class TestLoadConfig:
     def test_tilde_expansion(self, tmp_path: Path):
         """'~' in standalone-repo should be expanded."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "my-lib"\n'
             'standalone-repo = "~/Projects/my-lib"\n'
         )
@@ -58,11 +56,11 @@ class TestLoadConfig:
     def test_multiple_groups(self, tmp_path: Path):
         """Multiple sync groups should all be loaded."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "my-common"\n'
             'standalone-repo = "/tmp/common"\n'
-            '\n'
-            '[sync-groups.icons]\n'
+            "\n"
+            "[sync-groups.icons]\n"
             'url-match = "my-icons"\n'
             'standalone-repo = "/tmp/icons"\n'
         )
@@ -91,8 +89,7 @@ class TestLoadConfig:
     def test_missing_url_match_raises(self, tmp_path: Path):
         """A sync group without url-match should raise ValueError."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[sync-groups.bad]\n'
-            'standalone-repo = "/tmp/repo"\n'
+            '[sync-groups.bad]\nstandalone-repo = "/tmp/repo"\n'
         )
         with pytest.raises(ValueError, match="url-match"):
             load_config(tmp_path)
@@ -100,8 +97,7 @@ class TestLoadConfig:
     def test_missing_standalone_repo_loads_as_none(self, tmp_path: Path):
         """A sync group without standalone-repo should load with None."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[sync-groups.common]\n'
-            'url-match = "something"\n'
+            '[sync-groups.common]\nurl-match = "something"\n'
         )
         config = load_config(tmp_path)
         assert config.sync_groups["common"].standalone_repo is None
@@ -109,8 +105,7 @@ class TestLoadConfig:
     def test_valid_config_without_standalone_repo(self, tmp_path: Path):
         """A config with only url-match should load successfully."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[sync-groups.icons]\n'
-            'url-match = "my-icons"\n'
+            '[sync-groups.icons]\nurl-match = "my-icons"\n'
         )
         config = load_config(tmp_path)
         group = config.sync_groups["icons"]
@@ -121,7 +116,7 @@ class TestLoadConfig:
     def test_allow_drift_loaded(self, tmp_path: Path):
         """allow-drift paths should be loaded into the SyncGroup."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "my-lib"\n'
             'allow-drift = ["technical-docs/common"]\n'
         )
@@ -132,18 +127,14 @@ class TestLoadConfig:
     def test_allow_drift_default_empty(self, tmp_path: Path):
         """Omitted allow-drift should default to empty list."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[sync-groups.common]\n'
-            'url-match = "my-lib"\n'
+            '[sync-groups.common]\nurl-match = "my-lib"\n'
         )
         config = load_config(tmp_path)
         assert config.sync_groups["common"].allow_drift == []
 
     def test_non_table_group_raises(self, tmp_path: Path):
         """A sync group that is not a table should raise ValueError."""
-        (tmp_path / CONFIG_FILENAME).write_text(
-            '[sync-groups]\n'
-            'bad = "not a table"\n'
-        )
+        (tmp_path / CONFIG_FILENAME).write_text('[sync-groups]\nbad = "not a table"\n')
         with pytest.raises(ValueError, match="expected a table"):
             load_config(tmp_path)
 
@@ -165,8 +156,7 @@ class TestMergeConfig:
     def test_test_command(self, tmp_path: Path):
         """test-command should be loaded."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
-            'test-command = "pytest"\n'
+            '[worktree-merge]\ntest-command = "pytest"\n'
         )
         config = load_config(tmp_path)
         assert config.merge.test_command == "pytest"
@@ -174,10 +164,10 @@ class TestMergeConfig:
     def test_test_overrides(self, tmp_path: Path):
         """test-overrides should be loaded as a dict."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
+            "[worktree-merge]\n"
             'test-command = "pytest"\n'
-            '\n'
-            '[worktree-merge.test-overrides]\n'
+            "\n"
+            "[worktree-merge.test-overrides]\n"
             '"." = "npm test"\n'
             '"technical-docs" = "make html"\n'
             '"technical-docs/whisper" = ""\n'
@@ -190,8 +180,7 @@ class TestMergeConfig:
     def test_test_overrides_without_default(self, tmp_path: Path):
         """Overrides can exist without a default test-command."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[worktree-merge.test-overrides]\n'
-            '"." = "npm test"\n'
+            '[worktree-merge.test-overrides]\n"." = "npm test"\n'
         )
         config = load_config(tmp_path)
         assert config.merge.test_command is None
@@ -199,18 +188,14 @@ class TestMergeConfig:
 
     def test_invalid_test_command_type_raises(self, tmp_path: Path):
         """Non-string test-command should raise ValueError."""
-        (tmp_path / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
-            'test-command = 42\n'
-        )
+        (tmp_path / CONFIG_FILENAME).write_text("[worktree-merge]\ntest-command = 42\n")
         with pytest.raises(ValueError, match="test-command"):
             load_config(tmp_path)
 
     def test_invalid_test_overrides_type_raises(self, tmp_path: Path):
         """Non-table test-overrides should raise ValueError."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
-            'test-overrides = "bad"\n'
+            '[worktree-merge]\ntest-overrides = "bad"\n'
         )
         with pytest.raises(ValueError, match="test-overrides"):
             load_config(tmp_path)
@@ -218,8 +203,7 @@ class TestMergeConfig:
     def test_invalid_override_value_raises(self, tmp_path: Path):
         """Non-string override value should raise ValueError."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[worktree-merge.test-overrides]\n'
-            '"." = 42\n'
+            '[worktree-merge.test-overrides]\n"." = 42\n'
         )
         with pytest.raises(ValueError, match="test-overrides"):
             load_config(tmp_path)
@@ -227,10 +211,10 @@ class TestMergeConfig:
     def test_merge_config_alongside_sync_groups(self, tmp_path: Path):
         """Both sections should coexist."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "my-lib"\n'
-            '\n'
-            '[worktree-merge]\n'
+            "\n"
+            "[worktree-merge]\n"
             'test-command = "pytest"\n'
         )
         config = load_config(tmp_path)
@@ -247,49 +231,38 @@ class TestWorktreeConfig:
 
     def test_copy_venv_true(self, tmp_path: Path):
         """copy-venv = true should be loaded."""
-        (tmp_path / CONFIG_FILENAME).write_text(
-            '[worktree]\n'
-            'copy-venv = true\n'
-        )
+        (tmp_path / CONFIG_FILENAME).write_text("[worktree]\ncopy-venv = true\n")
         config = load_config(tmp_path)
         assert config.worktree.copy_venv is True
 
     def test_copy_venv_false(self, tmp_path: Path):
         """Explicit copy-venv = false should remain False."""
-        (tmp_path / CONFIG_FILENAME).write_text(
-            '[worktree]\n'
-            'copy-venv = false\n'
-        )
+        (tmp_path / CONFIG_FILENAME).write_text("[worktree]\ncopy-venv = false\n")
         config = load_config(tmp_path)
         assert config.worktree.copy_venv is False
 
     def test_non_boolean_copy_venv_raises(self, tmp_path: Path):
         """Non-boolean copy-venv should raise ValueError."""
-        (tmp_path / CONFIG_FILENAME).write_text(
-            '[worktree]\n'
-            'copy-venv = "yes"\n'
-        )
+        (tmp_path / CONFIG_FILENAME).write_text('[worktree]\ncopy-venv = "yes"\n')
         with pytest.raises(ValueError, match="copy-venv"):
             load_config(tmp_path)
 
     def test_non_table_worktree_raises(self, tmp_path: Path):
         """Non-table [worktree] should raise ValueError."""
-        (tmp_path / CONFIG_FILENAME).write_text(
-            'worktree = "bad"\n'
-        )
+        (tmp_path / CONFIG_FILENAME).write_text('worktree = "bad"\n')
         with pytest.raises(ValueError, match="expected a table"):
             load_config(tmp_path)
 
     def test_worktree_alongside_other_sections(self, tmp_path: Path):
         """[worktree] should coexist with sync-groups and cascade."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[sync-groups.common]\n'
+            "[sync-groups.common]\n"
             'url-match = "my-lib"\n'
-            '\n'
-            '[worktree]\n'
-            'copy-venv = true\n'
-            '\n'
-            '[cascade]\n'
+            "\n"
+            "[worktree]\n"
+            "copy-venv = true\n"
+            "\n"
+            "[cascade]\n"
             'local-tests = "pytest"\n'
         )
         config = load_config(tmp_path)
@@ -312,7 +285,7 @@ class TestCascadeConfig:
     def test_all_tiers(self, tmp_path: Path):
         """All four tiers should be loadable."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[cascade]\n'
+            "[cascade]\n"
             'local-tests = "pytest tests/unit"\n'
             'contract-tests = "pytest tests/contracts"\n'
             'integration-tests = "pytest tests/integration"\n'
@@ -327,9 +300,7 @@ class TestCascadeConfig:
     def test_partial_tiers(self, tmp_path: Path):
         """Only configured tiers should be set; others remain None."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[cascade]\n'
-            'local-tests = "pytest"\n'
-            'system-tests = "make e2e"\n'
+            '[cascade]\nlocal-tests = "pytest"\nsystem-tests = "make e2e"\n'
         )
         config = load_config(tmp_path)
         assert config.cascade.local_tests == "pytest"
@@ -340,8 +311,7 @@ class TestCascadeConfig:
     def test_local_tests_fallback_to_merge(self, tmp_path: Path):
         """local-tests should fall back to worktree-merge.test-command."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
-            'test-command = "pytest"\n'
+            '[worktree-merge]\ntest-command = "pytest"\n'
         )
         config = load_config(tmp_path)
         assert config.cascade.local_tests == "pytest"
@@ -349,9 +319,9 @@ class TestCascadeConfig:
     def test_explicit_local_tests_overrides_merge_fallback(self, tmp_path: Path):
         """Explicit local-tests should take precedence over merge fallback."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[worktree-merge]\n'
+            "[worktree-merge]\n"
             'test-command = "pytest"\n'
-            '[cascade]\n'
+            "[cascade]\n"
             'local-tests = "make test-unit"\n'
         )
         config = load_config(tmp_path)
@@ -360,9 +330,9 @@ class TestCascadeConfig:
     def test_per_repo_overrides(self, tmp_path: Path):
         """Per-repo overrides should be parsed correctly."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[cascade]\n'
+            "[cascade]\n"
             'local-tests = "pytest"\n'
-            '\n'
+            "\n"
             '[cascade.overrides."services/api"]\n'
             'local-tests = "npm test -- --unit"\n'
             'integration-tests = "npm test -- --integration"\n'
@@ -371,14 +341,17 @@ class TestCascadeConfig:
         overrides = config.cascade.overrides
         assert "services/api" in overrides
         assert overrides["services/api"]["local-tests"] == "npm test -- --unit"
-        assert overrides["services/api"]["integration-tests"] == "npm test -- --integration"
+        assert (
+            overrides["services/api"]["integration-tests"]
+            == "npm test -- --integration"
+        )
 
     def test_dot_repo_override(self, tmp_path: Path):
         """Root repo override with '.' should work."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[cascade]\n'
+            "[cascade]\n"
             'local-tests = "pytest"\n'
-            '\n'
+            "\n"
             '[cascade.overrides."."]\n'
             'local-tests = "make test-unit"\n'
             'system-tests = "make test-e2e"\n'
@@ -390,43 +363,33 @@ class TestCascadeConfig:
     def test_unknown_tier_in_overrides_raises(self, tmp_path: Path):
         """Unknown tier name in overrides should raise ValueError."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[cascade.overrides."services/api"]\n'
-            'unit-tests = "pytest"\n'
+            '[cascade.overrides."services/api"]\nunit-tests = "pytest"\n'
         )
         with pytest.raises(ValueError, match="unknown tier"):
             load_config(tmp_path)
 
     def test_non_string_tier_raises(self, tmp_path: Path):
         """Non-string tier value should raise ValueError."""
-        (tmp_path / CONFIG_FILENAME).write_text(
-            '[cascade]\n'
-            'local-tests = 42\n'
-        )
+        (tmp_path / CONFIG_FILENAME).write_text("[cascade]\nlocal-tests = 42\n")
         with pytest.raises(ValueError, match="expected a string"):
             load_config(tmp_path)
 
     def test_non_table_cascade_raises(self, tmp_path: Path):
         """Non-table [cascade] should raise ValueError."""
-        (tmp_path / CONFIG_FILENAME).write_text(
-            'cascade = "bad"\n'
-        )
+        (tmp_path / CONFIG_FILENAME).write_text('cascade = "bad"\n')
         with pytest.raises(ValueError, match="expected a table"):
             load_config(tmp_path)
 
     def test_non_table_overrides_raises(self, tmp_path: Path):
         """Non-table cascade.overrides should raise ValueError."""
-        (tmp_path / CONFIG_FILENAME).write_text(
-            '[cascade]\n'
-            'overrides = "bad"\n'
-        )
+        (tmp_path / CONFIG_FILENAME).write_text('[cascade]\noverrides = "bad"\n')
         with pytest.raises(ValueError, match="expected a table"):
             load_config(tmp_path)
 
     def test_non_string_override_value_raises(self, tmp_path: Path):
         """Non-string value in repo overrides should raise ValueError."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[cascade.overrides."services/api"]\n'
-            'local-tests = 42\n'
+            '[cascade.overrides."services/api"]\nlocal-tests = 42\n'
         )
         with pytest.raises(ValueError, match="expected a string"):
             load_config(tmp_path)
@@ -502,26 +465,19 @@ class TestAliasConfig:
     def test_aliases_parsed(self, tmp_path: Path):
         """[aliases] section should be parsed into mapping dict."""
         (tmp_path / CONFIG_FILENAME).write_text(
-            '[aliases]\n'
-            'wm = "worktree merge"\n'
-            'c = "check"\n'
+            '[aliases]\nwm = "worktree merge"\nc = "check"\n'
         )
         config = load_config(tmp_path)
         assert config.aliases.mapping == {"wm": "worktree merge", "c": "check"}
 
     def test_non_string_value_raises(self, tmp_path: Path):
         """Non-string alias value should raise ValueError."""
-        (tmp_path / CONFIG_FILENAME).write_text(
-            '[aliases]\n'
-            'bad = 42\n'
-        )
+        (tmp_path / CONFIG_FILENAME).write_text("[aliases]\nbad = 42\n")
         with pytest.raises(ValueError, match="aliases.bad"):
             load_config(tmp_path)
 
     def test_non_table_aliases_raises(self, tmp_path: Path):
         """Non-table [aliases] should raise ValueError."""
-        (tmp_path / CONFIG_FILENAME).write_text(
-            'aliases = "bad"\n'
-        )
+        (tmp_path / CONFIG_FILENAME).write_text('aliases = "bad"\n')
         with pytest.raises(ValueError, match="expected a table"):
             load_config(tmp_path)
