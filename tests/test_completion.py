@@ -34,7 +34,7 @@ class TestExtractStructure:
 
     def test_top_level_commands(self):
         expected = {
-            "init", "check", "push", "sync", "visualize",
+            "init", "check", "checkout", "push", "sync", "visualize",
             "worktree", "claude", "cascade", "completion",
         }
         assert expected == set(self.structure["commands"].keys())

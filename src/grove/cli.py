@@ -33,6 +33,7 @@ examples:
   grove sync               Sync all groups to latest
   grove sync common        Sync just "common" group
   grove sync common --commit abc123  Sync "common" to specific commit
+  grove checkout sub origin/main  Checkout ref with recursive submodule update
   grove init               Generate template .grove.toml in current directory
   grove init ../other-repo  Generate template .grove.toml at specified path
   grove visualize          Open interactive submodule visualizer
@@ -354,6 +355,41 @@ examples:
         help="Branch name to use (default: current branch of root worktree)",
     )
 
+    # --- grove checkout ---
+    checkout_parser = subparsers.add_parser(
+        "checkout",
+        help="Check out a ref on a submodule with recursive submodule init",
+        description="Check out a branch, tag, or commit SHA on a submodule "
+        "and recursively initialize/update all nested sub-submodules.\n\n"
+        "Replaces the manual git checkout + git submodule update dance.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+examples:
+  grove checkout technical-docs/transfer origin/main
+  grove checkout docs/spec-docs abc1234
+  grove checkout technical-docs/transfer origin/main --no-recurse
+  grove checkout technical-docs/transfer v1.0.0 --no-fetch
+""",
+    )
+    checkout_parser.add_argument(
+        "path",
+        help="Path to target repo (relative to repo root)",
+    )
+    checkout_parser.add_argument(
+        "ref",
+        help="Branch, tag, or commit SHA to checkout",
+    )
+    checkout_parser.add_argument(
+        "--no-recurse",
+        action="store_true",
+        help="Only checkout, skip recursive submodule update",
+    )
+    checkout_parser.add_argument(
+        "--no-fetch",
+        action="store_true",
+        help="Skip git fetch before checkout",
+    )
+
     # --- grove cascade ---
     cascade_parser = subparsers.add_parser(
         "cascade",
@@ -594,6 +630,10 @@ def main(argv=None):
 
     if args.command == "sync":
         from grove.sync import run
+        return run(args)
+
+    if args.command == "checkout":
+        from grove.checkout import run
         return run(args)
 
     if args.command == "cascade":
