@@ -8,3 +8,6 @@ __pycache__/
 .DS_Store
 .envrc
 .venv/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json

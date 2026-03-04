@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Pre-commit hook: block machine-specific paths and sensitive files
+#
+# Install once per clone:
+#   git config core.hooksPath .githooks
+
+set -euo pipefail
+
+RED='\033[0;31m'
+NC='\033[0m'
+
+errors=0
+
+# --- Check 1: Forbidden file patterns in staged files ---
+forbidden_patterns=(
+    'settings.local.json'
+    '.env'
+    '*.pem'
+    '*.key'
+    'id_rsa'
+    'id_ed25519'
+)
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+
+for pattern in "${forbidden_patterns[@]}"; do
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        case "$file" in
+            *${pattern})
+                echo -e "${RED}BLOCKED:${NC} Staged file matches forbidden pattern '${pattern}': ${file}"
+                errors=$((errors + 1))
+                ;;
+        esac
+    done <<< "$staged_files"
+done
+
+# --- Check 2: Absolute home directory paths in staged diffs ---
+if git diff --cached -U0 | grep -qE '^\+.*(/Users/|/home/)[a-zA-Z]'; then
+    echo -e "${RED}BLOCKED:${NC} Staged changes contain absolute home directory paths (/Users/ or /home/)."
+    echo "  Offending lines:"
+    git diff --cached -U0 | grep -nE '^\+.*(/Users/|/home/)[a-zA-Z]' | head -10
+    errors=$((errors + 1))
+fi
+
+# --- Result ---
+if [ "$errors" -gt 0 ]; then
+    echo ""
+    echo "Commit blocked. Fix the issues above or bypass with: git commit --no-verify"
+    exit 1
+fi
