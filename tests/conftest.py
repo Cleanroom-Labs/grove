@@ -10,6 +10,14 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
+@pytest.fixture(autouse=True)
+def _isolate_user_config_home(monkeypatch, tmp_path_factory):
+    """Keep tests deterministic by isolating user-level Grove config paths."""
+    config_home = tmp_path_factory.mktemp("grove-config-home")
+    monkeypatch.setenv("GROVE_CONFIG_HOME", str(config_home))
+    monkeypatch.delenv("GROVE_CONFIG_PATH", raising=False)
+
+
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
     """Run a git command inside *cwd* and return the CompletedProcess."""
     return subprocess.run(
