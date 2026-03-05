@@ -181,6 +181,7 @@ Preserve external import interface: `from grove.config import load_config, Grove
 pytest tests/test_config.py tests/test_user_config.py -v
 pytest -q  # full suite still passes
 ruff check src/ tests/
+python scripts/check_complexity.py
 ```
 
 ### Exit criteria
@@ -196,6 +197,16 @@ ruff check src/ tests/
 ---
 
 ## Phase 2: CLI Split and Backend Infrastructure
+
+### 2.0 Pre-refactor correctness checkpoint
+
+Before any structural refactoring in this phase, land these targeted fixes against the **existing** code and verify them with regression tests. This front-loads known safety/correctness defects so refactoring doesn't introduce regressions on top of unfixed bugs.
+
+1. **Unsafe remove fallback** — add dirty submodule check before `shutil.rmtree` in `worktree.py` (the full native-parity enhancement in 2.7 builds on this, but the safety fix lands first).
+2. **`run_git` invocation audit** — grep all `run_git` call sites and fix any that pass `cwd=` or misuse the path argument. Add a contract test confirming the `-C` flag pattern.
+3. **Nested sync remote fix** — fix `resolve_remote_url()` in `repo_utils.py` for nested `.gitmodules` (task 2.8b details the implementation).
+
+Each fix gets its own regression test before proceeding to the CLI split. If any fix touches code that will be moved in later tasks (e.g., `worktree.py` → dispatch changes in 2.9), the fix lands on the pre-move code so the test baseline is clean.
 
 ### 2.1 Extract `cli_parsers.py`
 
@@ -291,11 +302,15 @@ Flags:
 
 Add `--exclude-sync-group` flag to `grove worktree add`. When set, pass through to `init_submodules_command` to skip branch checkout for sync-group submodule members.
 
-### 2.8b Sync and repo-root contract tests
+### 2.8b Fix `resolve_remote_url()` for nested submodules
+
+Concrete code fix in `repo_utils.py`: `resolve_remote_url()` (or the equivalent remote-URL resolution path used during sync-group discovery) must search nested `.gitmodules` consistently with `discover_repos_from_gitmodules` scope. If the current implementation only reads the top-level `.gitmodules`, extend it to walk nested submodule directories. This is a known functional regression path and must be fixed before further refactoring.
+
+### 2.8c Sync and repo-root contract tests
 
 Add targeted tests verifying the design's sync and repo-root contracts:
 
-- **Sync contract**: remote URL resolution for nested `.gitmodules` is consistent with sync-group discovery behavior. Test `parse_gitmodules` / `discover_repos_from_gitmodules` in nested submodule scenarios.
+- **Sync contract**: remote URL resolution for nested `.gitmodules` is consistent with sync-group discovery behavior. Test `parse_gitmodules` / `discover_repos_from_gitmodules` in nested submodule scenarios. Include a test that verifies the 2.8b fix.
 - **Repo-root contract**: commands invoked from nested directories (including within submodules) correctly discover the repo root. Test `find_repo_root` at submodule boundaries.
 - **`run_git` path contract**: verify `run_git(path, *args)` uses `-C` flag and does not accept `cwd=`. Add a contract test that confirms the first positional arg is used as the `-C` path.
 
@@ -317,6 +332,7 @@ Update `run(args)` to route new worktree subcommands (`switch`, `list`, `step`, 
 pytest tests/test_cli.py tests/test_cli_parser_shape.py tests/test_worktree_backend.py tests/test_worktree.py tests/test_contracts.py -v
 pytest -q
 ruff check src/ tests/
+python scripts/check_complexity.py
 ```
 
 ### Exit criteria
@@ -415,6 +431,7 @@ Each call site passes `--no-verify` passthrough where applicable. Tests must ver
 pytest tests/test_worktree_switch.py tests/test_worktree_list.py tests/test_hooks.py -v
 pytest -q
 ruff check src/ tests/
+python scripts/check_complexity.py
 ```
 
 ### Exit criteria
@@ -463,6 +480,7 @@ Helpers:
 pytest tests/test_worktree_step.py -v
 pytest -q
 ruff check src/ tests/
+python scripts/check_complexity.py
 ```
 
 ### Exit criteria
@@ -524,6 +542,7 @@ llm = ["strands-agents[ollama]", "strands-agents-tools", "claude-agent-sdk"]
 pytest tests/test_llm.py tests/test_worktree_step.py -v
 pytest -q
 ruff check src/ tests/
+python scripts/check_complexity.py
 ```
 
 ### Exit criteria
@@ -570,6 +589,7 @@ Add completions for new subcommands: `switch`, `list`, `init-submodules`, `step 
 pytest tests/test_config_import.py tests/test_completion.py -v
 pytest -q
 ruff check src/ tests/
+python scripts/check_complexity.py
 ```
 
 ### Exit criteria
@@ -670,13 +690,20 @@ These must pass before proceeding to the next phase:
 ruff check src/ tests/
 ruff format --check src/ tests/
 pytest -q                      # or phase-targeted subset + full run before commit
+python scripts/check_complexity.py
 ```
 
 After Phase 2, additionally:
 - `tests/test_cli_parser_shape.py` — CLI surface matches expected shape
 
-Complexity gate (every phase):
-- No function exceeds 180 lines. Verify with `scripts/check_complexity.py` (checked into repo). The script walks all `.py` files under `src/grove/` recursively (including nested packages), parses each with `ast`, and exits non-zero if any function/method exceeds the limit. Run as: `python scripts/check_complexity.py`. Also add as a pytest test (`tests/test_complexity.py`) so CI enforces it automatically.
+### Complexity gate
+
+Canonical command: `python scripts/check_complexity.py`
+
+- `scripts/check_complexity.py` — walks `src/grove/**/*.py` recursively, parses each with `ast`, exits non-zero if any function/method exceeds 180 lines. Created in Phase 0.
+- `tests/test_complexity.py` — pytest wrapper that calls the script so CI enforces the gate automatically.
+- Every per-phase verify block includes `python scripts/check_complexity.py`.
+- CI runs the same command as a job step.
 
 ---
 
