@@ -29,18 +29,58 @@ def _translate_wt_to_grove(raw: dict) -> dict:
     return dict(raw)
 
 
+def _report_conflicts(
+    existing: dict, incoming: dict, *, _prefix: str = ""
+) -> list[str]:
+    """Return dotted-path conflicts where incoming values differ from existing."""
+    conflicts: list[str] = []
+    for key, incoming_value in incoming.items():
+        path = f"{_prefix}.{key}" if _prefix else key
+        if key not in existing:
+            continue
+
+        existing_value = existing[key]
+        if isinstance(existing_value, dict) and isinstance(incoming_value, dict):
+            conflicts.extend(
+                _report_conflicts(existing_value, incoming_value, _prefix=path)
+            )
+            continue
+
+        if existing_value != incoming_value:
+            conflicts.append(
+                f"{path}: existing={existing_value!r}, incoming={incoming_value!r}"
+            )
+    return conflicts
+
+
 def _import_one(source: Path, target: Path, *, dry_run: bool, force: bool) -> int:
     imported = _translate_wt_to_grove(load_toml_file(source))
 
+    existing: dict = {}
+    if target.exists():
+        existing = load_toml_file(target)
+
     if target.exists() and not force:
-        merged = merge_dicts(load_toml_file(target), imported)
+        conflicts = _report_conflicts(existing, imported)
+        if conflicts:
+            print(Colors.red(f"Import conflicts for {target}:"))
+            for conflict in conflicts:
+                print(f"  - {conflict}")
+            print("Re-run with --force to overwrite conflicting values.")
+            return 1
+        merged = merge_dicts(existing, imported)
     else:
         merged = imported
 
     rendered = dump_toml(merged)
 
     if dry_run:
-        action = "replace" if target.exists() and force else "write"
+        if target.exists() and force:
+            action = "replace"
+        elif target.exists():
+            action = "merge"
+        else:
+            action = "write"
         print(f"Would {action} {target} from {source}:")
         print()
         print(rendered, end="")

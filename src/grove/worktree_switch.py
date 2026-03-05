@@ -32,6 +32,49 @@ _SANITIZE_RE = re.compile(r"[^A-Za-z0-9._-]+")
 _WT_ONLY_SHORTCUT_RE = re.compile(r"^(pr|mr):\d+$")
 
 
+def generate_shell_wrapper(shell_name: str) -> str:
+    """Generate a shell wrapper that applies grove directory directives."""
+    if shell_name in ("bash", "zsh"):
+        return f"""# grove shell integration ({shell_name})
+# eval "$(grove shell init {shell_name})"
+grove() {{
+    local directive_file
+    directive_file="$(mktemp)"
+    command grove --directive-file "$directive_file" "$@"
+    local exit_code=$?
+    if [ -f "$directive_file" ]; then
+        local target_dir
+        target_dir="$(cat "$directive_file")"
+        if [ -n "$target_dir" ]; then
+            cd "$target_dir" || return $exit_code
+        fi
+        rm -f "$directive_file"
+    fi
+    return $exit_code
+}}
+"""
+
+    if shell_name == "fish":
+        return """# grove shell integration (fish)
+# grove shell init fish | source
+function grove
+    set -l directive_file (mktemp)
+    command grove --directive-file "$directive_file" $argv
+    set -l exit_code $status
+    if test -f "$directive_file"
+        set -l target_dir (cat "$directive_file")
+        if test -n "$target_dir"
+            cd "$target_dir"
+        end
+        rm -f "$directive_file"
+    end
+    return $exit_code
+end
+"""
+
+    raise ValueError(f"unsupported shell: {shell_name}")
+
+
 def _manager_root(rows: list[dict], fallback: Path) -> Path:
     """Return the main worktree path used for shared state and branch ops."""
     if rows and rows[0].get("path"):

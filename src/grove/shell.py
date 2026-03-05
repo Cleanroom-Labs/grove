@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 
 from grove.repo_utils import Colors
+from grove.worktree_switch import generate_shell_wrapper
 
 
 def _detect_shell_name() -> str | None:
@@ -18,48 +19,6 @@ def _detect_shell_name() -> str | None:
         return None
     name = Path(shell).name
     return name if name in ("bash", "zsh", "fish") else None
-
-
-def _render_bash_like_wrapper(shell_name: str) -> str:
-    """Render a bash/zsh wrapper for `grove`."""
-    return f"""# grove shell integration ({shell_name})
-# eval "$(grove shell init {shell_name})"
-grove() {{
-    local directive_file
-    directive_file="$(mktemp)"
-    command grove --directive-file "$directive_file" "$@"
-    local exit_code=$?
-    if [ -f "$directive_file" ]; then
-        local target_dir
-        target_dir="$(cat "$directive_file")"
-        if [ -n "$target_dir" ]; then
-            cd "$target_dir" || return $exit_code
-        fi
-        rm -f "$directive_file"
-    fi
-    return $exit_code
-}}
-"""
-
-
-def _render_fish_wrapper() -> str:
-    """Render a fish wrapper for `grove`."""
-    return """# grove shell integration (fish)
-# grove shell init fish | source
-function grove
-    set -l directive_file (mktemp)
-    command grove --directive-file "$directive_file" $argv
-    set -l exit_code $status
-    if test -f "$directive_file"
-        set -l target_dir (cat "$directive_file")
-        if test -n "$target_dir"
-            cd "$target_dir"
-        end
-        rm -f "$directive_file"
-    end
-    return $exit_code
-end
-"""
 
 
 def run(args) -> int:
@@ -75,12 +34,9 @@ def run(args) -> int:
         )
         return 1
 
-    if shell_name in ("bash", "zsh"):
-        print(_render_bash_like_wrapper(shell_name))
+    try:
+        print(generate_shell_wrapper(shell_name))
         return 0
-    if shell_name == "fish":
-        print(_render_fish_wrapper())
-        return 0
-
-    print(f"{Colors.red('Error')}: unsupported shell: {shell_name}")
-    return 1
+    except ValueError:
+        print(f"{Colors.red('Error')}: unsupported shell: {shell_name}")
+        return 1

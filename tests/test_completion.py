@@ -195,6 +195,13 @@ class TestExtractStructure:
         config = self.structure["commands"]["config"]
         assert {"import-wt"} == set(config["commands"].keys())
 
+    def test_config_import_wt_flags(self):
+        flags = self.structure["commands"]["config"]["commands"]["import-wt"]["flags"]
+        assert "--user" in flags
+        assert "--project" in flags
+        assert "--dry-run" in flags
+        assert "--force" in flags
+
 
 # ---------------------------------------------------------------------------
 # Bash completion
