@@ -103,11 +103,15 @@ Verify the starting point is clean and record baseline metrics.
    ruff check src/ tests/
    ruff format --check src/ tests/
    ```
-2. Commit this plan document and the updated design doc.
+2. Create `scripts/check_complexity.py` — walks `src/grove/**/*.py`, parses with `ast`, reports and exits non-zero if any function/method exceeds 180 lines.
+3. Create `tests/test_complexity.py` — calls the script so CI enforces the gate automatically.
+4. Verify existing code passes the complexity gate.
+5. Commit this plan document, the updated design doc, and the complexity gate script/test.
 
 ### Exit criteria
 
 - All checks pass. Baseline metrics recorded.
+- Complexity gate script exists and passes against current codebase.
 
 ### Commit
 
@@ -249,9 +253,11 @@ Shared helpers:
 - `normalize_remainder_args(extra_args)`
 - `emit_switch_target(args, target_path)`
 
-### 2.7 Fix `remove_worktree` safety bug
+### 2.7 Enhance `remove_worktree` to full native parity
 
-In `worktree.py`, add dirty submodule check before the `shutil.rmtree` fallback:
+Extend the existing `remove_worktree` in `worktree.py` to cover the full design CLI surface:
+
+**Safety fix** — dirty submodule check before the `shutil.rmtree` fallback:
 
 ```python
 if not force and _has_dirty_children(worktree_path):
@@ -259,6 +265,17 @@ if not force and _has_dirty_children(worktree_path):
     print("Use --force to remove anyway.")
     return 1
 ```
+
+**Full native remove behavior:**
+- `[BRANCHES]...` — accept multiple branches; default to current worktree branch if none specified
+- `--no-delete-branch` — keep the branch after removing the worktree (default: delete merged branches)
+- `-D, --force-delete` — delete branch even if unmerged
+- `--foreground` — silently accept (native is always foreground)
+- `--no-verify` — skip `pre-remove` / `post-remove` hooks
+- `-y, --yes` — skip approval prompt
+- `-f, --force` — force worktree removal (bypasses dirty check and unmerged integration check)
+- Run `pre-remove` hooks before removal (fail-fast); run `post-remove` hooks after
+- Integration check: warn if branch has unmerged commits relative to target branch (unless `--force` or `--force-delete`)
 
 ### 2.8 Add `init_submodules_command` standalone entry point
 
@@ -291,7 +308,7 @@ Update `run(args)` to route new worktree subcommands (`switch`, `list`, `step`, 
 - `tests/test_worktree_backend.py` — `_resolve_backend`, delegation functions, config synthesis, delegated `--dry-run` behavior (`"will run: wt <command>"` and stop)
 - `tests/test_cli_parser_shape.py` — parser stability
 - Update `tests/test_cli.py` — three-file structure, dispatch routing
-- Update `tests/test_worktree.py` — dirty submodule check on remove (regression test), `init_submodules_command` flags (`--exclude-sync-group`, `--reference`, `--branch`), `worktree add --exclude-sync-group`
+- Update `tests/test_worktree.py` — full remove native parity (multi-branch removal, `--no-delete-branch`, `--force-delete` for unmerged branches, `--yes` prompt bypass, dirty submodule safety regression, integration check warning), `init_submodules_command` flags (`--exclude-sync-group`, `--reference`, `--branch`), `worktree add --exclude-sync-group`
 - `tests/test_contracts.py` — sync contract (nested `.gitmodules` resolution), repo-root contract (nested directory discovery), `run_git` path-as-first-arg contract
 
 ### Verify
@@ -307,7 +324,7 @@ ruff check src/ tests/
 - CLI split complete, parser-shape test passes.
 - Backend resolution and delegation functions exist with tests.
 - Delegated `--dry-run` behavior tested.
-- Remove safety bug fixed with regression test.
+- Full `remove_worktree` native parity with regression test (dirty check, multi-branch, branch cleanup flags, hooks, integration check).
 - `init_submodules_command` standalone entry point with all flags tested.
 - `worktree add --exclude-sync-group` tested.
 - Sync, repo-root, and `run_git` contract tests pass.
@@ -369,11 +386,28 @@ Module entry: `run(args)` calls `maybe_delegate_list()`, then native list.
 - Shell-only hooks (`pre-switch`, `post-switch`): warn and skip in native mode
 - Background hooks (`post-start`, `post-remove`): run in foreground with warning in native mode
 
+### 3.3a Wire hook invocation points across commands
+
+All hook types from the design must have explicit call sites. The wiring:
+
+| Hook | Invoked from | Call site |
+|------|-------------|-----------|
+| `post-create` | `worktree_switch.py` (create path), `worktree.py` (`add_worktree`) | after worktree creation + submodule init |
+| `post-start` | `worktree_switch.py` (create path) | after `post-create` completes; foreground with warning in native mode |
+| `pre-switch` / `post-switch` | `worktree_switch.py` | warn and skip in native mode |
+| `pre-commit` | `worktree_step.py` (`_run_commit`) | before staging/commit |
+| `pre-merge` | `worktree_merge.py` or `worktree_step.py` (merge lifecycle) | before merge begins; fail-fast |
+| `post-merge` | `worktree_merge.py` or `worktree_step.py` (merge lifecycle) | after merge completes |
+| `pre-remove` | `worktree.py` (`remove_worktree`) | before removal; fail-fast |
+| `post-remove` | `worktree.py` (`remove_worktree`) | after removal; foreground with warning in native mode |
+
+Each call site passes `--no-verify` passthrough where applicable. Tests must verify each hook fires at the correct point.
+
 ### 3.4 Tests
 
 - `tests/test_worktree_switch.py` — shortcuts, create-on-demand, state persistence, shell wrappers, `pr:N` fail-fast, `--clobber`, `--no-verify`
 - `tests/test_worktree_list.py` — table/JSON output, metadata enrichment, branch/remote rows
-- `tests/test_hooks.py` — template expansion, hook execution, show/expanded, string shorthand, approval flow, shell-only warnings
+- `tests/test_hooks.py` — template expansion, hook execution, show/expanded, string shorthand, approval flow, shell-only warnings, hook wiring integration (verify each hook type fires from its documented call site: `post-create`/`post-start` from switch create path, `pre-merge`/`post-merge` from merge, `pre-remove`/`post-remove` from remove, `pre-commit` from step commit, `--no-verify` suppression)
 
 ### Verify
 
@@ -642,7 +676,7 @@ After Phase 2, additionally:
 - `tests/test_cli_parser_shape.py` — CLI surface matches expected shape
 
 Complexity gate (every phase):
-- No function exceeds 180 lines. Verify with: `python -c "import ast, sys; [print(f'{f.name}:{f.end_lineno - f.lineno + 1}') for f in ast.walk(ast.parse(open(sys.argv[1]).read())) if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)) and f.end_lineno - f.lineno + 1 > 180]"` across all `src/grove/*.py` files. If any function exceeds the limit, refactor before proceeding.
+- No function exceeds 180 lines. Verify with `scripts/check_complexity.py` (checked into repo). The script walks all `.py` files under `src/grove/` recursively (including nested packages), parses each with `ast`, and exits non-zero if any function/method exceeds the limit. Run as: `python scripts/check_complexity.py`. Also add as a pytest test (`tests/test_complexity.py`) so CI enforces it automatically.
 
 ---
 
