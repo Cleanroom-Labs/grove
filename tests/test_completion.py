@@ -41,8 +41,10 @@ class TestExtractStructure:
             "push",
             "sync",
             "visualize",
+            "shell",
             "worktree",
             "claude",
+            "config",
             "cascade",
             "completion",
         }
@@ -51,11 +53,28 @@ class TestExtractStructure:
     def test_top_level_flags(self):
         assert "--no-color" in self.structure["flags"]
 
+    def test_init_flags(self):
+        init_flags = self.structure["commands"]["init"]["flags"]
+        assert "--legacy" in init_flags
+        assert "--force" in init_flags
+
     def test_worktree_subcommands(self):
         wt = self.structure["commands"]["worktree"]
-        assert {"add", "remove", "merge", "checkout-branches"} == set(
-            wt["commands"].keys()
-        )
+        assert {
+            "add",
+            "init-submodules",
+            "switch",
+            "list",
+            "remove",
+            "hook",
+            "step",
+            "merge",
+            "checkout-branches",
+        } == set(wt["commands"].keys())
+
+    def test_worktree_top_level_flags(self):
+        wt_flags = self.structure["commands"]["worktree"]["flags"]
+        assert "--config" in wt_flags
 
     def test_claude_subcommands(self):
         cl = self.structure["commands"]["claude"]
@@ -87,11 +106,93 @@ class TestExtractStructure:
         add_flags = self.structure["commands"]["worktree"]["commands"]["add"]["flags"]
         assert "-b" in add_flags
         assert "--no-local-remotes" in add_flags
+        assert "--exclude-sync-group" in add_flags
+
+    def test_worktree_init_submodules_flags(self):
+        init_flags = self.structure["commands"]["worktree"]["commands"][
+            "init-submodules"
+        ]["flags"]
+        assert "--reference" in init_flags
+        assert "--branch" in init_flags
+        assert "--no-local-remotes" in init_flags
+        assert "--exclude-sync-group" in init_flags
+
+    def test_worktree_list_flags(self):
+        list_flags = self.structure["commands"]["worktree"]["commands"]["list"]["flags"]
+        assert "--config" in list_flags
+        assert "--format" in list_flags
+        assert "--branches" in list_flags
+        assert "--remotes" in list_flags
+        assert "--full" in list_flags
+        assert "--progressive" in list_flags
+
+    def test_worktree_switch_flags(self):
+        switch_flags = self.structure["commands"]["worktree"]["commands"]["switch"][
+            "flags"
+        ]
+        assert "--config" in switch_flags
+        assert "--branches" in switch_flags
+        assert "--remotes" in switch_flags
+        assert "--create" in switch_flags
+        assert "--base" in switch_flags
+        assert "--execute" in switch_flags
+        assert "--clobber" in switch_flags
+        assert "--no-cd" in switch_flags
+        assert "--no-verify" in switch_flags
+
+    def test_worktree_remove_flags(self):
+        remove_flags = self.structure["commands"]["worktree"]["commands"]["remove"][
+            "flags"
+        ]
+        assert "--force" in remove_flags
+        assert "--no-delete-branch" in remove_flags
+        assert "--force-delete" in remove_flags
+        assert "--foreground" in remove_flags
+        assert "--no-verify" in remove_flags
+        assert "--yes" in remove_flags
+
+    def test_worktree_hook_flags(self):
+        hook_flags = self.structure["commands"]["worktree"]["commands"]["hook"]["flags"]
+        assert "--expanded" in hook_flags
+        assert "--var" in hook_flags
+        assert "--yes" in hook_flags
+
+    def test_worktree_step_subcommands(self):
+        step = self.structure["commands"]["worktree"]["commands"]["step"]
+        assert {
+            "commit",
+            "squash",
+            "push",
+            "rebase",
+            "diff",
+            "copy-ignored",
+            "for-each",
+            "promote",
+            "prune",
+            "relocate",
+        } == set(step["commands"].keys())
+
+    def test_worktree_step_commit_flags(self):
+        flags = self.structure["commands"]["worktree"]["commands"]["step"]["commands"][
+            "commit"
+        ]["flags"]
+        assert "--config" in flags
+        assert "--stage" in flags
+        assert "--show-prompt" in flags
+        assert "--no-verify" in flags
 
     def test_completion_subcommands(self):
         comp = self.structure["commands"]["completion"]
         assert {"bash", "zsh", "fish", "install"} == set(comp["commands"].keys())
         assert comp["choices"] == []
+
+    def test_shell_subcommands(self):
+        shell = self.structure["commands"]["shell"]
+        assert {"init"} == set(shell["commands"].keys())
+
+    def test_config_subcommands(self):
+        config = self.structure["commands"]["config"]
+        assert {"import-wt"} == set(config["commands"].keys())
 
 
 # ---------------------------------------------------------------------------

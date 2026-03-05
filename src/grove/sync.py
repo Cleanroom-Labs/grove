@@ -91,26 +91,28 @@ class SyncSubmodule:
 
 
 def resolve_remote_url(repo_root: Path, url_match: str) -> str | None:
-    """Return the remote URL from .gitmodules for the first submodule matching *url_match*.
-
-    Searches the root .gitmodules only (not nested).  Returns ``None``
-    when no match is found or .gitmodules doesn't exist.
-    """
-    entries = parse_gitmodules(repo_root / ".gitmodules", url_match=url_match)
-    if entries:
-        _name, _path, url = entries[0]
-        return url
+    """Return the first matching remote URL from any nested ``.gitmodules`` file."""
+    for gitmodules_path in _iter_gitmodules_paths(repo_root):
+        entries = parse_gitmodules(gitmodules_path, url_match=url_match)
+        if entries:
+            _name, _path, url = entries[0]
+            return url
     return None
+
+
+def _iter_gitmodules_paths(repo_root: Path):
+    """Yield ``.gitmodules`` paths beneath *repo_root* in stable order."""
+    for gitmodules_path in sorted(repo_root.rglob(".gitmodules")):
+        if "node_modules" in gitmodules_path.parts:
+            continue
+        yield gitmodules_path
 
 
 def discover_sync_submodules(repo_root: Path, url_match: str) -> list[SyncSubmodule]:
     """Discover all submodule locations matching *url_match* by parsing .gitmodules files."""
     submodules = []
 
-    for gitmodules_path in repo_root.rglob(".gitmodules"):
-        if "node_modules" in gitmodules_path.parts:
-            continue
-
+    for gitmodules_path in _iter_gitmodules_paths(repo_root):
         parent_repo = gitmodules_path.parent
         entries = parse_gitmodules(gitmodules_path, url_match=url_match)
 

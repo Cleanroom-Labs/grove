@@ -1,5 +1,6 @@
 """Shared fixtures for grove tests."""
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,19 @@ def _isolate_user_config_home(monkeypatch, tmp_path_factory):
     config_home = tmp_path_factory.mktemp("grove-config-home")
     monkeypatch.setenv("GROVE_CONFIG_HOME", str(config_home))
     monkeypatch.delenv("GROVE_CONFIG_PATH", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _hide_wt_binary(monkeypatch):
+    """Keep tests deterministic by defaulting `wt` backend discovery to unavailable."""
+    real_which = shutil.which
+
+    def _which(cmd: str, *args, **kwargs):
+        if cmd == "wt":
+            return None
+        return real_which(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "which", _which)
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:

@@ -28,6 +28,8 @@ def _get_flags(parser: argparse.ArgumentParser) -> list[str]:
     for action in parser._actions:
         if isinstance(action, argparse._HelpAction):
             continue
+        if action.help == argparse.SUPPRESS:
+            continue
         for opt in action.option_strings:
             flags.append(opt)
     return flags

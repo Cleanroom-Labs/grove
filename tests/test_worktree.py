@@ -13,6 +13,7 @@ from grove.worktree import (
     _init_submodules,
     _run_direnv_allow,
     add_worktree,
+    init_submodules,
     remove_worktree,
 )
 
@@ -124,6 +125,65 @@ class TestAddWorktree:
         # Verify actual content from the grandchild repo
         assert (wt_path / "technical-docs" / "common" / "theme.txt").exists()
 
+    def test_sync_group_submodules_get_branches_by_default(
+        self,
+        tmp_submodule_tree: Path,
+    ):
+        """Sync-group submodules should be checked out onto the worktree branch."""
+        wt_path = tmp_submodule_tree.parent / "test-wt"
+        args = argparse.Namespace(
+            branch="test-branch",
+            path=str(wt_path),
+            create_branch=True,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = add_worktree(args)
+
+        assert result == 0
+        child_branch = _git(
+            wt_path / "technical-docs",
+            "branch",
+            "--show-current",
+        ).stdout.strip()
+        common_branch = _git(
+            wt_path / "technical-docs" / "common",
+            "branch",
+            "--show-current",
+        ).stdout.strip()
+        assert child_branch == "test-branch"
+        assert common_branch == "test-branch"
+
+    def test_exclude_sync_group_keeps_sync_group_submodule_detached(
+        self,
+        tmp_submodule_tree: Path,
+    ):
+        """--exclude-sync-group should leave sync-group submodules detached."""
+        wt_path = tmp_submodule_tree.parent / "test-wt"
+        args = argparse.Namespace(
+            branch="test-branch",
+            path=str(wt_path),
+            create_branch=True,
+            exclude_sync_group=True,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = add_worktree(args)
+
+        assert result == 0
+        child_branch = _git(
+            wt_path / "technical-docs",
+            "branch",
+            "--show-current",
+        ).stdout.strip()
+        common_branch = _git(
+            wt_path / "technical-docs" / "common",
+            "branch",
+            "--show-current",
+        ).stdout.strip()
+        assert child_branch == "test-branch"
+        assert common_branch == ""
+
     def test_checkout_existing_branch(self, tmp_submodule_tree: Path):
         """--checkout should use an existing branch without creating a new one."""
         _git(tmp_submodule_tree, "branch", "existing-branch")
@@ -222,6 +282,251 @@ class TestRemoveWorktree:
         assert result == 0
         assert not wt_path.exists()
 
+    def test_remove_by_branch_deletes_safe_branch(self, tmp_submodule_tree: Path):
+        """Branch targets should remove the worktree and delete safe branches."""
+        wt_path = tmp_submodule_tree.parent / "branch-rm-wt"
+        _git(tmp_submodule_tree, "worktree", "add", "-b", "branch-rm", str(wt_path))
+
+        args = argparse.Namespace(
+            targets=["branch-rm"],
+            force=False,
+            no_delete_branch=False,
+            force_delete=False,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = remove_worktree(args)
+
+        assert result == 0
+        assert not wt_path.exists()
+        branches = _git(
+            tmp_submodule_tree, "branch", "--format=%(refname:short)"
+        ).stdout.splitlines()
+        assert "branch-rm" not in branches
+
+    def test_remove_defaults_to_current_branch(self, tmp_submodule_tree: Path):
+        """With no target, remove should default to the current worktree branch."""
+        wt_path = tmp_submodule_tree.parent / "current-rm-wt"
+        _git(tmp_submodule_tree, "worktree", "add", "-b", "current-rm", str(wt_path))
+
+        args = argparse.Namespace(
+            targets=[],
+            force=False,
+            no_delete_branch=False,
+            force_delete=False,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=wt_path):
+            result = remove_worktree(args)
+
+        assert result == 0
+        assert not wt_path.exists()
+        branches = _git(
+            tmp_submodule_tree, "branch", "--format=%(refname:short)"
+        ).stdout.splitlines()
+        assert "current-rm" not in branches
+
+    def test_remove_keeps_unmerged_branch_without_force_delete(
+        self,
+        tmp_submodule_tree: Path,
+    ):
+        """Unmerged branches should be kept unless -D is passed."""
+        wt_path = tmp_submodule_tree.parent / "keep-branch-wt"
+        _git(tmp_submodule_tree, "worktree", "add", "-b", "keep-branch", str(wt_path))
+        (wt_path / "feature.txt").write_text("feature\n")
+        _git(wt_path, "add", "feature.txt")
+        _git(wt_path, "commit", "-m", "Feature work")
+
+        args = argparse.Namespace(
+            targets=["keep-branch"],
+            force=False,
+            no_delete_branch=False,
+            force_delete=False,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = remove_worktree(args)
+
+        assert result == 0
+        assert not wt_path.exists()
+        branches = _git(
+            tmp_submodule_tree, "branch", "--format=%(refname:short)"
+        ).stdout.splitlines()
+        assert "keep-branch" in branches
+
+    def test_remove_force_delete_removes_unmerged_branch(
+        self,
+        tmp_submodule_tree: Path,
+    ):
+        """-D should delete the branch even when it is not safely merged."""
+        wt_path = tmp_submodule_tree.parent / "force-delete-wt"
+        _git(tmp_submodule_tree, "worktree", "add", "-b", "force-delete", str(wt_path))
+        (wt_path / "feature.txt").write_text("feature\n")
+        _git(wt_path, "add", "feature.txt")
+        _git(wt_path, "commit", "-m", "Feature work")
+
+        args = argparse.Namespace(
+            targets=["force-delete"],
+            force=False,
+            no_delete_branch=False,
+            force_delete=True,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = remove_worktree(args)
+
+        assert result == 0
+        assert not wt_path.exists()
+        branches = _git(
+            tmp_submodule_tree, "branch", "--format=%(refname:short)"
+        ).stdout.splitlines()
+        assert "force-delete" not in branches
+
+    def test_remove_no_delete_branch_keeps_branch(self, tmp_submodule_tree: Path):
+        """--no-delete-branch should preserve the branch after removal."""
+        wt_path = tmp_submodule_tree.parent / "no-delete-wt"
+        _git(tmp_submodule_tree, "worktree", "add", "-b", "no-delete", str(wt_path))
+
+        args = argparse.Namespace(
+            targets=["no-delete"],
+            force=False,
+            no_delete_branch=True,
+            force_delete=False,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = remove_worktree(args)
+
+        assert result == 0
+        assert not wt_path.exists()
+        branches = _git(
+            tmp_submodule_tree, "branch", "--format=%(refname:short)"
+        ).stdout.splitlines()
+        assert "no-delete" in branches
+
+    def test_remove_main_worktree_is_rejected(self, tmp_submodule_tree: Path):
+        """Native remove should refuse to delete the main worktree."""
+        args = argparse.Namespace(
+            targets=[],
+            force=False,
+            no_delete_branch=False,
+            force_delete=False,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = remove_worktree(args)
+
+        assert result == 1
+        assert tmp_submodule_tree.exists()
+
+    def test_remove_runs_pre_and_post_hooks(self, tmp_submodule_tree: Path):
+        """pre-remove and post-remove hooks should run unless --no-verify is set."""
+        wt_path = tmp_submodule_tree.parent / "hooks-rm-wt"
+        _git(tmp_submodule_tree, "worktree", "add", "-b", "hooks-rm", str(wt_path))
+        existing_config = (tmp_submodule_tree / ".grove.toml").read_text()
+        (tmp_submodule_tree / ".grove.toml").write_text(
+            existing_config
+            + '\n[pre-remove]\nrecord = "echo pre-{{ branch }} >> .hook-log"\n'
+            + '[post-remove]\nrecord = "echo post-{{ branch }} >> .hook-log"\n'
+        )
+
+        args = argparse.Namespace(
+            targets=["hooks-rm"],
+            force=False,
+            no_delete_branch=False,
+            force_delete=False,
+            no_verify=False,
+            yes=True,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = remove_worktree(args)
+
+        assert result == 0
+        lines = (tmp_submodule_tree / ".hook-log").read_text().splitlines()
+        assert "pre-hooks-rm" in lines
+        assert "post-hooks-rm" in lines
+
+    def test_remove_no_verify_skips_hooks(self, tmp_submodule_tree: Path):
+        """--no-verify should suppress remove hook execution."""
+        wt_path = tmp_submodule_tree.parent / "hooks-skip-rm-wt"
+        _git(tmp_submodule_tree, "worktree", "add", "-b", "hooks-skip-rm", str(wt_path))
+        existing_config = (tmp_submodule_tree / ".grove.toml").read_text()
+        (tmp_submodule_tree / ".grove.toml").write_text(
+            existing_config + '\n[pre-remove]\nrecord = "echo touched >> .hook-log"\n'
+        )
+
+        args = argparse.Namespace(
+            targets=["hooks-skip-rm"],
+            force=False,
+            no_delete_branch=False,
+            force_delete=False,
+            no_verify=True,
+            yes=True,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = remove_worktree(args)
+
+        assert result == 0
+        assert not (tmp_submodule_tree / ".hook-log").exists()
+
+
+class TestInitSubmodulesCommand:
+    def test_initializes_existing_worktree_and_branches_submodules(
+        self,
+        tmp_submodule_tree: Path,
+    ):
+        """init-submodules should initialize and branch submodules in a plain worktree."""
+        wt_path = tmp_submodule_tree.parent / "plain-wt"
+        _git(tmp_submodule_tree, "worktree", "add", "-b", "plain-branch", str(wt_path))
+
+        args = argparse.Namespace(
+            path=str(wt_path),
+            reference=str(tmp_submodule_tree),
+            branch=None,
+            no_local_remotes=False,
+            exclude_sync_group=False,
+        )
+
+        result = init_submodules(args)
+
+        assert result == 0
+        assert (wt_path / "technical-docs" / ".git").exists()
+        assert (wt_path / "technical-docs" / "common" / ".git").exists()
+        common_branch = _git(
+            wt_path / "technical-docs" / "common",
+            "branch",
+            "--show-current",
+        ).stdout.strip()
+        assert common_branch == "plain-branch"
+
+    def test_exclude_sync_group_keeps_sync_group_detached(
+        self,
+        tmp_submodule_tree: Path,
+    ):
+        """init-submodules should honor --exclude-sync-group."""
+        wt_path = tmp_submodule_tree.parent / "plain-wt"
+        _git(tmp_submodule_tree, "worktree", "add", "-b", "plain-branch", str(wt_path))
+
+        args = argparse.Namespace(
+            path=str(wt_path),
+            reference=str(tmp_submodule_tree),
+            branch=None,
+            no_local_remotes=False,
+            exclude_sync_group=True,
+        )
+
+        result = init_submodules(args)
+
+        assert result == 0
+        common_branch = _git(
+            wt_path / "technical-docs" / "common",
+            "branch",
+            "--show-current",
+        ).stdout.strip()
+        assert common_branch == ""
+
     def test_force_removes_dirty_worktree(self, tmp_submodule_tree: Path):
         """--force should remove a worktree with uncommitted changes."""
         wt_path = tmp_submodule_tree.parent / "test-wt"
@@ -253,6 +558,56 @@ class TestRemoveWorktree:
         assert (wt_path / "technical-docs" / "common" / ".git").exists()
 
         args_rm = argparse.Namespace(path=str(wt_path), force=False)
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = remove_worktree(args_rm)
+
+        assert result == 0
+        assert not wt_path.exists()
+
+    def test_refuses_dirty_submodule_worktree_without_force(
+        self,
+        tmp_submodule_tree: Path,
+    ):
+        """Dirty submodule worktrees should not be deleted without --force."""
+        wt_path = tmp_submodule_tree.parent / "test-wt"
+        args_add = argparse.Namespace(
+            branch="rm-dirty-sub-branch",
+            path=str(wt_path),
+            create_branch=True,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            add_worktree(args_add)
+
+        (wt_path / "technical-docs" / "common" / "dirty.txt").write_text("dirty\n")
+
+        args_rm = argparse.Namespace(path=str(wt_path), force=False)
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            result = remove_worktree(args_rm)
+
+        assert result == 1
+        assert wt_path.exists()
+
+    def test_force_removes_dirty_submodule_worktree(
+        self,
+        tmp_submodule_tree: Path,
+    ):
+        """--force should still allow deleting dirty submodule worktrees."""
+        wt_path = tmp_submodule_tree.parent / "test-wt"
+        args_add = argparse.Namespace(
+            branch="rm-force-sub-branch",
+            path=str(wt_path),
+            create_branch=True,
+        )
+
+        with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
+            add_worktree(args_add)
+
+        (wt_path / "technical-docs" / "common" / "dirty.txt").write_text("dirty\n")
+
+        args_rm = argparse.Namespace(path=str(wt_path), force=True)
 
         with patch("grove.worktree.find_repo_root", return_value=tmp_submodule_tree):
             result = remove_worktree(args_rm)
