@@ -120,8 +120,16 @@ def _delegation_env(repo_root: Path):
         temp_path.unlink(missing_ok=True)
 
 
-def _run_delegated(repo_root: Path, command: list[str]) -> int:
+def _run_delegated(
+    repo_root: Path,
+    command: list[str],
+    *,
+    dry_run: bool = False,
+) -> int:
     """Run delegated wt command with synthesized config context."""
+    if dry_run:
+        print(f"will run: {' '.join(command)}")
+        return 0
     with _delegation_env(repo_root) as env:
         return _run_wt_command(command, env=env)
 
@@ -153,7 +161,7 @@ def maybe_delegate_switch(repo_root: Path, args) -> int | None:
     if execute:
         cmd.extend(["--execute", execute])
 
-    return _run_delegated(repo_root, cmd)
+    return _run_delegated(repo_root, cmd, dry_run=bool(getattr(args, "dry_run", False)))
 
 
 def maybe_delegate_list(repo_root: Path, args) -> int | None:
@@ -171,7 +179,7 @@ def maybe_delegate_list(repo_root: Path, args) -> int | None:
     _append_flag(cmd, args, "remotes", "--remotes")
     _append_flag(cmd, args, "full", "--full")
     _append_flag(cmd, args, "progressive", "--progressive")
-    return _run_delegated(repo_root, cmd)
+    return _run_delegated(repo_root, cmd, dry_run=bool(getattr(args, "dry_run", False)))
 
 
 def maybe_delegate_remove(repo_root: Path, args) -> int | None:
@@ -194,7 +202,7 @@ def maybe_delegate_remove(repo_root: Path, args) -> int | None:
     _append_flag(cmd, args, "foreground", "--foreground")
     _append_flag(cmd, args, "no_verify", "--no-verify")
     _append_flag(cmd, args, "yes", "--yes")
-    return _run_delegated(repo_root, cmd)
+    return _run_delegated(repo_root, cmd, dry_run=bool(getattr(args, "dry_run", False)))
 
 
 def maybe_delegate_step(repo_root: Path, args) -> int | None:
@@ -272,7 +280,7 @@ def maybe_delegate_step(repo_root: Path, args) -> int | None:
         _append_flag(cmd, args, "commit", "--commit")
         _append_flag(cmd, args, "clobber", "--clobber")
 
-    return _run_delegated(repo_root, cmd)
+    return _run_delegated(repo_root, cmd, dry_run=bool(getattr(args, "dry_run", False)))
 
 
 def maybe_delegate_hook(repo_root: Path, args) -> int | None:
@@ -299,4 +307,4 @@ def maybe_delegate_hook(repo_root: Path, args) -> int | None:
         for raw_var in list(getattr(args, "var", []) or []):
             cmd.extend(["--var", raw_var])
 
-    return _run_delegated(repo_root, cmd)
+    return _run_delegated(repo_root, cmd, dry_run=bool(getattr(args, "dry_run", False)))

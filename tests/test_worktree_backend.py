@@ -176,6 +176,28 @@ class TestWorktreeBackendDelegation:
         assert "--show-prompt" in cmd
         assert "--stage" in cmd
 
+    def test_step_prune_dry_run_prints_wt_command_without_exec(
+        self, tmp_submodule_tree: Path, capsys
+    ):
+        _set_backend(tmp_submodule_tree, "wt")
+        args = argparse.Namespace(
+            step_command="prune",
+            dry_run=True,
+            yes=False,
+            foreground=False,
+            min_age=None,
+        )
+        with (
+            patch("grove.worktree_backend.shutil.which", return_value="/usr/bin/wt"),
+            patch("grove.worktree_backend.subprocess.run") as mock_run,
+        ):
+            result = maybe_delegate_step(tmp_submodule_tree, args)
+
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "will run: wt step prune --dry-run" in output
+        mock_run.assert_not_called()
+
     def test_auto_backend_delegates_when_wt_is_available(
         self, tmp_submodule_tree: Path
     ):

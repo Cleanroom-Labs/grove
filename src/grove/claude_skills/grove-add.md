@@ -47,6 +47,8 @@ Run the appropriate command (add `--copy-venv` if determined in Step 2.5):
 
 This creates the worktree, recursively initializes all submodules using the main worktree as a reference, and puts non-sync-group submodules onto a named branch matching the worktree branch. By default, submodule remotes point to the main worktree so pushes stay on-machine until you merge back and push from the main worktree.
 
+If you explicitly want sync-group submodules to remain detached, include `--exclude-sync-group` in the add command.
+
 If the command fails:
 - Report the error output.
 - If submodule initialization failed, suggest `git submodule update --init --recursive` inside the worktree.
@@ -79,3 +81,4 @@ copy-venv = true    # Auto-copy Python venv on worktree creation
 Other flags can be adjusted in the commands above after installing with `grove claude install`. For example:
 
 - Add `--no-local-remotes` if you want worktree submodules to push directly to upstream remotes.
+- Add `--exclude-sync-group` if you need sync-group members to remain detached in that worktree.
