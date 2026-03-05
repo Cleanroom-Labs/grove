@@ -239,6 +239,8 @@ Internal helpers:
 
 Documentation-only `BackendContract(Protocol)` at the top.
 
+Delegated `--dry-run` behavior: when grove has `--dry-run` but the delegated wt subcommand does not support it, print `"will run: wt <command>"` and return 0 instead of executing.
+
 ### 2.6 Create `worktree_common.py`
 
 Shared helpers:
@@ -262,21 +264,40 @@ if not force and _has_dirty_children(worktree_path):
 
 Extract `_init_submodules` + `_checkout_submodule_branches` as a CLI-callable function in `worktree.py`.
 
+Flags:
+- `path` (positional) — worktree path to initialize submodules in
+- `--reference` — reference worktree for faster clone
+- `--exclude-sync-group` — skip branch checkout for sync-group submodules
+- `--branch` — explicit branch name (default: current branch of target worktree)
+
+### 2.8a Enhance `worktree add` with `--exclude-sync-group`
+
+Add `--exclude-sync-group` flag to `grove worktree add`. When set, pass through to `init_submodules_command` to skip branch checkout for sync-group submodule members.
+
+### 2.8b Sync and repo-root contract tests
+
+Add targeted tests verifying the design's sync and repo-root contracts:
+
+- **Sync contract**: remote URL resolution for nested `.gitmodules` is consistent with sync-group discovery behavior. Test `parse_gitmodules` / `discover_repos_from_gitmodules` in nested submodule scenarios.
+- **Repo-root contract**: commands invoked from nested directories (including within submodules) correctly discover the repo root. Test `find_repo_root` at submodule boundaries.
+- **`run_git` path contract**: verify `run_git(path, *args)` uses `-C` flag and does not accept `cwd=`. Add a contract test that confirms the first positional arg is used as the `-C` path.
+
 ### 2.9 Update worktree.py dispatch
 
 Update `run(args)` to route new worktree subcommands (`switch`, `list`, `step`, `hook`, `init-submodules`) to their handler modules.
 
 ### 2.10 Tests
 
-- `tests/test_worktree_backend.py` — `_resolve_backend`, delegation functions, config synthesis
+- `tests/test_worktree_backend.py` — `_resolve_backend`, delegation functions, config synthesis, delegated `--dry-run` behavior (`"will run: wt <command>"` and stop)
 - `tests/test_cli_parser_shape.py` — parser stability
 - Update `tests/test_cli.py` — three-file structure, dispatch routing
-- Update `tests/test_worktree.py` — dirty submodule check on remove (regression test)
+- Update `tests/test_worktree.py` — dirty submodule check on remove (regression test), `init_submodules_command` flags (`--exclude-sync-group`, `--reference`, `--branch`), `worktree add --exclude-sync-group`
+- `tests/test_contracts.py` — sync contract (nested `.gitmodules` resolution), repo-root contract (nested directory discovery), `run_git` path-as-first-arg contract
 
 ### Verify
 
 ```bash
-pytest tests/test_cli.py tests/test_cli_parser_shape.py tests/test_worktree_backend.py tests/test_worktree.py -v
+pytest tests/test_cli.py tests/test_cli_parser_shape.py tests/test_worktree_backend.py tests/test_worktree.py tests/test_contracts.py -v
 pytest -q
 ruff check src/ tests/
 ```
@@ -285,7 +306,11 @@ ruff check src/ tests/
 
 - CLI split complete, parser-shape test passes.
 - Backend resolution and delegation functions exist with tests.
+- Delegated `--dry-run` behavior tested.
 - Remove safety bug fixed with regression test.
+- `init_submodules_command` standalone entry point with all flags tested.
+- `worktree add --exclude-sync-group` tested.
+- Sync, repo-root, and `run_git` contract tests pass.
 - All existing tests still pass.
 
 ### Commit
@@ -389,8 +414,6 @@ Step handlers (all `_run_*(repo_root, args) -> int`):
 - `_run_prune` — find merged secondary worktrees; `--min-age` duration parsing; `--dry-run`; `--yes`
 
 Helpers:
-- `_build_commit_prompt(repo_root)` — structured prompt with diffstat/diff/recent commits
-- `_build_squash_prompt(repo_root, target, base)` — commits since base + diffstat
 - `_stage_changes(repo_root, stage)` — `git add -A` / `-u` / skip
 - `_confirm_message(message, template)` — Y/n/edit prompt
 - `_open_editor(initial_text)` — `$VISUAL`/`$EDITOR` tempfile flow
@@ -437,7 +460,12 @@ Strands path: lazy import, provider registry, `_build_model()`, try each provide
 
 Constants: `COMMIT_PROMPT`, `SQUASH_PROMPT` templates (verbatim from design doc).
 
-Helpers: `build_commit_prompt(repo_root)`, `build_squash_prompt(repo_root, base, target)`, `_truncate(text, max_chars)`.
+Helpers (sole owner — `llm.py` owns all prompt construction):
+- `build_commit_prompt(repo_root)` — structured prompt with diffstat/diff/recent commits
+- `build_squash_prompt(repo_root, base, target)` — commits since base + diffstat
+- `_truncate(text, max_chars)` — prevent oversized diffs from hitting LLM context limits
+
+`worktree_step.py` calls `llm.build_commit_prompt()` and `llm.build_squash_prompt()` — it does not define its own prompt helpers.
 
 Error type: `LLMUnavailableError` for missing strands install.
 
@@ -485,6 +513,7 @@ ruff check src/ tests/
 - `run(args)` — imports WorkTrunk user/project config into Grove canonical paths
 - `_translate_wt_to_grove(raw)` — schema mapping
 - `_import_one(source, target, *, dry_run, force)` — load, merge or replace, write
+- `_report_conflicts(existing, incoming) -> list[str]` — when the grove config already has values for fields being imported, report conflicts to the user (field name, existing value, incoming value) and require `--force` to overwrite
 
 ### 6.2 Shell init
 
@@ -498,7 +527,7 @@ Add completions for new subcommands: `switch`, `list`, `init-submodules`, `step 
 
 ### 6.4 Tests
 
-- `tests/test_config_import.py` — translation, merge, dry-run
+- `tests/test_config_import.py` — translation, merge, dry-run, conflict reporting (existing values detected, `--force` override, conflict-free import)
 - Update `tests/test_completion.py` — new subcommands present
 
 ### Verify
@@ -536,18 +565,45 @@ Port additional test scenarios from the spike branches where they cover gaps.
 ### 7.2 End-to-end CLI tests
 
 Targeted tests exercising the full path from CLI args through dispatch to module execution:
+
+**Native mode lifecycle:**
 - `grove worktree switch -c <branch>` — creates worktree, inits submodules
 - `grove worktree list --format json` — produces valid JSON
 - `grove worktree step diff` — shows merge-base diff
 - `grove worktree hook show` — lists configured hooks
 - `grove worktree remove <branch>` — removes with hooks
 
+**wt-mode delegation:**
+- `grove worktree switch <branch>` with `backend = "auto"` and mocked wt on PATH — delegates with synthesized config
+- `grove worktree step for-each` with wt available — delegates successfully
+- `grove worktree step for-each` without wt — fails with `UnsupportedWithoutWt`
+- Delegated `--dry-run` — prints `"will run: wt <command>"` and stops
+
+**Config migration/import:**
+- `grove config import-wt` from wt user config → grove user config
+- `grove config import-wt --dry-run` — preview without writing
+- `grove config import-wt` with existing grove config → conflict reporting
+- `grove config import-wt --force` with conflicts → overwrite
+
+**Safety regressions:**
+- `grove worktree remove` with dirty submodules and no `--force` → refuses deletion
+- Delegation ordering: wt-only commands delegate before rejecting in native path
+
 ### 7.3 Documentation
 
-- Update `README.md` with new commands, config, wt integration
-- Update `grove-add.md` skill for `--exclude-sync-group`
-- New skills: `grove-switch.md`, `grove-list.md`, `grove-step.md`
-- Update `CLAUDE.md` with new project structure and commands
+New docs (design-required):
+- `docs/worktrunk-integration.md` — detailed guide on configuring grove with wt backend
+- `docs/worktree-lifecycle.md` — full worktree lifecycle documentation (switch, list, remove, step, hooks)
+
+Updated docs:
+- `README.md` — new "Worktree Lifecycle" section, "Configuration" section, "Using with Worktrunk" section, "LLM Integration" section, updated "Installation" with `grove[llm]`, updated "Project Structure"
+- `docs/submodule-workflow.md` — reference new lifecycle commands where relevant
+- `docs/best-practices.md` — add lifecycle workflow recommendations
+- `CLAUDE.md` — new project structure and commands
+
+Claude skills:
+- Update `grove-add.md` for `--exclude-sync-group`
+- New: `grove-switch.md`, `grove-list.md`, `grove-step.md`
 
 ### 7.4 Final verification
 
@@ -584,6 +640,9 @@ pytest -q                      # or phase-targeted subset + full run before comm
 
 After Phase 2, additionally:
 - `tests/test_cli_parser_shape.py` — CLI surface matches expected shape
+
+Complexity gate (every phase):
+- No function exceeds 180 lines. Verify with: `python -c "import ast, sys; [print(f'{f.name}:{f.end_lineno - f.lineno + 1}') for f in ast.walk(ast.parse(open(sys.argv[1]).read())) if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef)) and f.end_lineno - f.lineno + 1 > 180]"` across all `src/grove/*.py` files. If any function exceeds the limit, refactor before proceeding.
 
 ---
 

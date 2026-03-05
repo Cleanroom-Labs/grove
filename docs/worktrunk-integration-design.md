@@ -403,14 +403,17 @@ class GroveConfig:
 Support both table and string shorthand for hook configuration:
 
 ```toml
+[hooks]
 # String shorthand — wraps as {"default": "command"}
 post-create = "npm install"
 
-# Table form
+# Table form — equivalent to hooks.post-create.deps + hooks.post-create.env
 [hooks.post-create]
 deps = "npm ci"
 env = "cp .env.example .env"
 ```
+
+Both forms live under the `[hooks]` section. String shorthand is syntactic sugar: `post-create = "npm install"` is equivalent to `[hooks.post-create] default = "npm install"`.
 
 ### User config structure (`~/.config/grove/config.toml`)
 
