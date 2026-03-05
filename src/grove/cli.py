@@ -14,18 +14,7 @@ import sys
 
 from grove.repo_utils import Colors
 
-
-def build_parser():
-    """Construct the grove argument parser.
-
-    Separated from main() so other modules (e.g. completion) can
-    introspect the parser without side effects.
-    """
-    parser = argparse.ArgumentParser(
-        prog="grove",
-        description="Git submodule management tools.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""\
+_ROOT_EPILOG = """\
 examples:
   grove check              Check submodule health and sync groups
   grove check -v           Verbose check with commit SHAs
@@ -41,16 +30,74 @@ examples:
   grove worktree add ../website-wt2 existing-branch
   grove worktree add -b ../website-wt3 new-feature
   grove worktree remove ../website-wt1
-""",
-    )
-    parser.add_argument(
-        "--no-color",
-        action="store_true",
-        help="Disable colored output",
-    )
-    subparsers = parser.add_subparsers(dest="command")
+"""
 
-    # --- grove init ---
+_PUSH_EPILOG = """\
+examples:
+  grove push                              Push all repos with unpushed commits
+  grove push --dry-run                    Preview what would be pushed
+  grove push frontend backend             Push specific repos by path
+  grove push --sync-group common          Push parents of a sync group
+  grove push --cascade libs/common        Push cascade chain from a leaf
+  grove push --cascade libs/common --dry-run  Preview cascade push
+"""
+
+_SYNC_EPILOG = """\
+examples:
+  grove sync                       Sync all groups (local-first)
+  grove sync common                Sync just "common" group
+  grove sync common --commit abc1234  Sync "common" to specific commit
+  grove sync --remote              Resolve target from remote
+  grove sync --dry-run             Preview what would happen
+  grove sync --no-push             Commit only, skip pushing
+"""
+
+_WORKTREE_EPILOG = """\
+examples:
+  grove worktree add ../my-project-wt1 my-feature
+  grove worktree add -b ../wt2 new-feature
+  grove worktree remove ../my-project-wt1
+  grove worktree remove --force ../my-project-wt1
+  grove worktree merge my-feature
+  grove worktree merge --continue
+  grove worktree merge --abort
+  grove worktree merge --status
+  grove claude install
+  grove claude install --user
+  grove claude install --check
+"""
+
+_CHECKOUT_EPILOG = """\
+examples:
+  grove checkout technical-docs/transfer origin/main
+  grove checkout docs/spec-docs abc1234
+  grove checkout technical-docs/transfer origin/main --no-recurse
+  grove checkout technical-docs/transfer v1.0.0 --no-fetch
+"""
+
+_CASCADE_EPILOG = """\
+examples:
+  grove cascade libs/common               Start cascade from a leaf submodule
+  grove cascade libs/common --dry-run     Preview cascade chain and test plan
+  grove cascade path1 path2               Cascade from multiple leaves (shared ancestors deduplicated)
+  grove cascade --status                  Show current cascade state
+  grove cascade --continue                Resume after fixing a test failure
+  grove cascade --abort                   Rollback all pointer commits
+  grove cascade libs/common --quick       Run only local + contract tests
+  grove cascade libs/common --system      Run system-tests at every level
+  grove cascade libs/common --no-system   Skip system-tests even at root
+  grove cascade --sync-group common       Cascade all instances of a sync group
+"""
+
+_CLAUDE_EPILOG = """\
+examples:
+  grove claude install           Install skills to .claude/skills/ in current project
+  grove claude install --user    Install skills to ~/.claude/skills/
+  grove claude install --check   Check if installed skills are up to date
+"""
+
+
+def _add_init_parser(subparsers: argparse._SubParsersAction) -> None:
     init_parser = subparsers.add_parser(
         "init",
         help="Generate a template .grove.toml configuration file",
@@ -70,7 +117,8 @@ examples:
         help="Overwrite an existing .grove.toml",
     )
 
-    # --- grove check ---
+
+def _add_check_parser(subparsers: argparse._SubParsersAction) -> None:
     check_parser = subparsers.add_parser(
         "check",
         help="Verify submodules are on branches and sync groups are consistent",
@@ -84,7 +132,8 @@ examples:
         help="Show additional details (commits, remotes)",
     )
 
-    # --- grove push ---
+
+def _add_push_parser(subparsers: argparse._SubParsersAction) -> None:
     push_parser = subparsers.add_parser(
         "push",
         help="Push committed changes through nested submodules bottom-up",
@@ -93,15 +142,7 @@ examples:
         "By default, pushes all repos with unpushed commits (excluding "
         "sync-group submodules). Use filter options to push a subset.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""\
-examples:
-  grove push                              Push all repos with unpushed commits
-  grove push --dry-run                    Preview what would be pushed
-  grove push frontend backend             Push specific repos by path
-  grove push --sync-group common          Push parents of a sync group
-  grove push --cascade libs/common        Push cascade chain from a leaf
-  grove push --cascade libs/common --dry-run  Preview cascade push
-""",
+        epilog=_PUSH_EPILOG,
     )
     push_parser.add_argument(
         "paths",
@@ -139,22 +180,15 @@ examples:
         help="Push repos in the cascade chain from a leaf submodule to root",
     )
 
-    # --- grove sync ---
+
+def _add_sync_parser(subparsers: argparse._SubParsersAction) -> None:
     sync_parser = subparsers.add_parser(
         "sync",
         help="Synchronize submodule sync groups across all locations",
         description="Synchronize submodule sync groups across all "
         "locations with validation and push support.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""\
-examples:
-  grove sync                       Sync all groups (local-first)
-  grove sync common                Sync just "common" group
-  grove sync common --commit abc1234  Sync "common" to specific commit
-  grove sync --remote              Resolve target from remote
-  grove sync --dry-run             Preview what would happen
-  grove sync --no-push             Commit only, skip pushing
-""",
+        epilog=_SYNC_EPILOG,
     )
     sync_parser.add_argument(
         "group",
@@ -212,7 +246,8 @@ examples:
         help="Show current sync merge progress",
     )
 
-    # --- grove visualize ---
+
+def _add_visualize_parser(subparsers: argparse._SubParsersAction) -> None:
     viz_parser = subparsers.add_parser(
         "visualize",
         help="Open interactive submodule visualizer in browser",
@@ -226,30 +261,10 @@ examples:
         help="Path to git repository (default: current directory)",
     )
 
-    # --- grove worktree ---
-    worktree_parser = subparsers.add_parser(
-        "worktree",
-        help="Manage git worktrees with automatic submodule initialization",
-        description="Create and remove git worktrees with recursive submodule "
-        "initialization using the main worktree as a reference.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""\
-examples:
-  grove worktree add ../my-project-wt1 my-feature
-  grove worktree add -b ../wt2 new-feature
-  grove worktree remove ../my-project-wt1
-  grove worktree remove --force ../my-project-wt1
-  grove worktree merge my-feature
-  grove worktree merge --continue
-  grove worktree merge --abort
-  grove worktree merge --status
-  grove claude install
-  grove claude install --user
-  grove claude install --check
-""",
-    )
-    worktree_subparsers = worktree_parser.add_subparsers(dest="worktree_command")
 
+def _add_worktree_add_parser(
+    worktree_subparsers: argparse._SubParsersAction,
+) -> None:
     worktree_add_parser = worktree_subparsers.add_parser(
         "add",
         help="Create a new worktree with submodules initialized",
@@ -283,6 +298,10 @@ examples:
         help="Point submodule remotes to upstream instead of the main worktree",
     )
 
+
+def _add_worktree_remove_parser(
+    worktree_subparsers: argparse._SubParsersAction,
+) -> None:
     worktree_remove_parser = worktree_subparsers.add_parser(
         "remove",
         help="Remove a worktree and prune stale entries",
@@ -299,6 +318,10 @@ examples:
         help="Force removal even if the worktree has uncommitted changes",
     )
 
+
+def _add_worktree_merge_parser(
+    worktree_subparsers: argparse._SubParsersAction,
+) -> None:
     worktree_merge_parser = worktree_subparsers.add_parser(
         "merge",
         help="Merge a branch across all submodules bottom-up",
@@ -354,6 +377,10 @@ examples:
         help="Skip running test commands",
     )
 
+
+def _add_worktree_checkout_parser(
+    worktree_subparsers: argparse._SubParsersAction,
+) -> None:
     worktree_checkout_parser = worktree_subparsers.add_parser(
         "checkout-branches",
         help="Put submodules onto named branches (fix detached HEAD)",
@@ -366,7 +393,27 @@ examples:
         help="Branch name to use (default: current branch of root worktree)",
     )
 
-    # --- grove checkout ---
+
+def _add_worktree_parser(
+    subparsers: argparse._SubParsersAction,
+) -> argparse.ArgumentParser:
+    worktree_parser = subparsers.add_parser(
+        "worktree",
+        help="Manage git worktrees with automatic submodule initialization",
+        description="Create and remove git worktrees with recursive submodule "
+        "initialization using the main worktree as a reference.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_WORKTREE_EPILOG,
+    )
+    worktree_subparsers = worktree_parser.add_subparsers(dest="worktree_command")
+    _add_worktree_add_parser(worktree_subparsers)
+    _add_worktree_remove_parser(worktree_subparsers)
+    _add_worktree_merge_parser(worktree_subparsers)
+    _add_worktree_checkout_parser(worktree_subparsers)
+    return worktree_parser
+
+
+def _add_checkout_parser(subparsers: argparse._SubParsersAction) -> None:
     checkout_parser = subparsers.add_parser(
         "checkout",
         help="Check out a ref on a submodule with recursive submodule init",
@@ -374,13 +421,7 @@ examples:
         "and recursively initialize/update all nested sub-submodules.\n\n"
         "Replaces the manual git checkout + git submodule update dance.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""\
-examples:
-  grove checkout technical-docs/transfer origin/main
-  grove checkout docs/spec-docs abc1234
-  grove checkout technical-docs/transfer origin/main --no-recurse
-  grove checkout technical-docs/transfer v1.0.0 --no-fetch
-""",
+        epilog=_CHECKOUT_EPILOG,
     )
     checkout_parser.add_argument(
         "path",
@@ -401,7 +442,8 @@ examples:
         help="Skip git fetch before checkout",
     )
 
-    # --- grove cascade ---
+
+def _add_cascade_parser(subparsers: argparse._SubParsersAction) -> None:
     cascade_parser = subparsers.add_parser(
         "cascade",
         help="Propagate a submodule change upward with tiered testing",
@@ -415,19 +457,7 @@ examples:
         "  system-tests       Everything real, no mocking\n\n"
         "Configure tiers in .grove.toml under [cascade].",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""\
-examples:
-  grove cascade libs/common               Start cascade from a leaf submodule
-  grove cascade libs/common --dry-run     Preview cascade chain and test plan
-  grove cascade path1 path2               Cascade from multiple leaves (shared ancestors deduplicated)
-  grove cascade --status                  Show current cascade state
-  grove cascade --continue                Resume after fixing a test failure
-  grove cascade --abort                   Rollback all pointer commits
-  grove cascade libs/common --quick       Run only local + contract tests
-  grove cascade libs/common --system      Run system-tests at every level
-  grove cascade libs/common --no-system   Skip system-tests even at root
-  grove cascade --sync-group common       Cascade all instances of a sync group
-""",
+        epilog=_CASCADE_EPILOG,
     )
     cascade_parser.add_argument(
         "path",
@@ -496,22 +526,19 @@ examples:
         help="Push all cascade repos after successful completion",
     )
 
-    # --- grove claude ---
+
+def _add_claude_parser(
+    subparsers: argparse._SubParsersAction,
+) -> argparse.ArgumentParser:
     claude_parser = subparsers.add_parser(
         "claude",
         help="Manage Claude Code skills shipped with grove",
         description="Install or check Claude Code skills that teach Claude "
         "how to use grove workflows.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""\
-examples:
-  grove claude install           Install skills to .claude/skills/ in current project
-  grove claude install --user    Install skills to ~/.claude/skills/
-  grove claude install --check   Check if installed skills are up to date
-""",
+        epilog=_CLAUDE_EPILOG,
     )
     claude_subparsers = claude_parser.add_subparsers(dest="claude_command")
-
     claude_install_parser = claude_subparsers.add_parser(
         "install",
         help="Install Claude Code skills from grove's package data",
@@ -528,8 +555,12 @@ examples:
         action="store_true",
         help="Check if installed skills match shipped versions",
     )
+    return claude_parser
 
-    # --- grove completion ---
+
+def _add_completion_parser(
+    subparsers: argparse._SubParsersAction,
+) -> argparse.ArgumentParser:
     completion_parser = subparsers.add_parser(
         "completion",
         help="Generate or install shell completion scripts",
@@ -544,16 +575,12 @@ examples:
         "  grove completion install --check\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    completion_subparsers = completion_parser.add_subparsers(
-        dest="completion_command",
-    )
-
+    completion_subparsers = completion_parser.add_subparsers(dest="completion_command")
     for shell_name in ("bash", "zsh", "fish"):
         completion_subparsers.add_parser(
             shell_name,
             help=f"Generate {shell_name} completion script",
         )
-
     completion_install_parser = completion_subparsers.add_parser(
         "install",
         help="Install shell completions into your shell profile",
@@ -585,14 +612,42 @@ examples:
         action="store_true",
         help="Re-write the completion block even if already installed",
     )
+    return completion_parser
 
-    # Store references for help printing (avoids argparse private API)
+
+def build_parser():
+    """Construct the grove argument parser.
+
+    Separated from main() so other modules (e.g. completion) can
+    introspect the parser without side effects.
+    """
+    parser = argparse.ArgumentParser(
+        prog="grove",
+        description="Git submodule management tools.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_ROOT_EPILOG,
+    )
+    parser.add_argument(
+        "--no-color", action="store_true", help="Disable colored output"
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    _add_init_parser(subparsers)
+    _add_check_parser(subparsers)
+    _add_push_parser(subparsers)
+    _add_sync_parser(subparsers)
+    _add_visualize_parser(subparsers)
+    worktree_parser = _add_worktree_parser(subparsers)
+    _add_checkout_parser(subparsers)
+    _add_cascade_parser(subparsers)
+    claude_parser = _add_claude_parser(subparsers)
+    completion_parser = _add_completion_parser(subparsers)
+
     parser.grove_subparsers = {
         "worktree": worktree_parser,
         "claude": claude_parser,
         "completion": completion_parser,
     }
-
     return parser
 
 

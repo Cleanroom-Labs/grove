@@ -1037,6 +1037,302 @@ def _expand_linear_for_intermediate_sync_groups(
     return intermediate_sg_names
 
 
+@dataclass
+class CascadePlan:
+    chain: list[RepoInfo]
+    entries: list[RepoCascadeEntry]
+    display_path: str
+    is_dag: bool
+    sync_group_name: str | None
+    intermediate_sync_groups: list[str]
+
+
+def _normalize_submodule_paths(
+    submodule_paths: list[str] | str | None,
+    submodule_path: str | None,
+) -> list[str] | None:
+    if isinstance(submodule_paths, str):
+        return [submodule_paths]
+    if submodule_paths is None and submodule_path is not None:
+        return [submodule_path]
+    return submodule_paths
+
+
+def _warn_if_no_cascade_tiers(config: CascadeConfig) -> None:
+    if any(
+        [
+            config.local_tests,
+            config.contract_tests,
+            config.integration_tests,
+            config.system_tests,
+        ]
+    ):
+        return
+
+    print(
+        Colors.yellow(
+            "Warning: No cascade test tiers configured. "
+            "Cascade will commit without testing."
+        )
+    )
+    print("Configure tests in .grove.toml under [cascade].")
+    print()
+
+
+def _build_direct_sync_group_plan(
+    sync_group_name: str,
+    config,
+    repo_root: Path,
+    repos: list[RepoInfo],
+    force: bool,
+) -> CascadePlan | None:
+    sg = config.sync_groups.get(sync_group_name)
+    if sg is None:
+        print(Colors.red(f"Error: Unknown sync group '{sync_group_name}'."))
+        print(f"Available groups: {', '.join(config.sync_groups)}")
+        return None
+
+    print(Colors.blue(f"Cascading sync group: '{sync_group_name}'"))
+    if not _check_sync_group_consistency(
+        sync_group_name, repo_root, sg.url_match, force
+    ):
+        return None
+    print()
+
+    chain, entries, intermediate_sg_names = _build_unified_cascade_plan(
+        sync_group_name,
+        sg.url_match,
+        repo_root,
+        repos,
+        config=config,
+    )
+    if len(chain) < 2:
+        print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
+        return None
+
+    return CascadePlan(
+        chain=chain,
+        entries=entries,
+        display_path=f"(sync-group: {sync_group_name})",
+        is_dag=True,
+        sync_group_name=sync_group_name,
+        intermediate_sync_groups=intermediate_sg_names,
+    )
+
+
+def _build_multi_path_cascade_plan(
+    submodule_paths: list[str],
+    repo_root: Path,
+    repos: list[RepoInfo],
+    config,
+) -> CascadePlan | None:
+    targets = [(repo_root / p).resolve() for p in submodule_paths]
+    print(Colors.blue(f"Multi-path cascade: {' + '.join(submodule_paths)}"))
+    try:
+        chain, entries, intermediate_sg_names = _build_multi_path_plan(
+            targets,
+            repos,
+            repo_root,
+            config=config,
+        )
+    except ValueError as e:
+        print(Colors.red(f"Error: {e}"))
+        return None
+
+    if len(chain) < 2:
+        print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
+        return None
+
+    return CascadePlan(
+        chain=chain,
+        entries=entries,
+        display_path=" + ".join(submodule_paths),
+        is_dag=True,
+        sync_group_name=None,
+        intermediate_sync_groups=intermediate_sg_names,
+    )
+
+
+def _build_single_path_cascade_plan(
+    submodule_path: str,
+    repo_root: Path,
+    repos: list[RepoInfo],
+    config,
+    force: bool,
+) -> CascadePlan | None:
+    target = (repo_root / submodule_path).resolve()
+
+    sg_match = _find_sync_group_for_path(target, repo_root, config)
+    if sg_match is not None:
+        sg_name, sg_group = sg_match
+        print(Colors.blue(f"Sync-group detected: '{sg_name}'"))
+        if not _check_sync_group_consistency(
+            sg_name, repo_root, sg_group.url_match, force
+        ):
+            return None
+        print()
+
+        chain, entries, intermediate_sg_names = _build_unified_cascade_plan(
+            sg_name,
+            sg_group.url_match,
+            repo_root,
+            repos,
+            config=config,
+        )
+        if len(chain) < 2:
+            print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
+            return None
+
+        return CascadePlan(
+            chain=chain,
+            entries=entries,
+            display_path=submodule_path,
+            is_dag=True,
+            sync_group_name=sg_name,
+            intermediate_sync_groups=intermediate_sg_names,
+        )
+
+    try:
+        chain = _discover_cascade_chain(target, repos)
+    except ValueError as e:
+        print(Colors.red(f"Error: {e}"))
+        return None
+
+    if len(chain) < 2:
+        print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
+        print("The given path appears to be the root repository itself.")
+        return None
+
+    entries = _build_linear_entries(chain, repo_root)
+    intermediate_sg_names = _expand_linear_for_intermediate_sync_groups(
+        chain,
+        entries,
+        repo_root,
+        config,
+        repos,
+    )
+    return CascadePlan(
+        chain=chain,
+        entries=entries,
+        display_path=submodule_path,
+        is_dag=bool(intermediate_sg_names),
+        sync_group_name=None,
+        intermediate_sync_groups=intermediate_sg_names,
+    )
+
+
+def _resolve_intermediate_sync_group_divergence(
+    intermediate_sg_names: list[str],
+    *,
+    config,
+    repo_root: Path,
+    dry_run: bool,
+    force: bool,
+) -> list[str]:
+    deferred_sg_names: list[str] = []
+    if not intermediate_sg_names or force:
+        return deferred_sg_names
+
+    from grove.sync import discover_sync_submodules
+
+    for isg_name in intermediate_sg_names:
+        isg = config.sync_groups.get(isg_name)
+        if isg is None:
+            continue
+        subs = discover_sync_submodules(repo_root, isg.url_match)
+        commits = {
+            run_git(sub.path, "rev-parse", "HEAD", check=False).stdout.strip()
+            for sub in subs
+        }
+        if len(commits) <= 1:
+            continue
+
+        if dry_run:
+            print(
+                Colors.yellow(
+                    f"  Intermediate sync group '{isg_name}' has diverged instances"
+                )
+            )
+            print("  (dry-run) Would attempt merge.")
+            continue
+
+        from grove.sync_merge import attempt_divergence_merge
+
+        merge_result = attempt_divergence_merge(
+            isg_name,
+            subs,
+            repo_root,
+            Path(isg.standalone_repo) if isg.standalone_repo else None,
+            dry_run=False,
+            force=False,
+        )
+        if merge_result is not None:
+            merged_sha, _workspace, _desc = merge_result
+            for sub in subs:
+                run_git(sub.path, "checkout", merged_sha, check=False)
+                run_git(sub.path, "submodule", "update", "--recursive", check=False)
+            print(
+                Colors.green(
+                    f"  Auto-resolved divergence in '{isg_name}': {merged_sha[:8]}"
+                )
+            )
+            continue
+
+        run_git(subs[0].path, "merge", "--abort", check=False)
+        deferred_sg_names.append(isg_name)
+        print(
+            Colors.yellow(
+                f"  Divergence in '{isg_name}' could not be auto-resolved (deferred)"
+            )
+        )
+
+    return deferred_sg_names
+
+
+def _print_cascade_plan(plan: CascadePlan, dry_run: bool) -> None:
+    if plan.is_dag:
+        leaf_entries = [entry for entry in plan.entries if entry.role == "leaf"]
+        print(
+            Colors.blue(
+                f"Cascade (DAG): {len(leaf_entries)} sync-group instances → root"
+            )
+        )
+    else:
+        print(Colors.blue(f"Cascade: {plan.display_path} → root"))
+
+    print(f"Plan: {' → '.join(entry.rel_path for entry in plan.entries)}")
+    if dry_run:
+        print(Colors.yellow("(dry-run mode — no changes will be made)"))
+    print()
+
+
+def _print_cascade_completion(
+    result: int,
+    *,
+    plan: CascadePlan,
+    state_path: Path,
+    journal_path: Path,
+    push: bool,
+    dry_run: bool,
+) -> int:
+    if result != 0:
+        return result
+
+    CascadeState.remove(state_path)
+    _log(journal_path, "DONE cascade completed successfully")
+    print(Colors.green("Cascade complete."))
+
+    if push and not dry_run:
+        push_result = _push_cascade_repos(plan.chain, journal_path)
+        if push_result != 0:
+            return push_result
+    elif push and dry_run:
+        print(Colors.yellow("(--push: would push all cascade repos after completion)"))
+    else:
+        print(f"Run {Colors.blue('grove push')} to distribute changes.")
+    return 0
+
+
 def run_cascade(
     submodule_paths: list[str] | None = None,
     sync_group_name: str | None = None,
@@ -1049,11 +1345,7 @@ def run_cascade(
     submodule_path: str | None = None,
 ) -> int:
     """Start a new cascade from one or more submodule paths or a sync-group name."""
-    # Normalise: accept str (legacy positional callers) or list, or legacy kwarg
-    if isinstance(submodule_paths, str):
-        submodule_paths = [submodule_paths]
-    elif submodule_paths is None and submodule_path is not None:
-        submodule_paths = [submodule_path]
+    submodule_paths = _normalize_submodule_paths(submodule_paths, submodule_path)
     repo_root = find_repo_root()
     state_path = _get_state_path(repo_root)
     journal_path = _get_journal_path(repo_root)
@@ -1065,227 +1357,59 @@ def run_cascade(
         return 1
 
     config = load_config(repo_root)
-
-    # Warn if no test tiers configured
-    cc = config.cascade
-    if not any(
-        [cc.local_tests, cc.contract_tests, cc.integration_tests, cc.system_tests]
-    ):
-        print(
-            Colors.yellow(
-                "Warning: No cascade test tiers configured. "
-                "Cascade will commit without testing."
-            )
-        )
-        print("Configure tests in .grove.toml under [cascade].")
-        print()
+    _warn_if_no_cascade_tiers(config.cascade)
 
     # Discover repos
     repos = discover_repos_from_gitmodules(repo_root)
-
-    # Build cascade plan — four entry modes:
-    # 1. --sync-group NAME: direct sync-group cascade (always DAG)
-    # 2. Multiple paths: explicit multi-leaf DAG (always DAG)
-    # 3. Single path to sync-group leaf: auto-detected DAG
-    # 4. Single path to non-sync-group leaf: linear chain (may promote to DAG)
-    is_dag = False
-    sg_name_for_state: str | None = None
-
+    plan: CascadePlan | None
     if sync_group_name:
-        # Mode 1: Direct sync-group cascade by name
-        sg = config.sync_groups.get(sync_group_name)
-        if sg is None:
-            print(Colors.red(f"Error: Unknown sync group '{sync_group_name}'."))
-            print(f"Available groups: {', '.join(config.sync_groups)}")
-            return 1
-
-        print(Colors.blue(f"Cascading sync group: '{sync_group_name}'"))
-        if not _check_sync_group_consistency(
-            sync_group_name, repo_root, sg.url_match, force
-        ):
-            return 1
-        print()
-
-        sg_name_for_state = sync_group_name
-        submodule_path = f"(sync-group: {sync_group_name})"
-        chain, entries, intermediate_sg_names = _build_unified_cascade_plan(
+        plan = _build_direct_sync_group_plan(
             sync_group_name,
-            sg.url_match,
+            config,
             repo_root,
             repos,
-            config=config,
+            force,
         )
-        is_dag = True
-
-        if len(chain) < 2:
-            print(Colors.red("Error: Cascade requires at least a leaf and one parent."))
-            return 1
     else:
         assert submodule_paths is not None
-        targets = [(repo_root / p).resolve() for p in submodule_paths]
-
-        if len(targets) > 1:
-            # Mode 4: Multi-path DAG — explicit multiple leaf paths
-            print(Colors.blue(f"Multi-path cascade: {' + '.join(submodule_paths)}"))
-            try:
-                chain, entries, intermediate_sg_names = _build_multi_path_plan(
-                    targets,
-                    repos,
-                    repo_root,
-                    config=config,
-                )
-            except ValueError as e:
-                print(Colors.red(f"Error: {e}"))
-                return 1
-
-            if len(chain) < 2:
-                print(
-                    Colors.red(
-                        "Error: Cascade requires at least a leaf and one parent."
-                    )
-                )
-                return 1
-
-            is_dag = True
-            submodule_path = " + ".join(submodule_paths)
-        else:
-            # Mode 2/3: single path — check if leaf is a sync-group member
-            target = targets[0]
-            submodule_path = submodule_paths[0]
-
-            sg_match = _find_sync_group_for_path(target, repo_root, config)
-            if sg_match is not None:
-                sg_name, sg_group = sg_match
-                print(Colors.blue(f"Sync-group detected: '{sg_name}'"))
-                if not _check_sync_group_consistency(
-                    sg_name, repo_root, sg_group.url_match, force
-                ):
-                    return 1
-                print()
-
-            if sg_match is not None:
-                # Mode 2: sync-group leaf DAG
-                sg_name, sg_group = sg_match
-                sg_name_for_state = sg_name
-                chain, entries, intermediate_sg_names = _build_unified_cascade_plan(
-                    sg_name,
-                    sg_group.url_match,
-                    repo_root,
-                    repos,
-                    config=config,
-                )
-                is_dag = True
-
-                if len(chain) < 2:
-                    print(
-                        Colors.red(
-                            "Error: Cascade requires at least a leaf and one parent."
-                        )
-                    )
-                    return 1
-            else:
-                # Mode 3: linear chain from non-sync-group leaf
-                try:
-                    chain = _discover_cascade_chain(target, repos)
-                except ValueError as e:
-                    print(Colors.red(f"Error: {e}"))
-                    return 1
-
-                if len(chain) < 2:
-                    print(
-                        Colors.red(
-                            "Error: Cascade requires at least a leaf and one parent."
-                        )
-                    )
-                    print("The given path appears to be the root repository itself.")
-                    return 1
-
-                entries = _build_linear_entries(chain, repo_root)
-
-                # Check for intermediate sync groups — may promote linear to DAG
-                intermediate_sg_names = _expand_linear_for_intermediate_sync_groups(
-                    chain,
-                    entries,
-                    repo_root,
-                    config,
-                    repos,
-                )
-                if intermediate_sg_names:
-                    is_dag = True
-
-    # Pre-cascade divergence resolution for intermediate sync groups (Phase 1)
-    deferred_sg_names: list[str] = []
-    if intermediate_sg_names and not force:
-        from grove.sync import discover_sync_submodules
-
-        for isg_name in intermediate_sg_names:
-            isg = config.sync_groups.get(isg_name)
-            if isg is None:
-                continue
-            subs = discover_sync_submodules(repo_root, isg.url_match)
-            commits = {
-                run_git(sub.path, "rev-parse", "HEAD", check=False).stdout.strip()
-                for sub in subs
-            }
-            if len(commits) <= 1:
-                continue  # already consistent
-
-            if dry_run:
-                print(
-                    Colors.yellow(
-                        f"  Intermediate sync group '{isg_name}' has diverged instances"
-                    )
-                )
-                print("  (dry-run) Would attempt merge.")
-                continue
-
-            # Attempt auto-merge
-            from grove.sync_merge import attempt_divergence_merge
-
-            merge_result = attempt_divergence_merge(
-                isg_name,
-                subs,
+        if len(submodule_paths) > 1:
+            plan = _build_multi_path_cascade_plan(
+                submodule_paths,
                 repo_root,
-                Path(isg.standalone_repo) if isg.standalone_repo else None,
-                dry_run=False,
-                force=False,
+                repos,
+                config,
             )
-            if merge_result is not None:
-                merged_sha, _workspace, _desc = merge_result
-                for sub in subs:
-                    run_git(sub.path, "checkout", merged_sha, check=False)
-                    run_git(sub.path, "submodule", "update", "--recursive", check=False)
-                print(
-                    Colors.green(
-                        f"  Auto-resolved divergence in '{isg_name}': {merged_sha[:8]}"
-                    )
-                )
-            else:
-                # Merge conflict — abort the partial merge and defer
-                run_git(
-                    subs[0].path,
-                    "merge",
-                    "--abort",
-                    check=False,
-                )
-                deferred_sg_names.append(isg_name)
-                print(
-                    Colors.yellow(
-                        f"  Divergence in '{isg_name}' could not be auto-resolved (deferred)"
-                    )
-                )
+        else:
+            plan = _build_single_path_cascade_plan(
+                submodule_paths[0],
+                repo_root,
+                repos,
+                config,
+                force,
+            )
+
+    if plan is None:
+        return 1
+
+    deferred_sg_names = _resolve_intermediate_sync_group_divergence(
+        plan.intermediate_sync_groups,
+        config=config,
+        repo_root=repo_root,
+        dry_run=dry_run,
+        force=force,
+    )
 
     # Create state
     state = CascadeState(
-        submodule_path=submodule_path,
+        submodule_path=plan.display_path,
         submodule_paths=submodule_paths,
         started_at=datetime.now(timezone.utc).isoformat(),
         system_mode=system_mode,
         quick=quick,
-        repos=entries,
-        sync_group_name=sg_name_for_state,
-        is_dag=is_dag,
-        intermediate_sync_groups=intermediate_sg_names or None,
+        repos=plan.entries,
+        sync_group_name=plan.sync_group_name,
+        is_dag=plan.is_dag,
+        intermediate_sync_groups=plan.intermediate_sync_groups or None,
         deferred_sync_groups=deferred_sg_names or None,
         push=push,
     )
@@ -1294,26 +1418,13 @@ def run_cascade(
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state.save(state_path)
 
-    _log(journal_path, f"START cascade from {submodule_path}")
-
-    if is_dag:
-        leaf_entries = [e for e in entries if e.role == "leaf"]
-        print(
-            Colors.blue(
-                f"Cascade (DAG): {len(leaf_entries)} sync-group instances → root"
-            )
-        )
-    else:
-        print(Colors.blue(f"Cascade: {submodule_path} → root"))
-    print(f"Plan: {' → '.join(e.rel_path for e in entries)}")
-    if dry_run:
-        print(Colors.yellow("(dry-run mode — no changes will be made)"))
-    print()
+    _log(journal_path, f"START cascade from {plan.display_path}")
+    _print_cascade_plan(plan, dry_run)
 
     # Execute the cascade
     result = _execute_cascade(
-        chain,
-        entries,
+        plan.chain,
+        plan.entries,
         state,
         state_path,
         journal_path,
@@ -1321,23 +1432,14 @@ def run_cascade(
         repo_root,
         dry_run,
     )
-
-    if result == 0:
-        CascadeState.remove(state_path)
-        _log(journal_path, "DONE cascade completed successfully")
-        print(Colors.green("Cascade complete."))
-        if push and not dry_run:
-            push_result = _push_cascade_repos(chain, journal_path)
-            if push_result != 0:
-                return push_result
-        elif push and dry_run:
-            print(
-                Colors.yellow("(--push: would push all cascade repos after completion)")
-            )
-        else:
-            print(f"Run {Colors.blue('grove push')} to distribute changes.")
-
-    return result
+    return _print_cascade_completion(
+        result,
+        plan=plan,
+        state_path=state_path,
+        journal_path=journal_path,
+        push=push,
+        dry_run=dry_run,
+    )
 
 
 def _push_cascade_repos(chain: list[RepoInfo], journal_path: Path) -> int:
