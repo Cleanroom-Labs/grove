@@ -205,6 +205,7 @@ Before any structural refactoring in this phase, land these targeted fixes again
 1. **Unsafe remove fallback** — add dirty submodule check before `shutil.rmtree` in `worktree.py` (the full native-parity enhancement in 2.7 builds on this, but the safety fix lands first).
 2. **`run_git` invocation audit** — grep all `run_git` call sites and fix any that pass `cwd=` or misuse the path argument. Add a contract test confirming the `-C` flag pattern.
 3. **Nested sync remote fix** — fix the remote URL resolver used by sync-group discovery for nested `.gitmodules` (task 2.8b details the implementation).
+4. **Repo-root boundary fix** — fix or verify `find_repo_root()` at submodule boundaries (task 2.8c details the implementation).
 
 Each fix gets its own regression test before proceeding to the CLI split. If any fix touches code that will be moved in later tasks (e.g., `worktree.py` → dispatch changes in 2.9), the fix lands on the pre-move code so the test baseline is clean.
 
@@ -306,12 +307,16 @@ Add `--exclude-sync-group` flag to `grove worktree add`. When set, pass through 
 
 Fix the remote URL resolver used by sync-group discovery so it searches nested `.gitmodules` consistently with `discover_repos_from_gitmodules` scope. If the current implementation only reads the top-level `.gitmodules`, extend it to walk nested submodule directories. The fix lands wherever the sync-group remote resolution currently lives (likely `repo_utils.py` or the sync path). This is a known functional regression path and must be fixed before further refactoring.
 
-### 2.8c Sync and repo-root contract tests
+### 2.8c Fix repo-root discovery at submodule boundaries
+
+Fix `find_repo_root()` (or the equivalent root-discovery path) so that commands invoked from within a submodule directory correctly resolve to the **outer** repository root, not the submodule's own `.git` directory. Expected behavior: `find_repo_root()` called from `<repo>/sub/nested/` where `sub` is a submodule must return `<repo>`, not `<repo>/sub`. If the current implementation already handles this correctly, document why in a code comment and confirm with the contract test below. This is a known risk path at submodule boundaries and must be explicitly verified/fixed before further refactoring.
+
+### 2.8d Sync and repo-root contract tests
 
 Add targeted tests verifying the design's sync and repo-root contracts:
 
 - **Sync contract**: remote URL resolution for nested `.gitmodules` is consistent with sync-group discovery behavior. Test `parse_gitmodules` / `discover_repos_from_gitmodules` in nested submodule scenarios. Include a test that verifies the 2.8b fix.
-- **Repo-root contract**: commands invoked from nested directories (including within submodules) correctly discover the repo root. Test `find_repo_root` at submodule boundaries.
+- **Repo-root contract**: commands invoked from nested directories (including within submodules) correctly discover the repo root. Test `find_repo_root` at submodule boundaries. Include a test that verifies the 2.8c fix.
 - **`run_git` path contract**: verify `run_git(path, *args)` uses `-C` flag and does not accept `cwd=`. Add a contract test that confirms the first positional arg is used as the `-C` path.
 
 ### 2.9 Update worktree.py dispatch
