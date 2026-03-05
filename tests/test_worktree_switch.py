@@ -352,11 +352,12 @@ class TestWorktreeSwitch:
         assert result == 1
         assert "cannot clobber active worktree path" in capsys.readouterr().out
 
-    def test_switch_runs_pre_and_post_switch_hooks(
+    def test_switch_warns_and_skips_shell_only_switch_hooks(
         self,
         tmp_submodule_tree: Path,
+        capsys,
     ):
-        """Existing-worktree switches should run pre/post-switch hooks."""
+        """Native switch should warn and skip shell-only pre/post-switch hooks."""
         wt_path = tmp_submodule_tree.parent / "switch-hooks"
         _git(tmp_submodule_tree, "worktree", "add", "-b", "switch-hooks", str(wt_path))
         existing_config = (tmp_submodule_tree / ".grove.toml").read_text()
@@ -385,30 +386,25 @@ class TestWorktreeSwitch:
             result = switch_worktree(args)
 
         assert result == 0
-        lines = (tmp_submodule_tree / ".switch-hook-log").read_text().splitlines()
-        assert "pre-switch-hooks" in lines
-        assert "post-switch-hooks" in lines
+        assert "require the worktrunk backend" in capsys.readouterr().out
+        assert not (tmp_submodule_tree / ".switch-hook-log").exists()
 
     def test_switch_no_verify_skips_hooks(
         self,
         tmp_submodule_tree: Path,
     ):
         """--no-verify should suppress switch hooks."""
-        wt_path = tmp_submodule_tree.parent / "switch-no-hooks"
-        _git(
-            tmp_submodule_tree, "worktree", "add", "-b", "switch-no-hooks", str(wt_path)
-        )
         existing_config = (tmp_submodule_tree / ".grove.toml").read_text()
         (tmp_submodule_tree / ".grove.toml").write_text(
             existing_config
-            + '\n[pre-switch]\nrecord = "echo touched >> .switch-hook-log"\n'
+            + '\n[post-create]\nrecord = "echo touched >> .switch-hook-log"\n'
         )
 
         args = argparse.Namespace(
             branch="switch-no-hooks",
             branches=False,
             remotes=False,
-            create=False,
+            create=True,
             base=None,
             execute=None,
             yes=True,
@@ -457,6 +453,42 @@ class TestWorktreeSwitch:
         assert result == 0
         lines = (tmp_submodule_tree / ".switch-hook-log").read_text().splitlines()
         assert "create-switch-create-hook" in lines
+
+    def test_switch_create_runs_post_start_hook_with_foreground_warning(
+        self,
+        tmp_submodule_tree: Path,
+        capsys,
+    ):
+        """Native switch should run post-start hooks in foreground with warning."""
+        existing_config = (tmp_submodule_tree / ".grove.toml").read_text()
+        (tmp_submodule_tree / ".grove.toml").write_text(
+            existing_config
+            + '\n[post-start]\nrecord = "echo start-{{ branch }} >> .switch-hook-log"\n'
+        )
+
+        args = argparse.Namespace(
+            branch="switch-start-hook",
+            branches=False,
+            remotes=False,
+            create=True,
+            base=None,
+            execute=None,
+            yes=True,
+            clobber=False,
+            no_cd=True,
+            no_verify=False,
+        )
+
+        with patch(
+            "grove.worktree_switch.find_repo_root", return_value=tmp_submodule_tree
+        ):
+            result = switch_worktree(args)
+
+        assert result == 0
+        output = capsys.readouterr().out
+        assert "run in the foreground in native mode" in output
+        lines = (tmp_submodule_tree / ".switch-hook-log").read_text().splitlines()
+        assert "start-switch-start-hook" in lines
 
     def test_switch_without_create_rejects_missing_worktree(
         self,

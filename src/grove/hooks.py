@@ -16,6 +16,9 @@ from grove.worktree_backend import maybe_delegate_hook
 
 _TEMPLATE_RE = re.compile(r"{{\s*(.*?)\s*}}")
 _SANITIZE_RE = re.compile(r"[\\/]+")
+_FAIL_FAST_HOOKS = frozenset({"pre-commit", "pre-merge", "pre-remove"})
+_SHELL_ONLY_HOOKS = frozenset({"pre-switch", "post-switch"})
+_BACKGROUND_HOOKS = frozenset({"post-start", "post-remove"})
 
 
 def _apply_filter(value: str, filter_name: str) -> str:
@@ -47,6 +50,31 @@ def _iter_hook_commands(repo_root: Path, hook_type: str):
     if section is None:
         return []
     return sorted(section.commands.items())
+
+
+def has_configured_hooks(repo_root: Path, hook_type: str) -> bool:
+    """Return True when *hook_type* has configured commands."""
+    return bool(_iter_hook_commands(repo_root, hook_type))
+
+
+def warn_shell_only_hook_native(hook_type: str) -> None:
+    """Warn that shell-integrated hooks are skipped in native mode."""
+    if hook_type not in _SHELL_ONLY_HOOKS:
+        return
+    print(
+        f"{Colors.yellow('Warning')}: pre-switch/post-switch hooks require the "
+        "worktrunk backend. Install wt for full hook support."
+    )
+
+
+def warn_background_hook_native(hook_type: str) -> None:
+    """Warn that background hooks run in the foreground in native mode."""
+    if hook_type not in _BACKGROUND_HOOKS:
+        return
+    print(
+        f"{Colors.yellow('Warning')}: {hook_type} hooks run in the foreground "
+        "in native mode."
+    )
 
 
 def run_configured_hooks(

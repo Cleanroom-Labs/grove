@@ -798,6 +798,11 @@ examples:
         action="store_true",
         help="Skip running test commands",
     )
+    worktree_merge_parser.add_argument(
+        "--no-verify",
+        action="store_true",
+        help="Skip pre/post-merge hooks",
+    )
 
     worktree_checkout_parser = worktree_subparsers.add_parser(
         "checkout-branches",

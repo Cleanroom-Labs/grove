@@ -14,7 +14,12 @@ from pathlib import Path
 
 from grove.config import load_config
 from grove.filelock import atomic_write_json
-from grove.hooks import run_configured_hooks
+from grove.hooks import (
+    has_configured_hooks,
+    run_configured_hooks,
+    warn_background_hook_native,
+    warn_shell_only_hook_native,
+)
 from grove.repo_utils import Colors, find_repo_root, get_state_path, run_git
 from grove.worktree_backend import maybe_delegate_switch
 from grove.worktree_common import emit_switch_target, resolve_default_branch
@@ -236,12 +241,18 @@ def _run_switch_hook(
     """Run a configured switch hook."""
     if getattr(args, "no_verify", False):
         return 0
+    if hook_type in {"pre-switch", "post-switch"}:
+        if has_configured_hooks(manager_root, hook_type):
+            warn_shell_only_hook_native(hook_type)
+        return 0
 
     hook_vars = {
         "branch": branch,
         "worktree_path": str(target_path),
         "default_branch": default_branch or "",
     }
+    if hook_type == "post-start" and has_configured_hooks(manager_root, hook_type):
+        warn_background_hook_native(hook_type)
     return run_configured_hooks(
         manager_root,
         hook_type,
@@ -394,6 +405,17 @@ def _create_and_switch_worktree(
         default_branch=default_branch,
     )
     if post_create_result != 0:
+        return 1
+
+    post_start_result = _run_switch_hook(
+        manager_root,
+        args,
+        hook_type="post-start",
+        branch=branch,
+        target_path=target_path,
+        default_branch=default_branch,
+    )
+    if post_start_result != 0:
         return 1
 
     post_switch_result = _run_switch_hook(

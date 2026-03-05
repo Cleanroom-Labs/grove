@@ -619,6 +619,7 @@ class TestCliWorktreeMergeSubcommand:
         assert args.no_recurse is False
         assert args.no_ff is False
         assert args.no_test is False
+        assert args.no_verify is False
 
     def test_parse_worktree_merge_with_config_after_subcommand(self, tmp_path):
         """'worktree merge --config <path>' should parse override in merge parser."""
@@ -671,7 +672,7 @@ class TestCliWorktreeMergeSubcommand:
         assert args.status is True
 
     def test_parse_worktree_merge_all_flags(self):
-        """'worktree merge my-feature --dry-run --no-recurse --no-ff --no-test' should set all."""
+        """'worktree merge my-feature --dry-run --no-recurse --no-ff --no-test --no-verify' should set all."""
         mock_run = MagicMock(return_value=0)
         with patch("grove.worktree_merge.run", mock_run):
             main(
@@ -683,6 +684,7 @@ class TestCliWorktreeMergeSubcommand:
                     "--no-recurse",
                     "--no-ff",
                     "--no-test",
+                    "--no-verify",
                 ]
             )
 
@@ -692,6 +694,7 @@ class TestCliWorktreeMergeSubcommand:
         assert args.no_recurse is True
         assert args.no_ff is True
         assert args.no_test is True
+        assert args.no_verify is True
 
     def test_parse_worktree_merge_short_flags(self):
         """'worktree merge my-feature -n -v' should set dry_run and verbose."""

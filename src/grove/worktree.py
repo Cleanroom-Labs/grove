@@ -14,7 +14,11 @@ import subprocess
 from pathlib import Path
 
 from grove.config import get_sync_group_exclude_paths, load_config
-from grove.hooks import run_configured_hooks
+from grove.hooks import (
+    has_configured_hooks,
+    run_configured_hooks,
+    warn_background_hook_native,
+)
 from grove.repo_utils import (
     Colors,
     discover_repos_from_gitmodules,
@@ -688,6 +692,8 @@ def _run_remove_hook(
     """Run a configured remove hook and return its exit code."""
     if getattr(args, "no_verify", False):
         return 0
+    if hook_type == "post-remove" and has_configured_hooks(manager_root, hook_type):
+        warn_background_hook_native(hook_type)
 
     variables = {
         "branch": branch or "",

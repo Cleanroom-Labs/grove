@@ -923,6 +923,50 @@ class TestSyncGroupMerge:
             abort_merge()
 
 
+class TestMergeHooks:
+    def test_start_merge_runs_pre_and_post_merge_hooks(
+        self, tmp_submodule_tree_with_sync_branches: Path
+    ):
+        """Successful merge should run pre-merge and post-merge hooks."""
+        root = tmp_submodule_tree_with_sync_branches
+        existing_config = (root / ".grove.toml").read_text()
+        (root / ".grove.toml").write_text(
+            existing_config
+            + '\n[pre-merge]\nrecord = "echo pre-{{ target }} >> .merge-hook-log"\n'
+            + '[post-merge]\nrecord = "echo post-{{ target }} >> .merge-hook-log"\n'
+        )
+        _git(root, "add", ".grove.toml")
+        _git(root, "commit", "-m", "configure merge hooks")
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=root):
+            result = start_merge("my-feature", no_test=True)
+
+        assert result == 0
+        lines = (root / ".merge-hook-log").read_text().splitlines()
+        assert "pre-my-feature" in lines
+        assert "post-my-feature" in lines
+
+    def test_start_merge_no_verify_skips_merge_hooks(
+        self, tmp_submodule_tree_with_sync_branches: Path
+    ):
+        """--no-verify should suppress pre/post-merge hook execution."""
+        root = tmp_submodule_tree_with_sync_branches
+        existing_config = (root / ".grove.toml").read_text()
+        (root / ".grove.toml").write_text(
+            existing_config
+            + '\n[pre-merge]\nrecord = "echo pre >> .merge-hook-log"\n'
+            + '[post-merge]\nrecord = "echo post >> .merge-hook-log"\n'
+        )
+        _git(root, "add", ".grove.toml")
+        _git(root, "commit", "-m", "configure merge hooks")
+
+        with patch("grove.worktree_merge.find_repo_root", return_value=root):
+            result = start_merge("my-feature", no_test=True, no_verify=True)
+
+        assert result == 0
+        assert not (root / ".merge-hook-log").exists()
+
+
 class TestMergeStateBackwardCompat:
     def test_load_without_pre_sync_heads(self, tmp_path: Path):
         """Old state files without pre_sync_heads should load with empty dict."""

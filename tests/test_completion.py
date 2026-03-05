@@ -98,6 +98,7 @@ class TestExtractStructure:
             "--no-recurse",
             "--no-ff",
             "--no-test",
+            "--no-verify",
             "--verbose",
         }
         assert expected.issubset(set(merge_flags))

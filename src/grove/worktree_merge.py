@@ -22,6 +22,7 @@ from grove.config import (
     get_sync_group_exclude_paths,
     load_config,
 )
+from grove.hooks import run_configured_hooks
 from grove.repo_utils import (
     Colors,
     RepoInfo,
@@ -817,11 +818,53 @@ def _start_merge_state(
     return state
 
 
+def _run_merge_hook(
+    repo_root: Path,
+    hook_type: str,
+    *,
+    target_branch: str,
+    no_verify: bool,
+) -> int:
+    """Run pre/post-merge hook commands for the current worktree."""
+    if no_verify:
+        return 0
+
+    current_branch = run_git(
+        repo_root,
+        "branch",
+        "--show-current",
+        check=False,
+    ).stdout.strip()
+
+    return run_configured_hooks(
+        repo_root,
+        hook_type,
+        variables={
+            "branch": current_branch,
+            "target": target_branch,
+            "worktree_path": str(repo_root),
+        },
+        yes=False,
+    )
+
+
 def _finalize_merge_success(
     state: MergeState,
     state_path: Path,
     journal_path: Path,
+    *,
+    repo_root: Path,
+    no_verify: bool,
 ) -> int:
+    post_hook_rc = _run_merge_hook(
+        repo_root,
+        "post-merge",
+        target_branch=state.branch,
+        no_verify=no_verify,
+    )
+    if post_hook_rc != 0:
+        print(f"{Colors.yellow('Warning')}: post-merge hooks failed; continuing.")
+
     MergeState.remove(state_path)
     merged_count = sum(1 for entry in state.repos if entry.status == "merged")
     skipped_count = sum(1 for entry in state.repos if entry.status == "skipped")
@@ -846,6 +889,7 @@ def start_merge(
     no_recurse: bool = False,
     no_ff: bool = False,
     no_test: bool = False,
+    no_verify: bool = False,
 ) -> int:
     """Start a new merge of *branch* into the current branch."""
     repo_root = find_repo_root()
@@ -889,6 +933,15 @@ def start_merge(
     if dry_run:
         print(Colors.yellow("Dry run complete."))
         return 0
+
+    pre_hook_rc = _run_merge_hook(
+        repo_root,
+        "pre-merge",
+        target_branch=branch,
+        no_verify=no_verify,
+    )
+    if pre_hook_rc != 0:
+        return 1
 
     # Phase 5 — Execute
     state = _start_merge_state(
@@ -939,7 +992,13 @@ def start_merge(
             return rc
         merged_child_rel_paths.add(entry.rel_path)
 
-    return _finalize_merge_success(state, state_path, journal_path)
+    return _finalize_merge_success(
+        state,
+        state_path,
+        journal_path,
+        repo_root=repo_root,
+        no_verify=no_verify,
+    )
 
 
 def _find_paused_entry(state: MergeState) -> RepoMergeEntry | None:
@@ -1130,7 +1189,7 @@ def _run_sync_for_resumed_entry(
     return 0
 
 
-def continue_merge() -> int:
+def continue_merge(*, no_verify: bool = False) -> int:
     """Resume a paused merge."""
     repo_root = find_repo_root()
     state_path = _get_state_path(repo_root)
@@ -1185,7 +1244,13 @@ def continue_merge() -> int:
     if pending_rc != 0:
         return pending_rc
 
-    return _finalize_merge_success(state, state_path, journal_path)
+    return _finalize_merge_success(
+        state,
+        state_path,
+        journal_path,
+        repo_root=repo_root,
+        no_verify=no_verify,
+    )
 
 
 def abort_merge() -> int:
@@ -1302,7 +1367,7 @@ def status_merge() -> int:
 def run(args) -> int:
     """Dispatch to the appropriate merge sub-action."""
     if getattr(args, "continue_merge", False):
-        return continue_merge()
+        return continue_merge(no_verify=getattr(args, "no_verify", False))
     if getattr(args, "abort", False):
         return abort_merge()
     if getattr(args, "status", False):
@@ -1320,4 +1385,5 @@ def run(args) -> int:
         no_recurse=getattr(args, "no_recurse", False),
         no_ff=getattr(args, "no_ff", False),
         no_test=getattr(args, "no_test", False),
+        no_verify=getattr(args, "no_verify", False),
     )
