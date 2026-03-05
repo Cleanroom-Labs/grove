@@ -204,7 +204,7 @@ Before any structural refactoring in this phase, land these targeted fixes again
 
 1. **Unsafe remove fallback** — add dirty submodule check before `shutil.rmtree` in `worktree.py` (the full native-parity enhancement in 2.7 builds on this, but the safety fix lands first).
 2. **`run_git` invocation audit** — grep all `run_git` call sites and fix any that pass `cwd=` or misuse the path argument. Add a contract test confirming the `-C` flag pattern.
-3. **Nested sync remote fix** — fix `resolve_remote_url()` in `repo_utils.py` for nested `.gitmodules` (task 2.8b details the implementation).
+3. **Nested sync remote fix** — fix the remote URL resolver used by sync-group discovery for nested `.gitmodules` (task 2.8b details the implementation).
 
 Each fix gets its own regression test before proceeding to the CLI split. If any fix touches code that will be moved in later tasks (e.g., `worktree.py` → dispatch changes in 2.9), the fix lands on the pre-move code so the test baseline is clean.
 
@@ -302,9 +302,9 @@ Flags:
 
 Add `--exclude-sync-group` flag to `grove worktree add`. When set, pass through to `init_submodules_command` to skip branch checkout for sync-group submodule members.
 
-### 2.8b Fix `resolve_remote_url()` for nested submodules
+### 2.8b Fix remote URL resolution for nested submodules
 
-Concrete code fix in `repo_utils.py`: `resolve_remote_url()` (or the equivalent remote-URL resolution path used during sync-group discovery) must search nested `.gitmodules` consistently with `discover_repos_from_gitmodules` scope. If the current implementation only reads the top-level `.gitmodules`, extend it to walk nested submodule directories. This is a known functional regression path and must be fixed before further refactoring.
+Fix the remote URL resolver used by sync-group discovery so it searches nested `.gitmodules` consistently with `discover_repos_from_gitmodules` scope. If the current implementation only reads the top-level `.gitmodules`, extend it to walk nested submodule directories. The fix lands wherever the sync-group remote resolution currently lives (likely `repo_utils.py` or the sync path). This is a known functional regression path and must be fixed before further refactoring.
 
 ### 2.8c Sync and repo-root contract tests
 
