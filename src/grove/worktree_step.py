@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
+from grove import llm
 from grove.config import load_config
 from grove.hooks import run_configured_hooks
 from grove.repo_utils import Colors, find_repo_root, run_git
@@ -86,84 +87,10 @@ def _has_staged_changes(repo_root: Path) -> bool:
     return result.returncode != 0
 
 
-def _build_commit_prompt(repo_root: Path) -> str:
-    """Build a commit prompt compatible with the future LLM flow."""
-    diffstat_result = run_git(repo_root, "diff", "--cached", "--stat", check=False)
-    diff_result = run_git(repo_root, "diff", "--cached", check=False)
-    recent_result = run_git(
-        repo_root,
-        "log",
-        "-5",
-        "--pretty=format:%h %s",
-        check=False,
-    )
-
-    diffstat = diffstat_result.stdout.strip() if diffstat_result.returncode == 0 else ""
-    diff = diff_result.stdout.strip() if diff_result.returncode == 0 else ""
-    recent = recent_result.stdout.strip() if recent_result.returncode == 0 else ""
-
-    return (
-        "Write a commit message for the staged changes below.\n\n"
-        "<format>\n"
-        "- Subject line under 50 chars\n"
-        "- For material changes, add a blank line then a body paragraph "
-        "explaining the change\n"
-        "- Output only the commit message, no quotes or code blocks\n"
-        "</format>\n\n"
-        "<style>\n"
-        '- Imperative mood: "Add feature" not "Added feature"\n'
-        "- Match recent commit style (conventional commits if used)\n"
-        "- Describe the change, not the intent or benefit\n"
-        "</style>\n\n"
-        f"<diffstat>{diffstat}</diffstat>\n"
-        f"<diff>{diff}</diff>\n"
-        "<context>\n"
-        f"Branch: {_current_branch(repo_root)}\n"
-        f"<recent_commits>{recent}</recent_commits>\n"
-        "</context>\n"
-    )
-
-
-def _build_squash_prompt(repo_root: Path, target: str, base: str) -> str:
-    """Build a squash prompt compatible with the future LLM flow."""
-    commits_result = run_git(
-        repo_root,
-        "log",
-        "--reverse",
-        "--format=%h %s",
-        f"{base}..HEAD",
-        check=False,
-    )
-    diffstat_result = run_git(repo_root, "diff", "--stat", base, "HEAD", check=False)
-    diff_result = run_git(repo_root, "diff", base, "HEAD", check=False)
-
-    commits = commits_result.stdout.strip() if commits_result.returncode == 0 else ""
-    diffstat = diffstat_result.stdout.strip() if diffstat_result.returncode == 0 else ""
-    diff = diff_result.stdout.strip() if diff_result.returncode == 0 else ""
-
-    return (
-        "Combine these commits into a single commit message.\n\n"
-        "<format>\n"
-        "- Subject line under 50 chars\n"
-        "- For material changes, add a blank line then a body paragraph "
-        "explaining the change\n"
-        "- Output only the commit message, no quotes or code blocks\n"
-        "</format>\n\n"
-        "<style>\n"
-        '- Imperative mood: "Add feature" not "Added feature"\n'
-        "- Match the style of commits being squashed (conventional commits if used)\n"
-        "- Describe the change, not the intent or benefit\n"
-        "</style>\n\n"
-        f'<commits branch="{_current_branch(repo_root)}" target="{target}">{commits}</commits>\n'
-        f"<diffstat>{diffstat}</diffstat>\n"
-        f"<diff>{diff}</diff>\n"
-    )
-
-
 def _run_commit(repo_root: Path, args) -> int:
     """Run native `worktree step commit`."""
     if getattr(args, "show_prompt", False):
-        print(_build_commit_prompt(repo_root))
+        print(llm.build_commit_prompt(repo_root))
         return 0
 
     stage_mode = _resolve_stage_mode(repo_root, getattr(args, "stage", None))
@@ -189,7 +116,7 @@ def _run_commit(repo_root: Path, args) -> int:
         print(f"{Colors.yellow('Nothing to commit')}: no staged changes")
         return 0
 
-    prompt = _build_commit_prompt(repo_root)
+    prompt = llm.build_commit_prompt(repo_root)
     result = _commit_with_generated_message(repo_root, prompt)
     if result.returncode != 0:
         print(f"{Colors.red('Error')}: git commit failed")
@@ -233,7 +160,7 @@ def _run_squash(repo_root: Path, args) -> int:
         return 1
 
     if getattr(args, "show_prompt", False):
-        print(_build_squash_prompt(repo_root, target, base))
+        print(llm.build_squash_prompt(repo_root, base, target))
         return 0
 
     count = _commit_count_since(repo_root, base)
@@ -278,7 +205,7 @@ def _run_squash(repo_root: Path, args) -> int:
         print(f"{Colors.yellow('Nothing to commit')}: no staged changes after squash")
         return 0
 
-    prompt = _build_squash_prompt(repo_root, target, base)
+    prompt = llm.build_squash_prompt(repo_root, base, target)
     commit_result = _commit_with_generated_message(repo_root, prompt)
     if commit_result.returncode != 0:
         print(f"{Colors.red('Error')}: git commit failed")

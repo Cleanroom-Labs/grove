@@ -32,7 +32,7 @@ class TestWorktreeStep:
         with (
             patch("grove.worktree_step.find_repo_root", return_value=tmp_git_repo),
             patch("grove.worktree_step.maybe_delegate_step", return_value=None),
-            patch("grove.worktree_step._build_commit_prompt", return_value="PROMPT"),
+            patch("grove.worktree_step.llm.build_commit_prompt", return_value="PROMPT"),
             patch("grove.worktree_step.run_git") as mock_git,
         ):
             result = run_step(args)
@@ -53,7 +53,7 @@ class TestWorktreeStep:
         with (
             patch("grove.worktree_step.find_repo_root", return_value=tmp_git_repo),
             patch("grove.worktree_step.maybe_delegate_step", return_value=None),
-            patch("grove.worktree_step._build_commit_prompt", return_value="PROMPT"),
+            patch("grove.worktree_step.llm.build_commit_prompt", return_value="PROMPT"),
             patch(
                 "grove.worktree_step._commit_with_generated_message",
                 return_value=_cp(returncode=0),
@@ -90,7 +90,7 @@ class TestWorktreeStep:
             patch("grove.worktree_step.find_repo_root", return_value=tmp_git_repo),
             patch("grove.worktree_step.maybe_delegate_step", return_value=None),
             patch("grove.worktree_step.load_config", return_value=config),
-            patch("grove.worktree_step._build_commit_prompt", return_value="PROMPT"),
+            patch("grove.worktree_step.llm.build_commit_prompt", return_value="PROMPT"),
             patch(
                 "grove.worktree_step._commit_with_generated_message",
                 return_value=_cp(returncode=0),
@@ -122,7 +122,7 @@ class TestWorktreeStep:
             patch(
                 "grove.worktree_step.run_configured_hooks", return_value=0
             ) as mock_hooks,
-            patch("grove.worktree_step._build_commit_prompt", return_value="PROMPT"),
+            patch("grove.worktree_step.llm.build_commit_prompt", return_value="PROMPT"),
             patch(
                 "grove.worktree_step._commit_with_generated_message",
                 return_value=_cp(returncode=0),
@@ -161,7 +161,8 @@ class TestWorktreeStep:
                 return_value="abc123",
             ),
             patch(
-                "grove.worktree_step._build_squash_prompt", return_value="SQUASH_PROMPT"
+                "grove.worktree_step.llm.build_squash_prompt",
+                return_value="SQUASH_PROMPT",
             ),
             patch("grove.worktree_step.run_git") as mock_git,
         ):
@@ -185,7 +186,8 @@ class TestWorktreeStep:
             patch("grove.worktree_step.find_repo_root", return_value=tmp_git_repo),
             patch("grove.worktree_step.maybe_delegate_step", return_value=None),
             patch(
-                "grove.worktree_step._build_squash_prompt", return_value="SQUASH_PROMPT"
+                "grove.worktree_step.llm.build_squash_prompt",
+                return_value="SQUASH_PROMPT",
             ),
             patch(
                 "grove.worktree_step._commit_with_generated_message",
@@ -227,7 +229,8 @@ class TestWorktreeStep:
                 "grove.worktree_step.run_configured_hooks", return_value=0
             ) as mock_hooks,
             patch(
-                "grove.worktree_step._build_squash_prompt", return_value="SQUASH_PROMPT"
+                "grove.worktree_step.llm.build_squash_prompt",
+                return_value="SQUASH_PROMPT",
             ),
             patch(
                 "grove.worktree_step._commit_with_generated_message",
