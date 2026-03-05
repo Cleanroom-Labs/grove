@@ -632,6 +632,22 @@ class TestWorktreeStep:
         assert result == 1
         assert "requires the worktrunk backend" in capsys.readouterr().out
 
+    def test_wt_only_commands_delegate_before_native_rejection(
+        self, tmp_git_repo: Path
+    ):
+        args = argparse.Namespace(step_command="for-each")
+
+        with (
+            patch("grove.worktree_step.find_repo_root", return_value=tmp_git_repo),
+            patch(
+                "grove.worktree_step.maybe_delegate_step", return_value=0
+            ) as delegate,
+        ):
+            result = run_step(args)
+
+        assert result == 0
+        delegate.assert_called_once_with(tmp_git_repo, args)
+
     def test_commit_with_generated_message_uses_generated_text(
         self, tmp_git_repo: Path
     ):
