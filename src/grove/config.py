@@ -405,10 +405,20 @@ def _parse_worktree_section(raw: dict) -> WorktreeConfig:
             f"worktree.backend: expected one of {', '.join(VALID_BACKENDS)}, got {backend!r}"
         )
 
-    worktree_path = raw.get("worktree-path")
+    nested_worktree_path = worktree_raw.get("worktree-path")
+    worktree_path = (
+        nested_worktree_path
+        if nested_worktree_path is not None
+        else raw.get("worktree-path")
+    )
     if worktree_path is not None and not isinstance(worktree_path, str):
+        key_name = (
+            "worktree.worktree-path"
+            if nested_worktree_path is not None
+            else "worktree-path"
+        )
         raise ValueError(
-            f"worktree-path: expected a string, got {type(worktree_path).__name__}"
+            f"{key_name}: expected a string, got {type(worktree_path).__name__}"
         )
 
     llm = parse_llm_config(worktree_raw)

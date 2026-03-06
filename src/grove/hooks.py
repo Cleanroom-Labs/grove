@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from grove.config import HOOK_TYPES, load_config
-from grove.repo_utils import Colors, find_repo_root
+from grove.repo_utils import Colors, find_repo_root, run_git
 from grove.worktree_backend import maybe_delegate_hook
 
 _TEMPLATE_RE = re.compile(r"{{\s*(.*?)\s*}}")
@@ -50,6 +50,31 @@ def _iter_hook_commands(repo_root: Path, hook_type: str):
     if section is None:
         return []
     return sorted(section.commands.items())
+
+
+def _resolve_head_commit(repo_root: Path) -> tuple[str, str]:
+    """Return (full, short) HEAD commit SHAs, or empty strings when unavailable."""
+    result = run_git(repo_root, "rev-parse", "HEAD", check=False)
+    if result.returncode != 0:
+        return ("", "")
+
+    commit = result.stdout.strip()
+    if not commit:
+        return ("", "")
+    return (commit, commit[:12])
+
+
+def _baseline_hook_variables(repo_root: Path) -> dict[str, str]:
+    """Return baseline template variables available to every hook."""
+    commit, short_commit = _resolve_head_commit(repo_root)
+    return {
+        "repo_path": str(repo_root),
+        "repo": repo_root.name,
+        "worktree_name": repo_root.name,
+        "primary_worktree_path": str(repo_root),
+        "commit": commit,
+        "short_commit": short_commit,
+    }
 
 
 def has_configured_hooks(repo_root: Path, hook_type: str) -> bool:
@@ -103,7 +128,7 @@ def run_configured_hooks(
         print(f"{Colors.red('Error')}: hook '{name}' not found in {hook_type}")
         return 1
 
-    resolved_vars = {"repo_path": str(repo_root)}
+    resolved_vars = _baseline_hook_variables(repo_root)
     if variables:
         resolved_vars.update(variables)
 
@@ -133,7 +158,7 @@ def _show_hooks(
     """Show configured hooks."""
     config = load_config(repo_root)
     hook_types = [hook_type] if hook_type else list(HOOK_TYPES)
-    resolved_vars = {"repo_path": str(repo_root)}
+    resolved_vars = _baseline_hook_variables(repo_root)
     if variables:
         resolved_vars.update(variables)
 

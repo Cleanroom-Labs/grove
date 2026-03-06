@@ -6,6 +6,7 @@ Native worktree discovery and `grove worktree list`.
 from __future__ import annotations
 
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -455,6 +456,13 @@ def list_worktrees(args) -> int:
     )
     include_remotes = args.remotes if args.remotes is not None else config.list.remotes
     full = args.full if args.full is not None else config.list.full
+
+    if full:
+        print(
+            f"{Colors.yellow('Warning')}: native --full output omits CI status "
+            'and LLM summaries. Set [worktree].backend = "wt" for full support.',
+            file=sys.stderr,
+        )
 
     rows = collect_worktree_rows(
         repo_root,

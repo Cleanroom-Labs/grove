@@ -86,6 +86,10 @@ def _synthesize_wt_config(raw: dict) -> dict:
         if isinstance(value, dict):
             wt[key] = value
 
+    hooks_raw = raw.get("hooks")
+    if isinstance(hooks_raw, dict):
+        wt["hooks"] = hooks_raw
+
     for hook_type in HOOK_TYPES:
         value = raw.get(hook_type)
         if isinstance(value, (str, dict)):

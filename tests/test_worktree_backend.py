@@ -279,6 +279,7 @@ class TestWorktreeBackendDelegation:
             + existing
             + "\n[list]\nfull = true\n"
             + '[pre-remove]\ncheck = "echo ok"\n'
+            + '[hooks.post-create]\nsetup = "echo setup"\n'
         )
 
         args = argparse.Namespace(
@@ -308,6 +309,7 @@ class TestWorktreeBackendDelegation:
         assert 'worktree-path = "../{{ branch | sanitize }}"' in captured["content"]
         assert "[list]" in captured["content"]
         assert "[pre-remove]" in captured["content"]
+        assert "[hooks.post-create]" in captured["content"]
         assert not Path(captured["path"]).exists()
 
     def test_delegation_synthesis_honors_explicit_config_override(

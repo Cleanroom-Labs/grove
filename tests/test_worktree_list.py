@@ -112,6 +112,28 @@ class TestListWorktrees:
         assert "HEAD" in output
         assert "Upstream" in output
 
+    def test_full_native_mode_prints_wt_feature_warning(
+        self,
+        tmp_submodule_tree: Path,
+        capsys,
+    ):
+        """Native --full should warn about CI/LLM features requiring wt."""
+        args = argparse.Namespace(
+            format="table",
+            branches=False,
+            remotes=False,
+            full=True,
+        )
+
+        with patch(
+            "grove.worktree_list.find_repo_root", return_value=tmp_submodule_tree
+        ):
+            result = list_worktrees(args)
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "native --full output omits CI status and LLM summaries" in captured.err
+
     def test_remotes_flag_includes_remote_branches(
         self,
         tmp_git_repo: Path,

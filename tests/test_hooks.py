@@ -1,10 +1,20 @@
 """Tests for grove.hooks."""
 
 import argparse
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
 from grove.hooks import run
+
+
+def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", "-C", str(cwd)] + list(args),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
 
 class TestHooks:
@@ -77,6 +87,41 @@ class TestHooks:
         assert (
             tmp_submodule_tree / ".hook-run-log"
         ).read_text().strip() == "feature-subtask"
+
+    def test_show_hooks_expands_baseline_variables(
+        self,
+        tmp_submodule_tree: Path,
+        capsys,
+    ):
+        """Expanded hooks should include built-in repo/worktree/commit variables."""
+        existing_config = (tmp_submodule_tree / ".grove.toml").read_text()
+        (tmp_submodule_tree / ".grove.toml").write_text(
+            existing_config
+            + '\n[pre-remove]\nrecord = "echo {{ repo }} {{ worktree_name }} {{ primary_worktree_path }} {{ commit }} {{ short_commit }}"\n'
+        )
+        args = argparse.Namespace(
+            hook_type="show",
+            name="pre-remove",
+            expanded=True,
+            var=None,
+            yes=False,
+        )
+
+        commit = _git(tmp_submodule_tree, "rev-parse", "HEAD").stdout.strip()
+        short_commit = commit[:12]
+
+        with patch("grove.hooks.find_repo_root", return_value=tmp_submodule_tree):
+            result = run(args)
+
+        assert result == 0
+        output = capsys.readouterr().out
+        assert (
+            f"record: echo {tmp_submodule_tree.name} {tmp_submodule_tree.name}"
+            in output
+        )
+        assert str(tmp_submodule_tree) in output
+        assert commit in output
+        assert short_commit in output
 
     def test_invalid_var_returns_1(self, tmp_submodule_tree: Path):
         """Malformed --var values should fail fast."""

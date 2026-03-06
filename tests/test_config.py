@@ -271,6 +271,17 @@ class TestWorktreeConfig:
         assert config.worktree.copy_venv is True
         assert config.cascade.local_tests == "pytest"
 
+    def test_nested_worktree_path_loaded(self, tmp_path: Path):
+        """worktree-path under [worktree] should populate worktree config."""
+        (tmp_path / CONFIG_FILENAME).write_text(
+            "[worktree]\n"
+            'backend = "native"\n'
+            'worktree-path = "../nested/{{ branch | sanitize }}"\n'
+        )
+        config = load_config(tmp_path)
+        assert config.worktree.backend == "native"
+        assert config.worktree.worktree_path == "../nested/{{ branch | sanitize }}"
+
 
 class TestCascadeConfig:
     def test_default_cascade_config(self, tmp_path: Path):
