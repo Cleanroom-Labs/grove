@@ -5,6 +5,18 @@ CLI parser construction helpers.
 
 import argparse
 
+# Built-in subcommand aliases for `grove worktree`.
+# Argparse registers these as alternate names; set_defaults() normalizes
+# the dest value so dispatch code only sees canonical names.
+WORKTREE_ALIASES: dict[str, list[str]] = {
+    "switch": ["sw"],
+    "list": ["ls"],
+    "remove": ["rm"],
+    "step": ["st"],
+    "merge": ["m"],
+    "checkout-branches": ["cb"],
+}
+
 
 def build_parser():
     """Construct the grove argument parser.
@@ -291,12 +303,14 @@ examples:
 
     worktree_add_parser = worktree_subparsers.add_parser(
         "add",
+        aliases=WORKTREE_ALIASES.get("add", []),
         help="Create a new worktree with submodules initialized",
         description="Create a git worktree on a new or existing branch, then "
         "recursively initialize all submodules using the main worktree's "
         "copies as references.  Submodule remotes are kept pointing to the "
         "main worktree by default (use --no-local-remotes to restore upstream URLs).",
     )
+    worktree_add_parser.set_defaults(worktree_command="add")
     _add_worktree_config_arg(worktree_add_parser)
     worktree_add_parser.add_argument(
         "path",
@@ -330,11 +344,13 @@ examples:
 
     worktree_init_parser = worktree_subparsers.add_parser(
         "init-submodules",
+        aliases=WORKTREE_ALIASES.get("init-submodules", []),
         help="Initialize submodules and checkout matching branches in a worktree",
         description="Initialize submodules in an existing worktree, then checkout "
         "matching branches in submodules. By default, sync-group submodules are "
         "also checked out onto the worktree branch.",
     )
+    worktree_init_parser.set_defaults(worktree_command="init-submodules")
     _add_worktree_config_arg(worktree_init_parser)
     worktree_init_parser.add_argument(
         "path",
@@ -361,11 +377,13 @@ examples:
 
     worktree_switch_parser = worktree_subparsers.add_parser(
         "switch",
+        aliases=WORKTREE_ALIASES.get("switch", []),
         help="Switch to an existing worktree or create one",
         description="Switch to a worktree by branch. With -c, create the worktree "
         "if it does not exist yet. Without shell integration, Grove prints the "
         "target path so the caller can cd there.",
     )
+    worktree_switch_parser.set_defaults(worktree_command="switch")
     _add_worktree_config_arg(worktree_switch_parser)
     worktree_switch_parser.add_argument(
         "branch",
@@ -422,10 +440,12 @@ examples:
 
     worktree_list_parser = worktree_subparsers.add_parser(
         "list",
+        aliases=WORKTREE_ALIASES.get("list", []),
         help="List native worktrees and optional branch inventory",
         description="List worktrees for the current repository. Optionally include "
         "local branches without worktrees and remote branches.",
     )
+    worktree_list_parser.set_defaults(worktree_command="list")
     _add_worktree_config_arg(worktree_list_parser)
     worktree_list_parser.add_argument(
         "--format",
@@ -460,11 +480,13 @@ examples:
 
     worktree_remove_parser = worktree_subparsers.add_parser(
         "remove",
+        aliases=WORKTREE_ALIASES.get("remove", []),
         help="Remove worktrees by branch, with compatibility for path targets",
         description="Remove one or more worktrees by branch name. With no target, "
         "remove the current worktree branch. Explicit worktree paths are still "
         "accepted for compatibility.",
     )
+    worktree_remove_parser.set_defaults(worktree_command="remove")
     _add_worktree_config_arg(worktree_remove_parser)
     worktree_remove_parser.add_argument(
         "targets",
@@ -507,9 +529,11 @@ examples:
 
     worktree_hook_parser = worktree_subparsers.add_parser(
         "hook",
+        aliases=WORKTREE_ALIASES.get("hook", []),
         help="Show or run configured lifecycle hooks",
         description="Inspect configured hooks or run a specific hook type.",
     )
+    worktree_hook_parser.set_defaults(worktree_command="hook")
     _add_worktree_config_arg(worktree_hook_parser)
     worktree_hook_parser.add_argument(
         "hook_type",
@@ -539,10 +563,12 @@ examples:
 
     worktree_step_parser = worktree_subparsers.add_parser(
         "step",
+        aliases=WORKTREE_ALIASES.get("step", []),
         help="Run step-by-step worktree workflow commands",
         description="Run incremental worktree lifecycle steps such as diff, "
         "push, and rebase.",
     )
+    worktree_step_parser.set_defaults(worktree_command="step")
     _add_worktree_config_arg(worktree_step_parser)
     worktree_step_subparsers = worktree_step_parser.add_subparsers(dest="step_command")
 
@@ -745,10 +771,12 @@ examples:
 
     worktree_merge_parser = worktree_subparsers.add_parser(
         "merge",
+        aliases=WORKTREE_ALIASES.get("merge", []),
         help="Merge a branch across all submodules bottom-up",
         description="Merge a feature branch into the current branch across all "
         "repos in the submodule tree, processing leaves first.",
     )
+    worktree_merge_parser.set_defaults(worktree_command="merge")
     _add_worktree_config_arg(worktree_merge_parser)
     worktree_merge_parser.add_argument(
         "branch",
@@ -806,11 +834,13 @@ examples:
 
     worktree_checkout_parser = worktree_subparsers.add_parser(
         "checkout-branches",
+        aliases=WORKTREE_ALIASES.get("checkout-branches", []),
         help="Put submodules onto named branches (fix detached HEAD)",
         description="Create or checkout a branch in each non-sync-group "
         "submodule, matching the parent worktree's current branch. "
         "Use this to fix worktrees where submodules are in detached HEAD.",
     )
+    worktree_checkout_parser.set_defaults(worktree_command="checkout-branches")
     _add_worktree_config_arg(worktree_checkout_parser)
     worktree_checkout_parser.add_argument(
         "--branch",

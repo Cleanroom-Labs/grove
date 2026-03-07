@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from grove.cli import main
+from grove.cli_parsers import build_parser
 
 
 class TestCliNoArgs:
@@ -789,6 +790,48 @@ class TestCliAliasExpansion:
         args = mock_run.call_args[0][0]
         assert args.command == "check"
         assert args.verbose is True
+
+
+class TestCliWorktreeAliases:
+    def test_alias_sw_dispatches_as_switch(self):
+        """'grove worktree sw' should parse as worktree_command='switch'."""
+        parser = build_parser()
+        args = parser.parse_args(["worktree", "sw", "feat", "--no-cd"])
+        assert args.worktree_command == "switch"
+        assert args.branch == "feat"
+        assert args.no_cd is True
+
+    def test_alias_ls_dispatches_as_list(self):
+        """'grove worktree ls' should parse as worktree_command='list'."""
+        parser = build_parser()
+        args = parser.parse_args(["worktree", "ls"])
+        assert args.worktree_command == "list"
+
+    def test_alias_m_dispatches_as_merge(self):
+        """'grove worktree m' should parse as worktree_command='merge'."""
+        parser = build_parser()
+        args = parser.parse_args(["worktree", "m", "--status"])
+        assert args.worktree_command == "merge"
+        assert args.status is True
+
+    def test_alias_rm_dispatches_as_remove(self):
+        """'grove worktree rm' should parse as worktree_command='remove'."""
+        parser = build_parser()
+        args = parser.parse_args(["worktree", "rm", "my-branch"])
+        assert args.worktree_command == "remove"
+
+    def test_alias_st_dispatches_as_step(self):
+        """'grove worktree st diff' should parse as worktree_command='step'."""
+        parser = build_parser()
+        args = parser.parse_args(["worktree", "st", "diff"])
+        assert args.worktree_command == "step"
+        assert args.step_command == "diff"
+
+    def test_alias_cb_dispatches_as_checkout_branches(self):
+        """'grove worktree cb' should parse as worktree_command='checkout-branches'."""
+        parser = build_parser()
+        args = parser.parse_args(["worktree", "cb"])
+        assert args.worktree_command == "checkout-branches"
 
 
 class TestCliConfigSubcommand:

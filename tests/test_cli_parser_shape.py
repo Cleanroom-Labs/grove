@@ -1,6 +1,7 @@
 """Parser shape parity checks for CLI refactors."""
 
 from grove.cli import build_parser
+from grove.cli_parsers import WORKTREE_ALIASES
 from grove.completion import extract_structure
 
 
@@ -25,7 +26,7 @@ def test_parser_shape_top_level_commands_are_stable():
 def test_parser_shape_worktree_subcommands_are_stable():
     structure = extract_structure(build_parser())
     worktree = structure["commands"]["worktree"]["commands"]
-    assert set(worktree.keys()) == {
+    expected = {
         "add",
         "init-submodules",
         "switch",
@@ -36,6 +37,9 @@ def test_parser_shape_worktree_subcommands_are_stable():
         "merge",
         "checkout-branches",
     }
+    for aliases in WORKTREE_ALIASES.values():
+        expected.update(aliases)
+    assert set(worktree.keys()) == expected
 
 
 def test_parser_shape_step_subcommands_are_stable():

@@ -59,8 +59,10 @@ class TestExtractStructure:
         assert "--force" in init_flags
 
     def test_worktree_subcommands(self):
+        from grove.cli_parsers import WORKTREE_ALIASES
+
         wt = self.structure["commands"]["worktree"]
-        assert {
+        expected = {
             "add",
             "init-submodules",
             "switch",
@@ -70,7 +72,10 @@ class TestExtractStructure:
             "step",
             "merge",
             "checkout-branches",
-        } == set(wt["commands"].keys())
+        }
+        for aliases in WORKTREE_ALIASES.values():
+            expected.update(aliases)
+        assert expected == set(wt["commands"].keys())
 
     def test_worktree_top_level_flags(self):
         wt_flags = self.structure["commands"]["worktree"]["flags"]
