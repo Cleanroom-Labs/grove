@@ -49,6 +49,26 @@ This pattern keeps the main checkout as the single source of truth for the integ
 
 For the full narrative with examples, see [docs/submodule-workflow.md](docs/submodule-workflow.md).
 
+## Prerequisites
+
+**Python 3.11+** is required.
+
+### Git Config
+
+One git config setting must not be active: `submodule.recurse = true`. Grove
+manages submodule state explicitly through its own commands; this setting
+causes git to silently advance submodule pointers on `checkout` and `pull`,
+conflicting with grove's sync and merge operations.
+
+Verify your config is clean:
+
+```bash
+git config --get submodule.recurse   # should print nothing
+```
+
+See [docs/git-config-requirements.md](docs/git-config-requirements.md) for
+the full explanation, failure symptoms, and remediation steps.
+
 ## Installation
 
 Install in development mode:
@@ -62,8 +82,6 @@ For development with testing dependencies:
 ```bash
 pip install -e ".[dev]"
 ```
-
-**Requirements:** Python 3.11+
 
 ## Usage
 
@@ -348,8 +366,13 @@ Architecture and philosophy:
 
 Workflow and reference:
 - [docs/submodule-workflow.md](docs/submodule-workflow.md) — Common workflows and troubleshooting
+- [docs/git-config-requirements.md](docs/git-config-requirements.md) — Required git config settings, symptoms, and remediation
 - [docs/cascade-guide.md](docs/cascade-guide.md) — Cascade user guide with configuration examples
 - [docs/alternatives.md](docs/alternatives.md) — Comparison with native git features and existing tools
+
+Design and internals:
+- [docs/validation-design.md](docs/validation-design.md) — Validation matrix and `--skip-checks` contract
+- [docs/checkhealth-spec.md](docs/checkhealth-spec.md) — Full spec for `grove check` health checks (current + planned)
 
 ## License
 

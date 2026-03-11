@@ -15,6 +15,9 @@ Grove commands perform "flight prechecks" before mutating repository state. The 
 | Conflict prediction | - | - | - | - | - | warn | - |
 | Topology divergence | - | - | - | - | - | warn | - |
 | Config exists | - | - | x | - | - | - | x |
+| Git config: `submodule.recurse` | report¹ | - | warn | - | - | warn | - |
+
+¹ Planned — not yet implemented. See [docs/checkhealth-spec.md](checkhealth-spec.md).
 
 **Legend:** **x** = blocks (unless `--skip-checks` / `--force`), **report** = diagnostic output only, **warn** = non-blocking warning, **skip** = silently skips affected repo, **allow** = permits the condition, **-** = not checked.
 
