@@ -13,9 +13,31 @@
 
 ## About
 
-Git submodule management tools for nested repositories. `grove` provides a unified CLI for managing complex git submodule hierarchies. The package includes subcommands for verifying, synchronizing, pushing, visualizing, and managing worktrees of nested submodules.
+Git submodule management tools for nested repositories. `grove` provides a unified CLI for managing complex git submodule hierarchies. The package includes subcommands for verifying, synchronizing, pushing, visualizing, and managing worktrees for projects with nested submodules.
 
 All subcommands can be run from any subdirectory within the repository. Configuration (`.grove.toml`) is optional — commands gracefully handle repos without it.
+
+## Documentation
+
+Architecture and philosophy:
+- [docs/why-submodules.md](docs/why-submodules.md) — Why submodule-based decomposition, dependency management, and sync groups
+- [docs/why-worktrees.md](docs/why-worktrees.md) — Why worktrees for parallel and agentic development, and how Grove makes them practical
+- [docs/best-practices.md](docs/best-practices.md) — Testing strategy, cascade discipline, and building composable ecosystems
+
+Workflow and reference:
+- [docs/submodule-workflow.md](docs/submodule-workflow.md) — Common workflows and troubleshooting
+- [docs/worktree-lifecycle.md](docs/worktree-lifecycle.md) — Worktree switch/list/remove/step/hook workflows
+- [docs/worktrunk-integration.md](docs/worktrunk-integration.md) — Native vs WorkTrunk backend integration details
+- [docs/cascade-guide.md](docs/cascade-guide.md) — Cascade user guide with configuration examples
+- [docs/alternatives.md](docs/alternatives.md) — Comparison with native git features and existing tools
+
+Design and internals:
+- [docs/validation-design.md](docs/validation-design.md) — Validation matrix and `--skip-checks` contract
+- [docs/checkhealth-spec.md](docs/checkhealth-spec.md) — Full spec for `grove check` health checks (current + planned)
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
 
 ## Prerequisites
 
@@ -438,25 +460,3 @@ grove/
 │           └── repo_node.py
 └── tests/                      # Test suite
 ```
-
-## Documentation
-
-Architecture and philosophy:
-- [docs/why-submodules.md](docs/why-submodules.md) — Why submodule-based decomposition, dependency management, and sync groups
-- [docs/why-worktrees.md](docs/why-worktrees.md) — Why worktrees for parallel and agentic development, and how Grove makes them practical
-- [docs/best-practices.md](docs/best-practices.md) — Testing strategy, cascade discipline, and building composable ecosystems
-
-Workflow and reference:
-- [docs/submodule-workflow.md](docs/submodule-workflow.md) — Common workflows and troubleshooting
-- [docs/worktree-lifecycle.md](docs/worktree-lifecycle.md) — Worktree switch/list/remove/step/hook workflows
-- [docs/worktrunk-integration.md](docs/worktrunk-integration.md) — Native vs WorkTrunk backend integration details
-- [docs/cascade-guide.md](docs/cascade-guide.md) — Cascade user guide with configuration examples
-- [docs/alternatives.md](docs/alternatives.md) — Comparison with native git features and existing tools
-
-Design and internals:
-- [docs/validation-design.md](docs/validation-design.md) — Validation matrix and `--skip-checks` contract
-- [docs/checkhealth-spec.md](docs/checkhealth-spec.md) — Full spec for `grove check` health checks (current + planned)
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
