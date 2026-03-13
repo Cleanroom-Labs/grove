@@ -46,7 +46,7 @@ grove sync common
 
 This detects that `frontend/libs/common` is ahead and updates `backend/libs/common` and `shared/libs/common` to match.
 
-If instances have diverged (different developers committed to different instances), sync automatically attempts a merge. See [Sync Divergence Merge](sync-divergence-merge.md) for details.
+If instances have diverged (different developers committed to different instances), sync automatically attempts a merge. See [Sync Divergence Merge](../design/sync-divergence-merge.md) for details.
 
 ### 4. Cascade upward
 

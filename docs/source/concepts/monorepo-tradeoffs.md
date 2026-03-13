@@ -95,12 +95,12 @@ But grove layers monorepo-style workflows on top:
 
 The tradeoff is explicit: you manage submodule pointers instead of workspace-relative paths, and you need grove's tooling to make the workflow practical. But you get independent versioning per module, fine-grained access control, and the ability to defer consumer upgrades — while still having the option of atomic cross-module changes when you want them.
 
-For a deeper discussion of why submodules over package registries, see [Why Submodules?](why-submodules.md). For a survey of alternative tools, see [Alternatives and Rationale](alternatives.md).
+For a deeper discussion of why submodules over package registries, see [Why Submodules?](why-submodules.md). For a survey of alternative tools, see [Alternatives and Rationale](../reference/alternatives.md).
 
 ## Further Reading
 
 - [Monorepos and the Fallacy of Scale](https://www.youtube.com/watch?v=_uDvhXK4T3M) — Philomatics video covering the dependency management tradeoffs discussed in this document
 - [Why Submodules?](why-submodules.md) — The case for submodule-based decomposition
-- [Alternatives and Rationale](alternatives.md) — Survey of existing tools and where grove fills gaps
+- [Alternatives and Rationale](../reference/alternatives.md) — Survey of existing tools and where grove fills gaps
 - [Taming Git Submodules](taming-submodules.md) — Configuring git to reduce submodule friction, and where grove picks up
-- [Submodule Workflow](submodule-workflow.md) — How grove's worktree-based development model works in practice
+- [Submodule Workflow](../guides/submodule-workflow.md) — How grove's worktree-based development model works in practice

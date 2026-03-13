@@ -4,7 +4,9 @@
 
 **Install:** `pip install -e ".[dev]"`
 **Install (LLM):** `pip install -e ".[llm]"`
+**Install (Docs):** `pip install -r docs/requirements.txt`
 **Test:** `pytest`
+**Build Docs:** `make -C docs html`
 **Run:** `grove --help`
 
 ## Project Structure
@@ -17,7 +19,9 @@
 - `src/grove/config_import.py` — `config import-wt` migration path
 - `src/grove/llm.py` — commit/squash prompt + message generation fallback chain
 - `tests/` — Test suite (pytest)
-- `docs/` — Internal documentation
+- `docs/` — Sphinx documentation site
+- `docs/source/` — Documentation source (markdown via myst-parser)
+- `docs/common/` — Shared Sphinx theme submodule (cleanroom-website-common)
 
 ## Key Concepts
 

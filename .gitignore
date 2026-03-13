@@ -9,5 +9,8 @@ __pycache__/
 .envrc
 .venv/
 
+# Sphinx build output
+docs/_build/
+
 # Claude Code local settings (machine-specific)
 .claude/settings.local.json

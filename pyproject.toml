@@ -23,6 +23,7 @@ classifiers = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
+docs = ["sphinx>=7.0.0", "sphinx-rtd-theme>=3.0.0", "myst-parser>=3.0.0"]
 llm = ["strands-agents[ollama]", "strands-agents-tools", "claude-agent-sdk"]
 
 [project.scripts]

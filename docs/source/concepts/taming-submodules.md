@@ -123,5 +123,5 @@ The recommendation: configure the git settings regardless of whether you use gro
 - [Git Submodules — What, Why, And How](https://www.youtube.com/watch?v=JESI498HSMA) — Philomatics video covering the pain points and configuration improvements discussed in this document
 - [Why Submodules?](why-submodules.md) — The case for submodule-based decomposition over package registries
 - [Monorepo vs. Polyrepo](monorepo-tradeoffs.md) — Where submodules fit in the monorepo-polyrepo spectrum
-- [Alternatives and Rationale](alternatives.md) — Survey of existing tools and where grove fills gaps
-- [Submodule Workflow](submodule-workflow.md) — How grove's worktree-based development model works in practice
+- [Alternatives and Rationale](../reference/alternatives.md) — Survey of existing tools and where grove fills gaps
+- [Submodule Workflow](../guides/submodule-workflow.md) — How grove's worktree-based development model works in practice

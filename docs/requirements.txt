@@ -1,0 +1,2 @@
+# Shared Sphinx dependencies (theme, myst-parser, etc.)
+-r common/requirements.txt

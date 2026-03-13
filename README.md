@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="docs/images/grove.png" alt="Grove" width="800">
+  <img src="docs/source/_static/grove.png" alt="Grove" width="800">
 </p>
 
 <p align="center">
   <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml/badge.svg" alt="Tests"></a>
   <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml/badge.svg" alt="Security"></a>
-  <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/build-all-docs.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/build-all-docs.yml/badge.svg" alt="Documentation"></a>
+  <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/docs.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/docs.yml/badge.svg" alt="Documentation"></a>
   <a href="https://github.com/Cleanroom-Labs/grove/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT"></a>
 </p>
 
@@ -20,20 +20,20 @@ All subcommands can be run from any subdirectory within the repository. Configur
 ## Documentation
 
 Architecture and philosophy:
-- [docs/why-submodules.md](docs/why-submodules.md) — Why submodule-based decomposition, dependency management, and sync groups
-- [docs/why-worktrees.md](docs/why-worktrees.md) — Why worktrees for parallel and agentic development, and how Grove makes them practical
-- [docs/best-practices.md](docs/best-practices.md) — Testing strategy, cascade discipline, and building composable ecosystems
+- [Why Submodules?](docs/source/concepts/why-submodules.md) — Why submodule-based decomposition, dependency management, and sync groups
+- [Why Worktrees?](docs/source/concepts/why-worktrees.md) — Why worktrees for parallel and agentic development, and how Grove makes them practical
+- [Best Practices](docs/source/guides/best-practices.md) — Testing strategy, cascade discipline, and building composable ecosystems
 
 Workflow and reference:
-- [docs/submodule-workflow.md](docs/submodule-workflow.md) — Common workflows and troubleshooting
-- [docs/worktree-lifecycle.md](docs/worktree-lifecycle.md) — Worktree switch/list/remove/step/hook workflows
-- [docs/worktrunk-integration.md](docs/worktrunk-integration.md) — Native vs WorkTrunk backend integration details
-- [docs/cascade-guide.md](docs/cascade-guide.md) — Cascade user guide with configuration examples
-- [docs/alternatives.md](docs/alternatives.md) — Comparison with native git features and existing tools
+- [Submodule Workflow](docs/source/guides/submodule-workflow.md) — Common workflows and troubleshooting
+- [Worktree Lifecycle](docs/source/guides/worktree-lifecycle.md) — Worktree switch/list/remove/step/hook workflows
+- [WorkTrunk Integration](docs/source/design/worktrunk-integration.md) — Native vs WorkTrunk backend integration details
+- [Cascade Guide](docs/source/guides/cascade-guide.md) — Cascade user guide with configuration examples
+- [Alternatives](docs/source/reference/alternatives.md) — Comparison with native git features and existing tools
 
 Design and internals:
-- [docs/validation-design.md](docs/validation-design.md) — Validation matrix and `--skip-checks` contract
-- [docs/checkhealth-spec.md](docs/checkhealth-spec.md) — Full spec for `grove check` health checks (current + planned)
+- [Validation Design](docs/source/reference/validation-design.md) — Validation matrix and `--skip-checks` contract
+- [Check Health Spec](docs/source/reference/checkhealth-spec.md) — Full spec for `grove check` health checks (current + planned)
 
 ## License
 
@@ -59,8 +59,8 @@ git config --get submodule.recurse   # should print nothing or "false"
 git config --local submodule.recurse false
 ```
 
-See [docs/git-config-requirements.md](docs/git-config-requirements.md) for
-the full explanation, failure symptoms, and remediation steps.
+See the Git Config section of the Prerequisites above for
+the full explanation and remediation steps.
 
 ## Installation
 
@@ -243,7 +243,7 @@ The development cycle:
 
 This pattern keeps the main checkout as the single source of truth for the integrated state. Worktrees are disposable — create them for a task, merge the results, clean them up.
 
-For the full narrative with examples, see [docs/submodule-workflow.md](docs/submodule-workflow.md).
+For the full narrative with examples, see [Submodule Workflow](docs/source/guides/submodule-workflow.md).
 
 ### `grove worktree`
 
@@ -282,7 +282,7 @@ Grove includes a full worktree lifecycle surface:
 - `grove worktree hook` — inspect or execute configured lifecycle hooks
 - `grove shell init` — wrapper generation for bash/zsh/fish
 
-See [docs/worktree-lifecycle.md](docs/worktree-lifecycle.md) for examples and behavior details.
+See [Worktree Lifecycle](docs/source/guides/worktree-lifecycle.md) for examples and behavior details.
 
 ### Configuration
 
@@ -309,7 +309,7 @@ Set `[worktree].backend` in Grove config:
 - `"wt"` — always delegate lifecycle commands to `wt`
 - `"auto"` (default) — delegate when `wt` is on PATH, otherwise use native
 
-See [docs/worktrunk-integration.md](docs/worktrunk-integration.md) for delegation details and config synthesis behavior.
+See [WorkTrunk Integration](docs/source/design/worktrunk-integration.md) for delegation details and config synthesis behavior.
 
 ### LLM Integration
 

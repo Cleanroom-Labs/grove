@@ -301,4 +301,4 @@ Nested submodules are a power tool. They solve real problems—version coupling,
 For concrete lifecycle command examples, see:
 
 - [worktree-lifecycle.md](worktree-lifecycle.md) for `switch`, `list`, `remove`, `step`, `hook`
-- [worktrunk-integration.md](worktrunk-integration.md) for backend delegation behavior and `config import-wt`
+- [worktrunk-integration.md](../design/worktrunk-integration.md) for backend delegation behavior and `config import-wt`

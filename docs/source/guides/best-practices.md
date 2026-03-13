@@ -125,7 +125,7 @@ The recommended solution is Git's conditional includes, which apply config based
 
 Git's `includeIf` directive lets you apply config based on the repository's location on disk. Set it in your global `~/.gitconfig`:
 
-```gitconfig
+```ini
 # ~/.gitconfig
 
 [user]
@@ -138,7 +138,7 @@ Git's `includeIf` directive lets you apply config based on the repository's loca
 
 Then create the included file with the project identity:
 
-```gitconfig
+```ini
 # ~/.gitconfig-cleanroom
 
 [user]
