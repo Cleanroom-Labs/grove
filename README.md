@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/grove.png" alt="Grove" width="400">
+  <img src="docs/images/grove.png" alt="Grove" width="800">
 </p>
 
 <p align="center">
