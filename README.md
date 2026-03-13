@@ -1,13 +1,14 @@
 ![Grove](https://raw.githubusercontent.com/Cleanroom-Labs/grove/main/docs/source/_static/grove.png)
 
-<div align="center">
-
-[![Tests](https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml/badge.svg)](https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml)
-[![Security](https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml/badge.svg)](https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml)
-[![Docs](https://github.com/Cleanroom-Labs/grove/actions/workflows/docs.yml/badge.svg)](https://github.com/Cleanroom-Labs/grove/actions/workflows/docs.yml)
-[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/Cleanroom-Labs/grove/blob/main/LICENSE)
-
-</div>
+<p align="center">
+  <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml/badge.svg" alt="Tests"></a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml/badge.svg" alt="Security"></a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/docs.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/docs.yml/badge.svg" alt="Documentation"></a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/Cleanroom-Labs/grove/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT"></a>
+</p>
 
 ---
 
