@@ -403,12 +403,15 @@ class TestWorktreeBackendIntegration:
         monkeypatch,
     ):
         """Smoke test real wt delegation without subprocess mocking."""
-        version = subprocess.run(
-            ["wt", "--version"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            version = subprocess.run(
+                ["wt", "--version"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            pytest.skip("wt binary not available in test environment")
         if version.returncode != 0:
             pytest.skip("wt binary not available in test environment")
 

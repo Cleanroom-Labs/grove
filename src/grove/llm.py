@@ -166,7 +166,7 @@ def _run_generation_command(repo_root: Path, command: str, prompt: str) -> str |
     """Run shell-command generation and return message text."""
     result = subprocess.run(
         command,
-        shell=True,
+        shell=True,  # nosemgrep: subprocess-shell-true  # user-configured generation command
         cwd=str(repo_root),
         input=prompt,
         text=True,

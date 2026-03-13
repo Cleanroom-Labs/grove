@@ -629,7 +629,7 @@ def run_test(path: Path, test_cmd: str) -> tuple[bool, float]:
     start = time.monotonic()
     result = subprocess.run(
         test_cmd,
-        shell=True,
+        shell=True,  # nosemgrep: subprocess-shell-true  # user-configured test command
         cwd=str(path),
         capture_output=True,
         text=True,
