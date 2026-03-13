@@ -1,0 +1,4 @@
+/* Center elements with align="center" attribute (badges, images) */
+p[align="center"] {
+    text-align: center !important;
+}
