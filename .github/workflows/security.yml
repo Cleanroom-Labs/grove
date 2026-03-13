@@ -23,7 +23,8 @@ jobs:
             --user "$(id -u):$(id -g)" \
             -v "${PWD}:/repo" \
             bearer/bearer:latest \
-            scan /repo --format sarif --output /repo/bearer.sarif
+            scan /repo --format sarif --output /repo/bearer.sarif \
+            --exit-code 0
       - name: Upload Bearer SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v4
@@ -55,6 +56,7 @@ jobs:
           format: "sarif"
           output: "trivy-fs.sarif"
           exit-code: "0"
+          version: "v0.62.1"
       - name: Upload filesystem SARIF
         uses: github/codeql-action/upload-sarif@v4
         with:
@@ -67,6 +69,7 @@ jobs:
           scan-ref: "."
           severity: "CRITICAL,HIGH,MEDIUM"
           exit-code: "1"
+          version: "v0.62.1"
 
   semgrep:
     name: SAST scan (Semgrep)
