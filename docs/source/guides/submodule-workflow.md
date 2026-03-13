@@ -161,10 +161,6 @@ grove sync --dry-run
 
 # Commit but don't push
 grove sync --no-push
-
-# Also check for stale generated files (e.g., icons) after syncing
-grove sync --verify
-grove sync --rebuild  # auto-regenerate stale files
 ```
 
 ## Merging Worktree Changes Back
@@ -243,9 +239,9 @@ The setup is simple. You have three independent tasks—say, updating component 
 
 ```bash
 cd ~/Projects/my-project
-grove worktree add --local-remotes ../my-project-wt1 update-deploy-docs
-grove worktree add --local-remotes ../my-project-wt2 expand-whisper-docs
-grove worktree add --local-remotes ../my-project-wt3 fix-theme-spacing
+grove worktree add ../my-project-wt1 update-deploy-docs
+grove worktree add ../my-project-wt2 expand-whisper-docs
+grove worktree add ../my-project-wt3 fix-theme-spacing
 ```
 
 Each worktree has its own fully initialized checkout with all submodules at every level. Now you launch a coding agent in each one—three separate terminal sessions, three instances of Claude Code, each pointed at a different directory:

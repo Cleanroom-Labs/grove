@@ -51,7 +51,7 @@ The root `.grove.toml` defines:
 ## Typical Workflow
 
 ```
-grove worktree add <branch> <path>   # Create isolated worktree
+grove worktree add <path> <branch>   # Create isolated worktree
 # ... develop in worktree ...
 grove worktree merge <branch>        # Merge back (run from main checkout)
 grove ship                           # Health check + push (from main checkout)

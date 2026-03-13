@@ -60,9 +60,6 @@ git config --get submodule.recurse   # should print nothing or "false"
 git config --local submodule.recurse false
 ```
 
-See the Git Config section of the Prerequisites above for
-the full explanation and remediation steps.
-
 ## Installation
 
 Install in development mode:
@@ -134,8 +131,8 @@ grove push
 # Dry run: preview what would be pushed
 grove push --dry-run
 
-# Force push (skip validation, for recovery scenarios)
-grove push --force
+# Skip validation (for recovery scenarios)
+grove push --skip-checks
 ```
 
 **Exit codes:**
@@ -154,7 +151,7 @@ grove sync
 grove sync common
 
 # Sync "common" to a specific commit
-grove sync common abc1234
+grove sync common --commit abc1234
 
 # Preview changes without making them
 grove sync --dry-run
@@ -163,15 +160,15 @@ grove sync --dry-run
 grove sync --no-push
 
 # Skip remote sync validation
-grove sync --force
+grove sync --skip-checks
 ```
 
 **Flags:**
 - `group` (positional) — Sync group name (syncs all groups if omitted)
-- `commit` (positional) — Target commit SHA (optional)
+- `--commit` — Target commit SHA (optional)
 - `--dry-run` — Preview changes without making them
 - `--no-push` — Commit only, skip pushing to remotes
-- `--force` — Skip remote sync validation
+- `--skip-checks` — Skip remote sync validation
 
 **Exit codes:**
 - `0` — Sync successful (or no sync groups configured)
@@ -217,10 +214,10 @@ The development cycle:
 
 1. **Create worktrees** for each task from the main checkout:
    ```bash
-   grove worktree add --local-remotes feature-a ../my-project-feature-a
-   grove worktree add --local-remotes feature-b ../my-project-feature-b
+   grove worktree add ../my-project-feature-a feature-a
+   grove worktree add ../my-project-feature-b feature-b
    ```
-   Each worktree gets its own fully initialized checkout with all submodules. The `--local-remotes` flag keeps submodule pushes on-machine — nothing leaves your filesystem until you explicitly push from main.
+   Each worktree gets its own fully initialized checkout with all submodules. Local remotes (the default) keep submodule pushes on-machine — nothing leaves your filesystem until you explicitly push from main.
 
 2. **Develop in worktrees.** Commit, test, iterate. Multiple developers or AI agents can work in separate worktrees simultaneously without interference.
 
@@ -429,35 +426,48 @@ grove/
 ├── pyproject.toml              # Package configuration
 ├── README.md                   # This file
 ├── docs/
-│   └── submodule-workflow.md   # Detailed workflow documentation
+│   └── source/
+│       ├── concepts/           # Architecture and philosophy
+│       ├── design/             # Design documents
+│       ├── guides/             # Workflow guides
+│       ├── reference/          # Reference documentation
+│       └── future/             # Deferred ideas
 ├── src/
 │   └── grove/
 │       ├── __init__.py
 │       ├── cli.py              # Main CLI entry point
+│       ├── cli_parsers.py      # Argument parser definitions
+│       ├── cli_dispatch.py     # Command dispatch logic
 │       ├── completion.py       # Shell completion generation
 │       ├── config.py           # .grove.toml loader
+│       ├── user_config.py      # User config (~/.config/grove/)
 │       ├── repo_utils.py       # Shared git utilities
 │       ├── check.py            # check subcommand
 │       ├── push.py             # push subcommand
 │       ├── sync.py             # sync subcommand
+│       ├── sync_merge.py       # Sync divergence merge logic
+│       ├── cascade.py          # cascade subcommand
 │       ├── topology.py         # Topology caching for submodule structure
 │       ├── worktree.py         # worktree add/remove subcommand
+│       ├── worktree_common.py  # Shared worktree utilities
 │       ├── worktree_switch.py  # worktree switch lifecycle command
 │       ├── worktree_list.py    # worktree list lifecycle command
 │       ├── worktree_step.py    # worktree step lifecycle commands
+│       ├── worktree_merge.py   # worktree merge subcommand
+│       ├── worktree_backend.py # optional delegation to WorkTrunk backend
 │       ├── hooks.py            # worktree hook command + hook execution
 │       ├── shell.py            # shell wrapper generation (shell init)
 │       ├── llm.py              # LLM prompt + message generation fallback
 │       ├── config_import.py    # `config import-wt` migration command
-│       ├── worktree_merge.py   # worktree merge subcommand
-│       ├── worktree_backend.py # optional delegation to WorkTrunk backend
+│       ├── checkout.py         # checkout-branches subcommand
+│       ├── claude.py           # Claude Code skill installation
+│       ├── init.py             # grove init subcommand
+│       ├── filelock.py         # File locking utilities
 │       └── visualizer/         # visualize subcommand
 │           ├── __init__.py
 │           ├── __main__.py
-│           ├── actions.py
-│           ├── app.py
-│           ├── graph_canvas.py
-│           ├── layout.py
-│           └── repo_node.py
+│           ├── data.py
+│           ├── server.py
+│           └── web/            # Web-based visualizer frontend
 └── tests/                      # Test suite
 ```

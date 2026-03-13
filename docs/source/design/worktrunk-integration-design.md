@@ -895,11 +895,11 @@ All wt flags must be carried over to grove's CLI. For each command:
 - Update "Project Structure" with new files
 
 ### New docs files
-- `docs/worktrunk-integration.md` — detailed guide on configuring grove with wt backend
-- `docs/worktree-lifecycle.md` — full worktree lifecycle documentation (switch, list, remove, step, hooks)
+- `worktrunk-integration.md` — detailed guide on configuring grove with wt backend
+- `../guides/worktree-lifecycle.md` — full worktree lifecycle documentation (switch, list, remove, step, hooks)
 
 ### Updated docs
-- `docs/submodule-workflow.md` — reference new lifecycle commands where relevant
+- `../guides/submodule-workflow.md` — reference new lifecycle commands where relevant
 - `docs/best-practices.md` — add lifecycle workflow recommendations
 
 ### Claude skills

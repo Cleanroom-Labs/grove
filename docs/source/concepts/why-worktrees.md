@@ -27,9 +27,9 @@ AI coding agents need isolated environments. If you're running multiple agents â
 Worktrees give each agent a complete, independent checkout. Three agents, three worktrees, three terminals, zero interference:
 
 ```bash
-grove worktree add --local-remotes ../my-project-feature-a  feature-a
-grove worktree add --local-remotes ../my-project-refactor-b refactor-b
-grove worktree add --local-remotes ../my-project-fix-theme  fix-theme
+grove worktree add ../my-project-feature-a  feature-a
+grove worktree add ../my-project-refactor-b refactor-b
+grove worktree add ../my-project-fix-theme  fix-theme
 ```
 
 Each agent operates in its own directory with its own branch, its own submodule state, and its own index. When they finish, you review each worktree's changes and merge them sequentially from the main checkout. The main checkout is the integration point â€” it's where parallel work becomes serial, deliberate, and tested.

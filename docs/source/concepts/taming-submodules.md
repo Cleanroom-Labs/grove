@@ -43,6 +43,15 @@ Run these once to configure globally:
 ```bash
 git config --global submodule.recurse true
 git config --global fetch.recurseSubmodules on-demand
+```
+
+```{warning}
+**Grove users:** Do not set `submodule.recurse = true` globally if you use grove. Grove manages submodule state explicitly; this setting causes git to silently advance submodule pointers on `checkout` and `pull`, conflicting with grove's sync and merge operations. Either leave it unset or disable it per-project:
+
+    git config --local submodule.recurse false
+```
+
+```bash
 git config --global push.recurseSubmodules on-demand
 git config --global diff.submodule log
 git config --global status.submoduleSummary true

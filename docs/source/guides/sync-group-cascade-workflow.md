@@ -103,10 +103,11 @@ Run the suggested sync command, then cascade as usual.
 
 ### Push everything
 
-If you don't need targeted pushing, use `grove ship` instead:
+If you don't need targeted pushing, use the `/grove-ship` Claude Code skill instead (not a CLI command):
 
 ```bash
-grove ship   # health check + push all
+# In Claude Code, run: /grove-ship
+# This performs grove check + grove push as a guided workflow
 ```
 
 ### Skip sync-group consistency check

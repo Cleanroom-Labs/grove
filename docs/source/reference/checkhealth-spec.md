@@ -75,7 +75,7 @@ Git config
     grove's sync and merge commands.
     Fix: remove [submodule] recurse = true from the config file above, or:
       git config --global submodule.recurse false
-    See: docs/git-config-requirements.md
+    See: grove check -v
 ```
 
 Pass output:
@@ -132,5 +132,5 @@ detail to CI logs without changing the exit code.
 `grove check` is diagnostic only — it never modifies state. Pre-flight
 validation in individual commands (e.g., `grove push` checking uncommitted
 changes) is separate and serves a different purpose: blocking unsafe mutations.
-The two layers are complementary. See `docs/validation-design.md` for the full
+The two layers are complementary. See [Validation Design](validation-design.md) for the full
 validation matrix.

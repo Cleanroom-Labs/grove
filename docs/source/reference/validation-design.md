@@ -40,8 +40,8 @@ Grove commands perform "flight prechecks" before mutating repository state. The 
 
 These functions implement the validation checks. Reuse them when adding new commands.
 
-- **`RepoInfo.validate()`** (`src/grove/repo_utils.py:242`) -- checks uncommitted changes, detached HEAD, remote divergence. Used by `push` and `sync`.
-- **`RepoInfo.has_uncommitted_changes()`** (`src/grove/repo_utils.py:192`) -- standalone dirty-tree check. Used directly by `worktree merge` (which doesn't need the full `validate()` pipeline).
+- **`RepoInfo.validate()`** (`src/grove/repo_utils.py:295`) -- checks uncommitted changes, detached HEAD, remote divergence. Used by `push` and `sync`.
+- **`RepoInfo.has_uncommitted_changes()`** (`src/grove/repo_utils.py:201`) -- standalone dirty-tree check. Used directly by `worktree merge` (which doesn't need the full `validate()` pipeline).
 - **`check_sync_groups()`** (`src/grove/check.py`) -- verifies all instances of a sync-group submodule are at the same commit. Used by `check` and `push`.
 - **`_predict_conflicts()`** (`src/grove/worktree_merge.py:144`) -- simulates `git merge --no-commit --no-ff`, then aborts, to predict which files will conflict.
 - **`_check_structural_consistency()`** (`src/grove/worktree_merge.py:253`) -- compares submodule topology between HEAD and the target branch using the topology cache.

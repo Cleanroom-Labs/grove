@@ -66,8 +66,11 @@ Reports how many repos are discovered, how many are targeted by filters, and whi
 
 ## Comparison with `grove ship`
 
-| | `grove push` | `grove ship` |
+`grove ship` is a Claude Code skill (`/grove-ship`), not a CLI command. It runs `grove check` followed by `grove push` as a guided workflow.
+
+| | `grove push` | `/grove-ship` |
 |---|---|---|
+| Type | CLI command | Claude Code skill |
 | Health check | No | Yes (`grove check` first) |
 | Filtering | Yes (paths, sync-group, cascade) | No (always pushes all) |
 | Use case | Targeted push after specific workflow | Ship everything after full verification |
