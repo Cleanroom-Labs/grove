@@ -1,5 +1,3 @@
-# Grove
-
 ![Grove](https://raw.githubusercontent.com/Cleanroom-Labs/grove/main/docs/source/_static/grove.png)
 
 [![Tests](https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml/badge.svg)](https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml)

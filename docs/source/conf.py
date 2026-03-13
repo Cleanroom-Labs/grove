@@ -30,6 +30,9 @@ myst_enable_extensions = [
     "html_image",
 ]
 
+# README starts at H2 (banner image is the visual title) — suppress heading-level warning
+suppress_warnings = ["myst.header"]
+
 html_title = 'Grove Docs'
 html_context = {
     'display_github': True,
