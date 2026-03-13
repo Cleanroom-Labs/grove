@@ -102,6 +102,7 @@ def resolve_remote_url(repo_root: Path, url_match: str) -> str | None:
 
 def _iter_gitmodules_paths(repo_root: Path):
     """Yield ``.gitmodules`` paths beneath *repo_root* in stable order."""
+    repo_root = repo_root.resolve()
     for gitmodules_path in sorted(repo_root.rglob(".gitmodules")):
         if "node_modules" in gitmodules_path.parts:
             continue

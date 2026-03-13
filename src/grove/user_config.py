@@ -25,7 +25,7 @@ def get_user_config_dir() -> Path:
     """Return the Grove user config directory."""
     override = os.environ.get("GROVE_CONFIG_HOME")
     if override:
-        return Path(override).expanduser()
+        return Path(override).expanduser().resolve()
     return Path.home() / ".config" / "grove"
 
 
@@ -49,7 +49,7 @@ def get_explicit_grove_config_path() -> Path | None:
     override = os.environ.get(EXPLICIT_GROVE_CONFIG_ENV)
     if not override:
         return None
-    return Path(override).expanduser()
+    return Path(override).expanduser().resolve()
 
 
 def iter_grove_config_paths(repo_root: Path) -> tuple[Path, ...]:
@@ -58,6 +58,7 @@ def iter_grove_config_paths(repo_root: Path) -> tuple[Path, ...]:
     Legacy ``.grove.toml`` is only included as a fallback when the canonical
     project config (``.config/grove.toml``) is absent.
     """
+    repo_root = repo_root.resolve()
     project = get_project_config_path(repo_root)
     paths = [get_user_config_path(), project]
 
@@ -75,7 +76,7 @@ def get_wt_user_config_path() -> Path:
     """Return the WorkTrunk user config path."""
     override = os.environ.get("WORKTRUNK_CONFIG_PATH")
     if override:
-        return Path(override).expanduser()
+        return Path(override).expanduser().resolve()
     return Path.home() / ".config" / "worktrunk" / WT_USER_CONFIG_FILENAME
 
 
@@ -86,6 +87,7 @@ def get_wt_project_config_path(repo_root: Path) -> Path:
 
 def load_toml_file(path: Path) -> dict:
     """Load a TOML file into a dict."""
+    path = path.resolve()
     with open(path, "rb") as f:
         return tomllib.load(f)
 

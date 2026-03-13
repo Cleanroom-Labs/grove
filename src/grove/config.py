@@ -279,6 +279,7 @@ def _parse_cascade_section(raw: dict, merge: MergeConfig) -> CascadeConfig:
 
 def _warn_legacy_config_usage(repo_root: Path) -> None:
     """Warn once when the deprecated legacy project config is present."""
+    repo_root = repo_root.resolve()
     legacy_path = get_legacy_config_path(repo_root)
     if not legacy_path.exists() or legacy_path in _warned_legacy_paths:
         return
