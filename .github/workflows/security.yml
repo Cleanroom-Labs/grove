@@ -20,8 +20,8 @@ jobs:
       - name: Scan source code (SARIF)
         run: |
           docker run --rm \
-            -v "${PWD}:/repo:rw" \
-            -w /repo \
+            --user "$(id -u):$(id -g)" \
+            -v "${PWD}:/repo" \
             bearer/bearer:latest \
             scan /repo --format sarif --output /repo/bearer.sarif
       - name: Upload Bearer SARIF
