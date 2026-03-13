@@ -25,6 +25,11 @@ html_static_path = ['../common/sphinx/_static', '_static']
 templates_path = ['../common/sphinx/_templates']
 html_favicon = '../common/sphinx/_static/favicon.ico'
 
+myst_enable_extensions = [
+    "tasklist",
+    "html_image",
+]
+
 html_title = 'Grove Docs'
 html_context = {
     'display_github': True,

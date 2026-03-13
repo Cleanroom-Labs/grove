@@ -1,13 +1,11 @@
-<p align="center">
-  <img src="docs/source/_static/grove.png" alt="Grove" width="800">
-</p>
+# Grove
 
-<p align="center">
-  <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml/badge.svg" alt="Tests"></a>
-  <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml/badge.svg" alt="Security"></a>
-  <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/docs.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/docs.yml/badge.svg" alt="Documentation"></a>
-  <a href="https://github.com/Cleanroom-Labs/grove/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT"></a>
-</p>
+![Grove](https://raw.githubusercontent.com/Cleanroom-Labs/grove/main/docs/source/_static/grove.png)
+
+[![Tests](https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml/badge.svg)](https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml)
+[![Security](https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml/badge.svg)](https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml)
+[![Docs](https://github.com/Cleanroom-Labs/grove/actions/workflows/docs.yml/badge.svg)](https://github.com/Cleanroom-Labs/grove/actions/workflows/docs.yml)
+[![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/Cleanroom-Labs/grove/blob/main/LICENSE)
 
 ---
 
@@ -20,24 +18,24 @@ All subcommands can be run from any subdirectory within the repository. Configur
 ## Documentation
 
 Architecture and philosophy:
-- [Why Submodules?](docs/source/concepts/why-submodules.md) — Why submodule-based decomposition, dependency management, and sync groups
-- [Why Worktrees?](docs/source/concepts/why-worktrees.md) — Why worktrees for parallel and agentic development, and how Grove makes them practical
-- [Best Practices](docs/source/guides/best-practices.md) — Testing strategy, cascade discipline, and building composable ecosystems
+- [Why Submodules?](https://cleanroom-labs.github.io/grove/concepts/why-submodules.html) — Why submodule-based decomposition, dependency management, and sync groups
+- [Why Worktrees?](https://cleanroom-labs.github.io/grove/concepts/why-worktrees.html) — Why worktrees for parallel and agentic development, and how Grove makes them practical
+- [Best Practices](https://cleanroom-labs.github.io/grove/guides/best-practices.html) — Testing strategy, cascade discipline, and building composable ecosystems
 
 Workflow and reference:
-- [Submodule Workflow](docs/source/guides/submodule-workflow.md) — Common workflows and troubleshooting
-- [Worktree Lifecycle](docs/source/guides/worktree-lifecycle.md) — Worktree switch/list/remove/step/hook workflows
-- [WorkTrunk Integration](docs/source/design/worktrunk-integration.md) — Native vs WorkTrunk backend integration details
-- [Cascade Guide](docs/source/guides/cascade-guide.md) — Cascade user guide with configuration examples
-- [Alternatives](docs/source/reference/alternatives.md) — Comparison with native git features and existing tools
+- [Submodule Workflow](https://cleanroom-labs.github.io/grove/guides/submodule-workflow.html) — Common workflows and troubleshooting
+- [Worktree Lifecycle](https://cleanroom-labs.github.io/grove/guides/worktree-lifecycle.html) — Worktree switch/list/remove/step/hook workflows
+- [WorkTrunk Integration](https://cleanroom-labs.github.io/grove/design/worktrunk-integration.html) — Native vs WorkTrunk backend integration details
+- [Cascade Guide](https://cleanroom-labs.github.io/grove/guides/cascade-guide.html) — Cascade user guide with configuration examples
+- [Alternatives](https://cleanroom-labs.github.io/grove/reference/alternatives.html) — Comparison with native git features and existing tools
 
 Design and internals:
-- [Validation Design](docs/source/reference/validation-design.md) — Validation matrix and `--skip-checks` contract
-- [Check Health Spec](docs/source/reference/checkhealth-spec.md) — Full spec for `grove check` health checks (current + planned)
+- [Validation Design](https://cleanroom-labs.github.io/grove/reference/validation-design.html) — Validation matrix and `--skip-checks` contract
+- [Check Health Spec](https://cleanroom-labs.github.io/grove/reference/checkhealth-spec.html) — Full spec for `grove check` health checks (current + planned)
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](https://github.com/Cleanroom-Labs/grove/blob/main/LICENSE) for details.
 
 ## Prerequisites
 
@@ -243,7 +241,7 @@ The development cycle:
 
 This pattern keeps the main checkout as the single source of truth for the integrated state. Worktrees are disposable — create them for a task, merge the results, clean them up.
 
-For the full narrative with examples, see [Submodule Workflow](docs/source/guides/submodule-workflow.md).
+For the full narrative with examples, see [Submodule Workflow](https://cleanroom-labs.github.io/grove/guides/submodule-workflow.html).
 
 ### `grove worktree`
 
@@ -282,7 +280,7 @@ Grove includes a full worktree lifecycle surface:
 - `grove worktree hook` — inspect or execute configured lifecycle hooks
 - `grove shell init` — wrapper generation for bash/zsh/fish
 
-See [Worktree Lifecycle](docs/source/guides/worktree-lifecycle.md) for examples and behavior details.
+See [Worktree Lifecycle](https://cleanroom-labs.github.io/grove/guides/worktree-lifecycle.html) for examples and behavior details.
 
 ### Configuration
 
@@ -309,7 +307,7 @@ Set `[worktree].backend` in Grove config:
 - `"wt"` — always delegate lifecycle commands to `wt`
 - `"auto"` (default) — delegate when `wt` is on PATH, otherwise use native
 
-See [WorkTrunk Integration](docs/source/design/worktrunk-integration.md) for delegation details and config synthesis behavior.
+See [WorkTrunk Integration](https://cleanroom-labs.github.io/grove/design/worktrunk-integration.html) for delegation details and config synthesis behavior.
 
 ### LLM Integration
 
