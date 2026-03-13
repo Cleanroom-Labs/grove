@@ -1,9 +1,13 @@
 ![Grove](https://raw.githubusercontent.com/Cleanroom-Labs/grove/main/docs/source/_static/grove.png)
 
+<div align="center">
+
 [![Tests](https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml/badge.svg)](https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml)
 [![Security](https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml/badge.svg)](https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml)
 [![Docs](https://github.com/Cleanroom-Labs/grove/actions/workflows/docs.yml/badge.svg)](https://github.com/Cleanroom-Labs/grove/actions/workflows/docs.yml)
 [![License MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/Cleanroom-Labs/grove/blob/main/LICENSE)
+
+</div>
 
 ---
 
