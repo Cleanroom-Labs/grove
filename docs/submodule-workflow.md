@@ -295,3 +295,10 @@ The key insight is that worktrees give each agent a complete, isolated environme
 ## Closing Thoughts
 
 Nested submodules are a power tool. They solve real problems—version coupling, independent ownership, standalone builds—but they demand an understanding of git's object model that goes beyond typical usage. Git worktrees complement submodules well by removing the need to context-switch destructively. Together, they make it practical to maintain a multi-project documentation platform where each piece can evolve independently while the whole remains coherent.
+
+## Lifecycle Command References
+
+For concrete lifecycle command examples, see:
+
+- [worktree-lifecycle.md](worktree-lifecycle.md) for `switch`, `list`, `remove`, `step`, `hook`
+- [worktrunk-integration.md](worktrunk-integration.md) for backend delegation behavior and `config import-wt`

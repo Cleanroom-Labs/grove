@@ -11,6 +11,7 @@ from grove.config import (
     get_sync_group_exclude_paths,
     load_config,
 )
+from grove.user_config import get_project_config_path, get_user_config_path
 
 
 class TestLoadConfig:
@@ -270,6 +271,17 @@ class TestWorktreeConfig:
         assert config.worktree.copy_venv is True
         assert config.cascade.local_tests == "pytest"
 
+    def test_nested_worktree_path_loaded(self, tmp_path: Path):
+        """worktree-path under [worktree] should populate worktree config."""
+        (tmp_path / CONFIG_FILENAME).write_text(
+            "[worktree]\n"
+            'backend = "native"\n'
+            'worktree-path = "../nested/{{ branch | sanitize }}"\n'
+        )
+        config = load_config(tmp_path)
+        assert config.worktree.backend == "native"
+        assert config.worktree.worktree_path == "../nested/{{ branch | sanitize }}"
+
 
 class TestCascadeConfig:
     def test_default_cascade_config(self, tmp_path: Path):
@@ -480,4 +492,125 @@ class TestAliasConfig:
         """Non-table [aliases] should raise ValueError."""
         (tmp_path / CONFIG_FILENAME).write_text('aliases = "bad"\n')
         with pytest.raises(ValueError, match="expected a table"):
+            load_config(tmp_path)
+
+
+class TestConfigPrecedence:
+    def test_user_and_project_configs_are_merged(self, tmp_path: Path):
+        """Project config should override user config while keeping unspecified keys."""
+        user_path = get_user_config_path()
+        user_path.parent.mkdir(parents=True, exist_ok=True)
+        user_path.write_text(
+            "[worktree]\n"
+            'backend = "wt"\n'
+            "copy-venv = true\n"
+            "\n"
+            "[commit]\n"
+            'stage = "tracked"\n'
+        )
+
+        project_path = get_project_config_path(tmp_path)
+        project_path.parent.mkdir(parents=True, exist_ok=True)
+        project_path.write_text("[worktree]\ncopy-venv = false\n")
+
+        config = load_config(tmp_path)
+        assert config.worktree.copy_venv is False
+        assert config.worktree.backend == "wt"
+        assert config.commit.stage == "tracked"
+
+    def test_legacy_config_fallback_warns(self, tmp_path: Path, capsys):
+        """When only .grove.toml exists, it should be loaded with a warning."""
+        (tmp_path / CONFIG_FILENAME).write_text(
+            '[sync-groups.common]\nurl-match = "my-lib"\n'
+        )
+
+        config = load_config(tmp_path)
+        captured = capsys.readouterr()
+
+        assert "common" in config.sync_groups
+        assert "deprecated legacy config" in captured.err
+
+    def test_project_config_wins_over_legacy(self, tmp_path: Path, capsys):
+        """When project config exists, legacy config should be ignored."""
+        (tmp_path / CONFIG_FILENAME).write_text(
+            '[sync-groups.legacy]\nurl-match = "legacy-lib"\n'
+        )
+
+        project_path = get_project_config_path(tmp_path)
+        project_path.parent.mkdir(parents=True, exist_ok=True)
+        project_path.write_text('[sync-groups.project]\nurl-match = "project-lib"\n')
+
+        config = load_config(tmp_path)
+        captured = capsys.readouterr()
+
+        assert "project" in config.sync_groups
+        assert "legacy" not in config.sync_groups
+        assert "ignoring deprecated legacy config" in captured.err
+
+    def test_explicit_override_is_highest_precedence(self, tmp_path: Path, monkeypatch):
+        """GROVE_CONFIG_PATH should have highest precedence."""
+        user_path = get_user_config_path()
+        user_path.parent.mkdir(parents=True, exist_ok=True)
+        user_path.write_text("[worktree]\ncopy-venv = false\n")
+
+        project_path = get_project_config_path(tmp_path)
+        project_path.parent.mkdir(parents=True, exist_ok=True)
+        project_path.write_text("[worktree]\ncopy-venv = false\n")
+
+        explicit = tmp_path / "override.toml"
+        explicit.write_text("[worktree]\ncopy-venv = true\n")
+        monkeypatch.setenv("GROVE_CONFIG_PATH", str(explicit))
+
+        config = load_config(tmp_path)
+        assert config.worktree.copy_venv is True
+
+
+class TestExtendedSections:
+    def test_parse_commit_generation(self, tmp_path: Path):
+        (tmp_path / CONFIG_FILENAME).write_text(
+            "[commit]\n"
+            'stage = "all"\n'
+            "\n"
+            "[commit.generation]\n"
+            'command = "echo from-llm"\n'
+        )
+        config = load_config(tmp_path)
+        assert config.commit.stage == "all"
+        assert config.commit.generation.command == "echo from-llm"
+
+    def test_parse_worktree_llm_providers(self, tmp_path: Path):
+        (tmp_path / CONFIG_FILENAME).write_text(
+            "[worktree.llm]\n"
+            "providers = [\n"
+            '  { provider = "anthropic", model = "claude-haiku-4-20250514" },\n'
+            '  { provider = "ollama", model = "qwen3:4b" },\n'
+            "]\n"
+        )
+        config = load_config(tmp_path)
+        assert len(config.worktree.llm.providers) == 2
+        assert config.worktree.llm.providers[0].provider == "anthropic"
+        assert config.worktree.llm.providers[1].provider == "ollama"
+
+    def test_invalid_llm_provider_raises(self, tmp_path: Path):
+        (tmp_path / CONFIG_FILENAME).write_text(
+            '[worktree.llm]\nproviders = [{ provider = "bad", model = "x" }]\n'
+        )
+        with pytest.raises(ValueError, match="must be one of"):
+            load_config(tmp_path)
+
+    def test_parse_hook_string_shorthand(self, tmp_path: Path):
+        (tmp_path / CONFIG_FILENAME).write_text('post-create = "npm install"\n')
+        config = load_config(tmp_path)
+        assert config.hooks["post-create"].commands["default"] == "npm install"
+
+    def test_parse_nested_hooks_table(self, tmp_path: Path):
+        (tmp_path / CONFIG_FILENAME).write_text('[hooks.pre-merge]\nci = "pytest -q"\n')
+        config = load_config(tmp_path)
+        assert config.hooks["pre-merge"].commands["ci"] == "pytest -q"
+
+    def test_unknown_hook_type_raises(self, tmp_path: Path):
+        (tmp_path / CONFIG_FILENAME).write_text(
+            '[hooks.unknown-hook]\nrun = "echo nope"\n'
+        )
+        with pytest.raises(ValueError, match="unknown hook type"):
             load_config(tmp_path)

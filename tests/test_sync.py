@@ -212,6 +212,12 @@ class TestResolveRemoteUrl:
         url = resolve_remote_url(tmp_path, "anything")
         assert url is None
 
+    def test_returns_matching_nested_url(self, tmp_sync_group_multi_instance: Path):
+        """Should find sync-group URLs defined in nested .gitmodules files."""
+        common_origin = tmp_sync_group_multi_instance.parent / "common_origin"
+        url = resolve_remote_url(tmp_sync_group_multi_instance, "common_origin")
+        assert url == str(common_origin)
+
 
 # ---------------------------------------------------------------------------
 # Parent pointer propagation
@@ -265,4 +271,44 @@ class TestSyncParentPointerPropagation:
         status = _git(root, "status", "--porcelain")
         assert status.stdout.strip() == "", (
             f"Root has uncommitted submodule changes after sync:\n{status.stdout}"
+        )
+
+
+class TestSyncRemoteResolution:
+    def test_remote_sync_uses_nested_remote_url(
+        self,
+        tmp_sync_group_multi_instance: Path,
+    ):
+        """--remote should resolve target commits from nested sync-group remotes."""
+        root = tmp_sync_group_multi_instance
+        common_origin = root.parent / "common_origin"
+        group = SyncGroup(
+            name="common",
+            url_match="common_origin",
+            standalone_repo=None,
+        )
+
+        with (
+            patch("grove.sync.push_ahead_submodules", return_value=False),
+            patch(
+                "grove.sync.resolve_target_commit",
+                return_value=("a" * 40, f"main from {common_origin}"),
+            ) as mock_resolve,
+        ):
+            result = _sync_group(
+                group,
+                root,
+                commit_arg=None,
+                dry_run=True,
+                no_push=True,
+                force=True,
+                remote=True,
+                quiet=True,
+            )
+
+        assert result == 0
+        mock_resolve.assert_called_once_with(
+            None,
+            None,
+            remote_url=str(common_origin),
         )

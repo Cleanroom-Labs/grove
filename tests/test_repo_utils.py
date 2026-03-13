@@ -1,7 +1,9 @@
 """Tests for grove.repo_utils."""
 
+import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 from grove.repo_utils import (
     Colors,
@@ -11,6 +13,7 @@ from grove.repo_utils import (
     find_repo_root,
     get_git_common_dir,
     get_git_worktree_dir,
+    run_git,
     topological_sort_repos,
 )
 
@@ -343,6 +346,40 @@ class TestFindRepoRoot:
         """Should find the repo root even without .grove.toml."""
         result = find_repo_root(start=tmp_git_repo)
         assert result == tmp_git_repo
+
+    def test_climbs_out_of_submodule_to_outer_root(self, tmp_submodule_tree: Path):
+        """Starting inside a submodule should return the outer grove root."""
+        result = find_repo_root(start=tmp_submodule_tree / "technical-docs")
+        assert result == tmp_submodule_tree
+
+    def test_climbs_out_of_nested_submodule_to_outer_root(
+        self,
+        tmp_submodule_tree: Path,
+    ):
+        """Nested submodules should also resolve to the outer grove root."""
+        result = find_repo_root(start=tmp_submodule_tree / "technical-docs" / "common")
+        assert result == tmp_submodule_tree
+
+
+class TestRunGit:
+    def test_uses_dash_c_instead_of_cwd(self, tmp_git_repo: Path):
+        """run_git should pass repository context with git -C."""
+        completed = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="ok\n",
+            stderr="",
+        )
+        with patch("grove.repo_utils.subprocess.run", return_value=completed) as mock:
+            result = run_git(tmp_git_repo, "status", check=False)
+
+        assert result.stdout == "ok\n"
+        mock.assert_called_once_with(
+            ["git", "-C", str(tmp_git_repo), "status"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
 
 
 # ---------------------------------------------------------------------------

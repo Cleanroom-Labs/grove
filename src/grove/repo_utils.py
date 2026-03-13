@@ -639,7 +639,7 @@ def run_test(path: Path, test_cmd: str) -> tuple[bool, float]:
 
 
 def find_repo_root(start: Path | None = None) -> Path:
-    """Find the git repository root using ``git rev-parse --show-toplevel``.
+    """Find the outermost git repository root.
 
     Args:
         start: Directory to resolve from (default: cwd).
@@ -658,4 +658,26 @@ def find_repo_root(start: Path | None = None) -> Path:
         raise FileNotFoundError(
             f"Could not find git repository root.\nSearched from: {cwd}"
         )
-    return Path(result.stdout.strip())
+
+    repo_root = Path(result.stdout.strip()).resolve()
+
+    # If ``start`` is inside a submodule, climb through each superproject so
+    # commands operate on the outermost grove root rather than the nearest git
+    # boundary.
+    while True:
+        super_result = subprocess.run(
+            ["git", "rev-parse", "--show-superproject-working-tree"],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+        )
+        if super_result.returncode != 0:
+            break
+
+        super_root = super_result.stdout.strip()
+        if not super_root:
+            break
+
+        repo_root = Path(super_root).resolve()
+
+    return repo_root

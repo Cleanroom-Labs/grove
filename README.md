@@ -83,6 +83,14 @@ For development with testing dependencies:
 pip install -e ".[dev]"
 ```
 
+For optional LLM-backed commit/squash generation:
+
+```bash
+pip install -e ".[llm]"
+```
+
+**Requirements:** Python 3.11+
+
 ## Usage
 
 ### `grove init`
@@ -201,30 +209,80 @@ The GUI supports:
 
 ### `grove worktree`
 
-Create and remove git worktrees with automatic recursive submodule initialization. Local git config (e.g. `user.name`, `user.email`, signing settings) is copied from the main worktree and its submodules to the new worktree by default. Structural keys (`core.*`, `remote.*`, `submodule.*`, `extensions.*`, `gc.*`) are excluded. Pass `--copy-venv` to copy the Python venv from the main worktree (auto-detects `.direnv/python-*`, `.venv/`, or `venv/` and fixes hardcoded paths). Pass `--local-remotes` to keep submodule remotes pointing to the main worktree's local copies so that pushes stay on-machine (useful when working across multiple worktrees before pushing upstream). If an `.envrc` file is present and `direnv` is on PATH, `direnv allow` runs automatically.
+Create and remove git worktrees with automatic recursive submodule initialization. Local git config (e.g. `user.name`, `user.email`, signing settings) is copied from the main worktree and its submodules to the new worktree by default. Structural keys (`core.*`, `remote.*`, `submodule.*`, `extensions.*`, `gc.*`) are excluded. Pass `--copy-venv` to copy the Python venv from the main worktree (auto-detects `.direnv/python-*`, `.venv/`, or `venv/` and fixes hardcoded paths). By default, submodule remotes point to the main worktree's local copies; pass `--no-local-remotes` to use upstream remotes directly. If an `.envrc` file is present and `direnv` is on PATH, `direnv allow` runs automatically.
 
 ```bash
 # Create a new worktree with a new branch
-grove worktree add feature-x ../feature-x-wt
+grove worktree add ../feature-x-wt feature-x
 
 # Create a worktree using an existing branch
-grove worktree add --checkout existing-branch ../wt-path
+grove worktree add ../wt-path existing-branch
 
 # Copy the Python venv from the main worktree (faster than rebuilding)
-grove worktree add --copy-venv feature-x ../feature-x-wt
+grove worktree add --copy-venv ../feature-x-wt feature-x
 
-# Keep submodule remotes local (pushes stay on-machine)
-grove worktree add --local-remotes feature-x ../feature-x-wt
+# Use upstream remotes in submodules
+grove worktree add --no-local-remotes ../feature-x-wt feature-x
 
-# Skip copying local git config
-grove worktree add --no-copy-config feature-x ../feature-x-wt
+# Leave sync-group submodules detached instead of branch checkout
+grove worktree add --exclude-sync-group ../feature-x-wt feature-x
 
 # Remove a worktree
-grove worktree remove ../feature-x-wt
+grove worktree remove feature-x
 
 # Force-remove a worktree with uncommitted changes
-grove worktree remove --force ../feature-x-wt
+grove worktree remove --force feature-x
 ```
+
+### Worktree Lifecycle
+
+Grove includes a full worktree lifecycle surface:
+
+- `grove worktree switch` — switch/create worktrees with shell-friendly path directives
+- `grove worktree list` — table or JSON inventory with branch metadata
+- `grove worktree step` — commit/squash/push/rebase/diff/copy-ignored/prune flows
+- `grove worktree hook` — inspect or execute configured lifecycle hooks
+- `grove shell init` — wrapper generation for bash/zsh/fish
+
+See [docs/worktree-lifecycle.md](docs/worktree-lifecycle.md) for examples and behavior details.
+
+### Configuration
+
+Grove config precedence:
+
+1. User config: `~/.config/grove/config.toml`
+2. Project config: `.config/grove.toml`
+3. Legacy fallback: `.grove.toml` (deprecated; used only when project config is absent)
+4. Explicit override: `$GROVE_CONFIG_PATH`
+
+To migrate WorkTrunk config into Grove config files:
+
+```bash
+grove config import-wt
+grove config import-wt --dry-run
+grove config import-wt --force
+```
+
+### Using with Worktrunk
+
+Set `[worktree].backend` in Grove config:
+
+- `"native"` — always use Grove-native lifecycle implementation
+- `"wt"` — always delegate lifecycle commands to `wt`
+- `"auto"` (default) — delegate when `wt` is on PATH, otherwise use native
+
+See [docs/worktrunk-integration.md](docs/worktrunk-integration.md) for delegation details and config synthesis behavior.
+
+### LLM Integration
+
+`grove worktree step commit` and `grove worktree step squash` support this fallback chain:
+
+1. `wt` delegation (when active)
+2. `[commit.generation].command`
+3. `[worktree.llm].providers` (optional Strands providers)
+4. `$EDITOR`
+
+Install optional dependencies with `pip install -e ".[llm]"`.
 
 ### `grove worktree merge`
 
@@ -345,7 +403,15 @@ grove/
 │       ├── sync.py             # sync subcommand
 │       ├── topology.py         # Topology caching for submodule structure
 │       ├── worktree.py         # worktree add/remove subcommand
+│       ├── worktree_switch.py  # worktree switch lifecycle command
+│       ├── worktree_list.py    # worktree list lifecycle command
+│       ├── worktree_step.py    # worktree step lifecycle commands
+│       ├── hooks.py            # worktree hook command + hook execution
+│       ├── shell.py            # shell wrapper generation (shell init)
+│       ├── llm.py              # LLM prompt + message generation fallback
+│       ├── config_import.py    # `config import-wt` migration command
 │       ├── worktree_merge.py   # worktree merge subcommand
+│       ├── worktree_backend.py # optional delegation to WorkTrunk backend
 │       └── visualizer/         # visualize subcommand
 │           ├── __init__.py
 │           ├── __main__.py
@@ -366,7 +432,8 @@ Architecture and philosophy:
 
 Workflow and reference:
 - [docs/submodule-workflow.md](docs/submodule-workflow.md) — Common workflows and troubleshooting
-- [docs/git-config-requirements.md](docs/git-config-requirements.md) — Required git config settings, symptoms, and remediation
+- [docs/worktree-lifecycle.md](docs/worktree-lifecycle.md) — Worktree switch/list/remove/step/hook workflows
+- [docs/worktrunk-integration.md](docs/worktrunk-integration.md) — Native vs WorkTrunk backend integration details
 - [docs/cascade-guide.md](docs/cascade-guide.md) — Cascade user guide with configuration examples
 - [docs/alternatives.md](docs/alternatives.md) — Comparison with native git features and existing tools
 

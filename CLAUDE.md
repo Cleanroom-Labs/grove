@@ -3,6 +3,7 @@
 ## Quick Reference
 
 **Install:** `pip install -e ".[dev]"`
+**Install (LLM):** `pip install -e ".[llm]"`
 **Test:** `pytest`
 **Run:** `grove --help`
 
@@ -11,7 +12,11 @@
 - `src/grove/` — Package source (src layout)
 - `src/grove/cli.py` — CLI entry point (`grove.cli:main`)
 - `src/grove/claude_skills/` — Claude Code skill markdown files (package data)
-- `tests/` — Test suite (pytest, 17 test files)
+- `src/grove/worktree_switch.py` / `worktree_list.py` / `worktree_step.py` — lifecycle command modules
+- `src/grove/worktree_backend.py` — optional delegation to `wt`
+- `src/grove/config_import.py` — `config import-wt` migration path
+- `src/grove/llm.py` — commit/squash prompt + message generation fallback chain
+- `tests/` — Test suite (pytest)
 - `docs/` — Internal documentation
 
 ## Key Concepts
@@ -20,6 +25,7 @@
 - Operates on any git repo with submodules via `.grove.toml` config
 - CLI entry point: `grove = "grove.cli:main"` (console_scripts)
 - Skills are bundled as package data and installed via `grove claude install`
+- Worktree backend defaults to `auto` (`wt` delegation when available, native fallback otherwise)
 
 ## Workflow Principles
 
@@ -34,6 +40,8 @@ The root `.grove.toml` defines:
 - `[sync-groups.<name>]` — Submodules that must stay synchronized across locations
 - `[worktree-merge]` — Test commands run during `grove worktree merge`
 - `[worktree]` — Defaults for `grove worktree add` (e.g., `copy-venv`)
+- `[worktree].backend` — `auto|native|wt` lifecycle backend mode
+- `[commit.generation]` / `[worktree.llm]` — commit/squash message generation configuration
 - `[aliases]` — Command shortcuts
 
 ## Typical Workflow
@@ -56,10 +64,15 @@ grove ship                           # Health check + push (from main checkout)
 | `/grove-sync` | Synchronize sync-group instances with dry-run preview |
 | `/grove-push` | Push with path, sync-group, or cascade filtering |
 | `/grove-ship` | Health check then push (safest push path) |
+| `/grove-switch` | Switch/create worktrees via lifecycle flow |
+| `/grove-list` | Inspect worktree inventory and branch coverage |
+| `/grove-step` | Run iterative step commands (diff/commit/squash/rebase/push/prune) |
 
 ## Common Issues
 
 **Detached HEAD:** Sync-group submodules are expected to be detached. Fix non-sync-group submodules with `grove worktree checkout-branches`.
+
+**Lifecycle shortcuts:** Prefer `grove worktree switch`, `grove worktree list --format json`, and `grove worktree step` over manual git plumbing for routine worktree operations.
 
 **Submodule pointer conflicts:** Submodule entries (mode 160000) conflict differently than regular files. Use the `git update-index --cacheinfo` commands grove prints — not `git checkout --ours/--theirs`.
 

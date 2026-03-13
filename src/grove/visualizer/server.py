@@ -74,246 +74,247 @@ class VisualizerState:
         return None
 
 
+class _VisualizerHandlerBase(BaseHTTPRequestHandler):
+    """HTTP request handler for the visualizer."""
+
+    state: VisualizerState
+
+    def log_message(self, format, *args):  # noqa: A002
+        pass
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        # Static files
+        if path in STATIC_FILES:
+            self._serve_static(STATIC_FILES[path])
+            return
+
+        # API endpoints
+        if path == "/api/repos":
+            self._json_response(self.state.get_repos_json())
+            return
+
+        if path == "/api/worktrees":
+            self._json_response(self.state.get_worktrees_json())
+            return
+
+        if path == "/api/worktree":
+            params = parse_qs(parsed.query)
+            wt_path = params.get("path", [None])[0]
+            if wt_path:
+                try:
+                    repos = load_and_validate_repos(Path(wt_path))
+                    self._json_response(repos_to_json(repos))
+                except Exception as e:
+                    self._json_response({"ok": False, "error": str(e)}, status=500)
+            else:
+                self._json_response(
+                    {"ok": False, "error": "Missing path parameter"}, status=400
+                )
+            return
+
+        if path == "/api/compare":
+            params = parse_qs(parsed.query)
+            base = params.get("base", [None])[0]
+            other = params.get("other", [None])[0]
+            if base and other:
+                try:
+                    result = compare_worktrees(Path(base), Path(other))
+                    self._json_response(result)
+                except Exception as e:
+                    self._json_response({"ok": False, "error": str(e)}, status=500)
+            else:
+                self._json_response(
+                    {"ok": False, "error": "Missing base or other parameter"},
+                    status=400,
+                )
+            return
+
+        self._not_found()
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        body = self._read_json_body()
+        state = self.state
+
+        if path == "/api/action/refresh":
+            state.reload()
+            self._json_response({"ok": True})
+            return
+
+        if path == "/api/action/fetch":
+            repo_path = body.get("path", "")
+            repo = state.find_repo(repo_path)
+            if not repo:
+                self._json_response(
+                    {"ok": False, "error": f"Repository not found: {repo_path}"},
+                    status=404,
+                )
+                return
+            success = repo.fetch()
+            if success:
+                repo.validate(
+                    check_sync=True, allow_detached=True, allow_no_remote=True
+                )
+            self._json_response(
+                {
+                    "ok": success,
+                    "error": "" if success else f"Fetch failed for {repo.name}",
+                }
+            )
+            return
+
+        if path == "/api/action/fetch-all":
+            failed = []
+            with state.lock:
+                for repo in state.repos:
+                    if not repo.fetch():
+                        failed.append(repo.name)
+                for repo in state.repos:
+                    repo.validate(
+                        check_sync=True, allow_detached=True, allow_no_remote=True
+                    )
+            self._json_response(
+                {
+                    "ok": len(failed) == 0,
+                    "error": f"Failed to fetch: {', '.join(failed)}" if failed else "",
+                }
+            )
+            return
+
+        if path == "/api/action/push":
+            repo_path = body.get("path", "")
+            repo = state.find_repo(repo_path)
+            if not repo:
+                self._json_response(
+                    {"ok": False, "error": f"Repository not found: {repo_path}"},
+                    status=404,
+                )
+                return
+            if repo.ahead_count == "0":
+                self._json_response({"ok": True, "error": "Nothing to push"})
+                return
+            success = repo.push()
+            if success:
+                repo.validate(
+                    check_sync=True, allow_detached=True, allow_no_remote=True
+                )
+            self._json_response(
+                {
+                    "ok": success,
+                    "error": "" if success else f"Push failed for {repo.name}",
+                }
+            )
+            return
+
+        if path == "/api/action/push-all":
+            from grove.repo_utils import topological_sort_repos
+
+            with state.lock:
+                to_push = [r for r in state.repos if r.ahead_count not in ("0", None)]
+                if not to_push:
+                    self._json_response({"ok": True, "error": "Nothing to push"})
+                    return
+
+                sorted_repos = topological_sort_repos(to_push)
+                failed = []
+                for repo in sorted_repos:
+                    if not repo.push():
+                        failed.append(repo.name)
+
+                for repo in state.repos:
+                    repo.validate(
+                        check_sync=True, allow_detached=True, allow_no_remote=True
+                    )
+
+            self._json_response(
+                {
+                    "ok": len(failed) == 0,
+                    "error": f"Failed to push: {', '.join(failed)}" if failed else "",
+                }
+            )
+            return
+
+        if path == "/api/action/checkout":
+            repo_path = body.get("path", "")
+            branch = body.get("branch", "")
+            repo = state.find_repo(repo_path)
+            if not repo:
+                self._json_response(
+                    {"ok": False, "error": f"Repository not found: {repo_path}"},
+                    status=404,
+                )
+                return
+            if not branch:
+                self._json_response(
+                    {"ok": False, "error": "Missing branch"}, status=400
+                )
+                return
+            success, error = repo.checkout(branch)
+            if success:
+                repo.validate(
+                    check_sync=True, allow_detached=True, allow_no_remote=True
+                )
+            self._json_response({"ok": success, "error": error})
+            return
+
+        self._not_found()
+
+    def _serve_static(self, filename: str):
+        """Serve a static file from the web package."""
+        suffix = Path(filename).suffix
+        content_type = CONTENT_TYPES.get(suffix, "application/octet-stream")
+
+        try:
+            web_pkg = resources.files("grove.visualizer.web")
+            content = (web_pkg / filename).read_text()
+        except (FileNotFoundError, TypeError):
+            self._not_found()
+            return
+
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(content.encode("utf-8"))
+
+    def _json_response(self, data: dict, status: int = 200):
+        """Send a JSON response."""
+        body = json.dumps(data).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_json_body(self) -> dict:
+        """Read and parse JSON from the request body."""
+        length = int(self.headers.get("Content-Length", 0))
+        if length == 0:
+            return {}
+        raw = self.rfile.read(length)
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+
+    def _not_found(self):
+        self.send_response(404)
+        self.send_header("Content-Type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Not Found")
+
+
 def make_handler_class(state: VisualizerState):
     """Create a handler class bound to the given state."""
 
-    class VisualizerHandler(BaseHTTPRequestHandler):
-        """HTTP request handler for the visualizer."""
+    class VisualizerHandler(_VisualizerHandlerBase):
+        pass
 
-        def log_message(self, format, *args):  # noqa: A002
-            pass
-
-        def do_GET(self):
-            parsed = urlparse(self.path)
-            path = parsed.path
-
-            # Static files
-            if path in STATIC_FILES:
-                self._serve_static(STATIC_FILES[path])
-                return
-
-            # API endpoints
-            if path == "/api/repos":
-                self._json_response(state.get_repos_json())
-                return
-
-            if path == "/api/worktrees":
-                self._json_response(state.get_worktrees_json())
-                return
-
-            if path == "/api/worktree":
-                params = parse_qs(parsed.query)
-                wt_path = params.get("path", [None])[0]
-                if wt_path:
-                    try:
-                        repos = load_and_validate_repos(Path(wt_path))
-                        self._json_response(repos_to_json(repos))
-                    except Exception as e:
-                        self._json_response({"ok": False, "error": str(e)}, status=500)
-                else:
-                    self._json_response(
-                        {"ok": False, "error": "Missing path parameter"}, status=400
-                    )
-                return
-
-            if path == "/api/compare":
-                params = parse_qs(parsed.query)
-                base = params.get("base", [None])[0]
-                other = params.get("other", [None])[0]
-                if base and other:
-                    try:
-                        result = compare_worktrees(Path(base), Path(other))
-                        self._json_response(result)
-                    except Exception as e:
-                        self._json_response({"ok": False, "error": str(e)}, status=500)
-                else:
-                    self._json_response(
-                        {"ok": False, "error": "Missing base or other parameter"},
-                        status=400,
-                    )
-                return
-
-            self._not_found()
-
-        def do_POST(self):
-            parsed = urlparse(self.path)
-            path = parsed.path
-
-            body = self._read_json_body()
-
-            if path == "/api/action/refresh":
-                state.reload()
-                self._json_response({"ok": True})
-                return
-
-            if path == "/api/action/fetch":
-                repo_path = body.get("path", "")
-                repo = state.find_repo(repo_path)
-                if not repo:
-                    self._json_response(
-                        {"ok": False, "error": f"Repository not found: {repo_path}"},
-                        status=404,
-                    )
-                    return
-                success = repo.fetch()
-                if success:
-                    repo.validate(
-                        check_sync=True, allow_detached=True, allow_no_remote=True
-                    )
-                self._json_response(
-                    {
-                        "ok": success,
-                        "error": "" if success else f"Fetch failed for {repo.name}",
-                    }
-                )
-                return
-
-            if path == "/api/action/fetch-all":
-                failed = []
-                with state.lock:
-                    for repo in state.repos:
-                        if not repo.fetch():
-                            failed.append(repo.name)
-                    for repo in state.repos:
-                        repo.validate(
-                            check_sync=True, allow_detached=True, allow_no_remote=True
-                        )
-                self._json_response(
-                    {
-                        "ok": len(failed) == 0,
-                        "error": f"Failed to fetch: {', '.join(failed)}"
-                        if failed
-                        else "",
-                    }
-                )
-                return
-
-            if path == "/api/action/push":
-                repo_path = body.get("path", "")
-                repo = state.find_repo(repo_path)
-                if not repo:
-                    self._json_response(
-                        {"ok": False, "error": f"Repository not found: {repo_path}"},
-                        status=404,
-                    )
-                    return
-                if repo.ahead_count == "0":
-                    self._json_response({"ok": True, "error": "Nothing to push"})
-                    return
-                success = repo.push()
-                if success:
-                    repo.validate(
-                        check_sync=True, allow_detached=True, allow_no_remote=True
-                    )
-                self._json_response(
-                    {
-                        "ok": success,
-                        "error": "" if success else f"Push failed for {repo.name}",
-                    }
-                )
-                return
-
-            if path == "/api/action/push-all":
-                from grove.repo_utils import topological_sort_repos
-
-                with state.lock:
-                    to_push = [
-                        r for r in state.repos if r.ahead_count not in ("0", None)
-                    ]
-                    if not to_push:
-                        self._json_response({"ok": True, "error": "Nothing to push"})
-                        return
-
-                    sorted_repos = topological_sort_repos(to_push)
-                    failed = []
-                    for repo in sorted_repos:
-                        if not repo.push():
-                            failed.append(repo.name)
-
-                    for repo in state.repos:
-                        repo.validate(
-                            check_sync=True, allow_detached=True, allow_no_remote=True
-                        )
-
-                self._json_response(
-                    {
-                        "ok": len(failed) == 0,
-                        "error": f"Failed to push: {', '.join(failed)}"
-                        if failed
-                        else "",
-                    }
-                )
-                return
-
-            if path == "/api/action/checkout":
-                repo_path = body.get("path", "")
-                branch = body.get("branch", "")
-                repo = state.find_repo(repo_path)
-                if not repo:
-                    self._json_response(
-                        {"ok": False, "error": f"Repository not found: {repo_path}"},
-                        status=404,
-                    )
-                    return
-                if not branch:
-                    self._json_response(
-                        {"ok": False, "error": "Missing branch"}, status=400
-                    )
-                    return
-                success, error = repo.checkout(branch)
-                if success:
-                    repo.validate(
-                        check_sync=True, allow_detached=True, allow_no_remote=True
-                    )
-                self._json_response({"ok": success, "error": error})
-                return
-
-            self._not_found()
-
-        def _serve_static(self, filename: str):
-            """Serve a static file from the web package."""
-            suffix = Path(filename).suffix
-            content_type = CONTENT_TYPES.get(suffix, "application/octet-stream")
-
-            try:
-                web_pkg = resources.files("grove.visualizer.web")
-                content = (web_pkg / filename).read_text()
-            except (FileNotFoundError, TypeError):
-                self._not_found()
-                return
-
-            self.send_response(200)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Cache-Control", "no-cache")
-            self.end_headers()
-            self.wfile.write(content.encode("utf-8"))
-
-        def _json_response(self, data: dict, status: int = 200):
-            """Send a JSON response."""
-            body = json.dumps(data).encode("utf-8")
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def _read_json_body(self) -> dict:
-            """Read and parse JSON from the request body."""
-            length = int(self.headers.get("Content-Length", 0))
-            if length == 0:
-                return {}
-            raw = self.rfile.read(length)
-            try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                return {}
-
-        def _not_found(self):
-            self.send_response(404)
-            self.send_header("Content-Type", "text/plain")
-            self.end_headers()
-            self.wfile.write(b"Not Found")
-
+    VisualizerHandler.state = state
     return VisualizerHandler
 
 

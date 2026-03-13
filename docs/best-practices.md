@@ -189,3 +189,12 @@ Pulling it all together, the recommended development cycle:
    ```
 
 Each step has a clear purpose, a clear tool, and a clear recovery path if something goes wrong. The workflow scales from a single developer working on one feature to a team of developers and AI agents working on dozens of features in parallel.
+
+## Lifecycle Defaults
+
+Prefer these defaults for day-to-day development:
+
+- Use `grove worktree switch -c <branch>` to create and enter new worktrees.
+- Use `grove worktree step diff` and `grove worktree step prune --dry-run` as regular hygiene checks.
+- Keep hooks under versioned project config (`.config/grove.toml`), and use `--no-verify` only for recovery scenarios.
+- Use `grove config import-wt --dry-run` before `--force` when migrating existing WorkTrunk config.
