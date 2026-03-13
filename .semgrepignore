@@ -1,0 +1,9 @@
+# Centralized Semgrep exclusions for local and CI scans.
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+build/
+dist/
+*.egg-info/
+common/

@@ -1,0 +1,110 @@
+name: Build All Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/build-all-docs.yml"
+      - ".semgrepignore"
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/build-all-docs.yml"
+      - ".semgrepignore"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-docs:
+    name: Validate docs tree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Ensure docs markdown files are present
+        run: |
+          test -d docs
+          find docs -type f -name '*.md' | grep -q .
+
+  baerer:
+    name: SAST scan (Bearer)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Scan source code (SARIF)
+        run: |
+          docker run --rm \
+            -v "${PWD}:/repo" \
+            bearer/bearer:latest \
+            scan /repo --format sarif --output /repo/bearer.sarif
+      - name: Upload Bearer SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: bearer.sarif
+          category: bearer-source
+      - name: Enforce Bearer findings policy
+        run: |
+          FINDINGS=$(jq '[.runs[].results[]? | select(.level == "error" or .level == "warning")] | length' bearer.sarif)
+          echo "Bearer findings (warning/error): ${FINDINGS}"
+          if [ "${FINDINGS}" -gt 0 ]; then
+            echo "::error::Bearer reported security findings."
+            exit 1
+          fi
+
+  trivy:
+    name: Vulnerability scan (Trivy)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Scan filesystem (SARIF)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-fs.sarif"
+          exit-code: "0"
+      - name: Upload filesystem SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-filesystem
+      - name: Scan filesystem for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          severity: "CRITICAL,HIGH,MEDIUM"
+          exit-code: "1"
+
+  semgrep:
+    name: SAST scan (Semgrep)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - name: Install Semgrep
+        run: pip install semgrep
+      - name: Scan source code (SARIF)
+        run: semgrep scan --config p/security-audit --sarif --output semgrep.sarif .
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep-source
+      - name: Scan source code (blocking)
+        run: semgrep scan --config p/security-audit --error .
