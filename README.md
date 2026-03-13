@@ -1,4 +1,13 @@
-# Grove
+<p align="center">
+  <img src="docs/images/grove.png" alt="Grove" width="400">
+</p>
+
+<p align="center">
+  <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/ci.yml/badge.svg" alt="Tests"></a>
+  <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/security.yml/badge.svg" alt="Security"></a>
+  <a href="https://github.com/Cleanroom-Labs/grove/actions/workflows/build-all-docs.yml"><img src="https://github.com/Cleanroom-Labs/grove/actions/workflows/build-all-docs.yml/badge.svg" alt="Documentation"></a>
+  <a href="https://github.com/Cleanroom-Labs/grove/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT"></a>
+</p>
 
 Git submodule management tools for nested repositories.
 
