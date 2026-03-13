@@ -261,8 +261,6 @@ def _clobber_target_path(target_path: Path, rows: list[dict]) -> bool:
         target_path.unlink()
     elif target_path.is_dir():
         shutil.rmtree(target_path)
-    else:
-        target_path.unlink()
     return True
 
 

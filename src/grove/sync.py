@@ -214,17 +214,25 @@ def resolve_target_commit(
             if result.returncode == 0:
                 return (result.stdout.strip(), f"origin/main from {standalone_repo}")
 
+            result = run_git(standalone_repo, "rev-parse", "origin/HEAD", check=False)
+            if result.returncode == 0:
+                return (result.stdout.strip(), f"origin/HEAD from {standalone_repo}")
+
         # Fallback to local main
         result = run_git(standalone_repo, "rev-parse", "main", check=False)
         if result.returncode == 0:
             return (result.stdout.strip(), f"main from {standalone_repo}")
+
+        result = run_git(standalone_repo, "rev-parse", "HEAD", check=False)
+        if result.returncode == 0:
+            return (result.stdout.strip(), f"HEAD from {standalone_repo}")
 
         raise ValueError(f"Could not resolve commit from {standalone_repo}")
 
     # --- git ls-remote fallback ---
     if remote_url is not None:
         result = subprocess.run(
-            ["git", "ls-remote", remote_url, "refs/heads/main"],
+            ["git", "ls-remote", remote_url, "HEAD"],
             capture_output=True,
             text=True,
         )
@@ -236,11 +244,11 @@ def resolve_target_commit(
         line = result.stdout.strip()
         if not line:
             raise ValueError(
-                f"No 'main' branch found at {remote_url}\n"
+                f"No HEAD found at {remote_url}\n"
                 "Specify a commit SHA explicitly."
             )
         sha = line.split()[0]
-        return (sha, f"main from {remote_url}")
+        return (sha, f"HEAD from {remote_url}")
 
     raise ValueError(
         "Cannot resolve target commit: no standalone-repo configured and no remote URL found.\n"
@@ -500,7 +508,7 @@ def _submodules_needing_update(
     return [
         s
         for s in submodules
-        if not s.current_commit or not s.current_commit.startswith(target_commit[:7])
+        if not s.current_commit or s.current_commit[:7] != target_commit[:7]
     ]
 
 

@@ -169,13 +169,13 @@ class TestResolveTargetCommit:
                     None, None, remote_url="https://example.com/repo.git"
                 )
 
-    def test_ls_remote_no_main_branch_raises(self):
-        """When ls-remote returns empty output (no main branch), should raise."""
+    def test_ls_remote_no_head_raises(self):
+        """When ls-remote returns empty output (no HEAD), should raise."""
         with patch("grove.sync.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(
                 args=[], returncode=0, stdout="", stderr=""
             )
-            with pytest.raises(ValueError, match="No 'main' branch"):
+            with pytest.raises(ValueError, match="No HEAD found"):
                 resolve_target_commit(
                     None, None, remote_url="https://example.com/repo.git"
                 )

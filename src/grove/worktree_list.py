@@ -131,7 +131,7 @@ def _augment_worktree_row(row: dict) -> dict:
             check=False,
         )
         if counts_result.returncode == 0:
-            behind, ahead = counts_result.stdout.strip().split()
+            ahead, behind = counts_result.stdout.strip().split()
             row["ahead"] = int(ahead)
             row["behind"] = int(behind)
         else:
