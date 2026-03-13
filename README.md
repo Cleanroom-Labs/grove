@@ -9,54 +9,13 @@
   <a href="https://github.com/Cleanroom-Labs/grove/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT"></a>
 </p>
 
-Git submodule management tools for nested repositories.
+---
 
-## Overview
+## About
 
-`grove` provides a unified CLI for managing complex git submodule hierarchies. The package includes subcommands for verifying, synchronizing, pushing, visualizing, and managing worktrees of nested submodules.
+Git submodule management tools for nested repositories. `grove` provides a unified CLI for managing complex git submodule hierarchies. The package includes subcommands for verifying, synchronizing, pushing, visualizing, and managing worktrees of nested submodules.
 
 All subcommands can be run from any subdirectory within the repository. Configuration (`.grove.toml`) is optional — commands gracefully handle repos without it.
-
-## Workflow
-
-Grove is designed around a central principle: **the main checkout is the merge hub, not a development environment.** All development happens in worktrees. The main checkout exists solely to integrate parallel work and push upstream.
-
-```
-~/Projects/
-├── my-project/              main checkout (merge hub — no development here)
-├── my-project-feature-a/    worktree (development happens here)
-├── my-project-feature-b/    worktree (development happens here)
-└── my-project-fix-theme/    worktree (development happens here)
-```
-
-The development cycle:
-
-1. **Create worktrees** for each task from the main checkout:
-   ```bash
-   grove worktree add --local-remotes feature-a ../my-project-feature-a
-   grove worktree add --local-remotes feature-b ../my-project-feature-b
-   ```
-   Each worktree gets its own fully initialized checkout with all submodules. The `--local-remotes` flag keeps submodule pushes on-machine — nothing leaves your filesystem until you explicitly push from main.
-
-2. **Develop in worktrees.** Commit, test, iterate. Multiple developers or AI agents can work in separate worktrees simultaneously without interference.
-
-3. **Merge back to main** when work is complete:
-   ```bash
-   cd ~/Projects/my-project
-   grove worktree merge feature-a
-   grove worktree merge feature-b
-   ```
-   Merges are done sequentially from the main checkout. Each merge processes the entire submodule tree bottom-up, running tests at each level.
-
-4. **Push upstream** from the main checkout:
-   ```bash
-   grove push
-   ```
-   This pushes all repos in topological order (children before parents), ensuring submodule pointers are valid at every level.
-
-This pattern keeps the main checkout as the single source of truth for the integrated state. Worktrees are disposable — create them for a task, merge the results, clean them up.
-
-For the full narrative with examples, see [docs/submodule-workflow.md](docs/submodule-workflow.md).
 
 ## Prerequisites
 
@@ -64,15 +23,18 @@ For the full narrative with examples, see [docs/submodule-workflow.md](docs/subm
 
 ### Git Config
 
-One git config setting must not be active: `submodule.recurse = true`. Grove
-manages submodule state explicitly through its own commands; this setting
-causes git to silently advance submodule pointers on `checkout` and `pull`,
-conflicting with grove's sync and merge operations.
+`submodule.recurse` must not be set to `true`. Grove manages submodule state
+explicitly through its own commands; when this setting is active, git silently
+advances submodule pointers on `checkout` and `pull`, conflicting with grove's
+sync and merge operations.
 
-Verify your config is clean:
+Either leave the option unset or explicitly set it to `false`:
 
 ```bash
-git config --get submodule.recurse   # should print nothing
+git config --get submodule.recurse   # should print nothing or "false"
+
+# If you use submodule.recurse globally, disable it per-project:
+git config --local submodule.recurse false
 ```
 
 See [docs/git-config-requirements.md](docs/git-config-requirements.md) for
@@ -215,6 +177,51 @@ The GUI supports:
 - Panning (click and drag)
 - Node selection (click node for details)
 - Interactive submodule operations
+
+### Example Workflow
+
+Grove is designed around a central principle: **the main checkout is the merge hub, not a development environment.** All development happens in worktrees. The main checkout exists solely to integrate parallel work and push upstream.
+
+```
+~/Projects/
+├── my-project/              main checkout (merge hub — no development here)
+├── my-project-feature-a/    worktree (development happens here)
+├── my-project-feature-b/    worktree (development happens here)
+└── my-project-fix-theme/    worktree (development happens here)
+```
+
+The development cycle:
+
+1. **Create worktrees** for each task from the main checkout:
+   ```bash
+   grove worktree add --local-remotes feature-a ../my-project-feature-a
+   grove worktree add --local-remotes feature-b ../my-project-feature-b
+   ```
+   Each worktree gets its own fully initialized checkout with all submodules. The `--local-remotes` flag keeps submodule pushes on-machine — nothing leaves your filesystem until you explicitly push from main.
+
+2. **Develop in worktrees.** Commit, test, iterate. Multiple developers or AI agents can work in separate worktrees simultaneously without interference.
+
+3. **Switch back to the main checkout** when work is complete:
+   ```bash
+   grove worktree switch main
+   ```
+
+4. **Merge feature branches** from the main checkout:
+   ```bash
+   grove worktree merge feature-a
+   grove worktree merge feature-b
+   ```
+   Merges are done sequentially from the main checkout. Each merge processes the entire submodule tree bottom-up, running tests at each level.
+
+5. **Push upstream** from the main checkout:
+   ```bash
+   grove push
+   ```
+   This pushes all repos in topological order (children before parents), ensuring submodule pointers are valid at every level.
+
+This pattern keeps the main checkout as the single source of truth for the integrated state. Worktrees are disposable — create them for a task, merge the results, clean them up.
+
+For the full narrative with examples, see [docs/submodule-workflow.md](docs/submodule-workflow.md).
 
 ### `grove worktree`
 
