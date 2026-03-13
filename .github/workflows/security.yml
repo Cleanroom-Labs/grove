@@ -9,21 +9,23 @@ permissions:
   contents: read
 
 jobs:
-  baerer:
+  bearer:
     name: SAST scan (Bearer)
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - name: Scan source code (SARIF)
         run: |
           docker run --rm \
-            -v "${PWD}:/repo" \
+            -v "${PWD}:/repo:rw" \
+            -w /repo \
             bearer/bearer:latest \
             scan /repo --format sarif --output /repo/bearer.sarif
       - name: Upload Bearer SARIF
+        if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: bearer.sarif
@@ -44,9 +46,9 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - name: Scan filesystem (SARIF)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.31.0
         with:
           scan-type: "fs"
           scan-ref: "."
@@ -59,7 +61,7 @@ jobs:
           sarif_file: trivy-fs.sarif
           category: trivy-filesystem
       - name: Scan filesystem for vulnerabilities
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.31.0
         with:
           scan-type: "fs"
           scan-ref: "."
@@ -73,8 +75,8 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
       - name: Install Semgrep
@@ -82,6 +84,7 @@ jobs:
       - name: Scan source code (SARIF)
         run: semgrep scan --config p/security-audit --sarif --output semgrep.sarif .
       - name: Upload Semgrep SARIF
+        if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif

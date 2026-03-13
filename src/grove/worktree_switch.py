@@ -269,8 +269,10 @@ def _clobber_target_path(target_path: Path, rows: list[dict]) -> bool:
 def _run_execute(command: str, target_path: Path) -> int:
     """Run a post-switch command in the target worktree."""
     result = subprocess.run(
-        command, shell=True, cwd=str(target_path)
-    )  # nosemgrep: subprocess-shell-true  # user-configured post-switch command
+        command,
+        shell=True,  # nosemgrep: subprocess-shell-true
+        cwd=str(target_path),
+    )
     return result.returncode
 
 

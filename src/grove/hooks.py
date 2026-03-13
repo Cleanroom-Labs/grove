@@ -141,8 +141,10 @@ def run_configured_hooks(
                 return 1
         print(f"{Colors.blue('Running hook')} {hook_type}.{hook_name}: {rendered}")
         result = subprocess.run(
-            rendered, shell=True, cwd=str(repo_root)
-        )  # nosemgrep: subprocess-shell-true  # user-configured hook command
+            rendered,
+            shell=True,  # nosemgrep: subprocess-shell-true
+            cwd=str(repo_root),
+        )
         if result.returncode != 0:
             print(f"{Colors.red('Hook failed')}: {hook_type}.{hook_name}")
             return 1
