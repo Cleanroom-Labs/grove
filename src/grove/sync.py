@@ -244,8 +244,7 @@ def resolve_target_commit(
         line = result.stdout.strip()
         if not line:
             raise ValueError(
-                f"No HEAD found at {remote_url}\n"
-                "Specify a commit SHA explicitly."
+                f"No HEAD found at {remote_url}\nSpecify a commit SHA explicitly."
             )
         sha = line.split()[0]
         return (sha, f"HEAD from {remote_url}")
