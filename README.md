@@ -1,4 +1,4 @@
-# grove
+# Grove
 
 Git submodule management tools for nested repositories.
 
