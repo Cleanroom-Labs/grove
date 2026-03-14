@@ -44,6 +44,10 @@ MIT License. See [LICENSE](https://github.com/Cleanroom-Labs/grove/blob/main/LIC
 
 **Python 3.11+** is required.
 
+### WorkTrunk (optional)
+
+[WorkTrunk](https://github.com/AmphibianDev/wt) (`wt`) is an optional companion tool that extends grove's worktree lifecycle commands. When `wt` is on PATH, grove automatically delegates `switch`, `list`, `step`, and `hook` operations to it — adding features like PR/MR shortcuts, richer metadata, and enhanced commit message generation. Grove works fully without it; install it if you want the extended lifecycle surface.
+
 ### Git Config
 
 `submodule.recurse` must not be set to `true`. Grove manages submodule state
