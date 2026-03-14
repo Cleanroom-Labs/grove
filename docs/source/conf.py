@@ -23,7 +23,8 @@ extensions = [ext for ext in extensions if ext != 'sphinx_needs']
 # Paths: docs/source/ -> sibling docs/common/
 html_static_path = ['../common/sphinx/_static', '_static']
 templates_path = ['../common/sphinx/_templates']
-html_favicon = '../common/sphinx/_static/favicon.ico'
+COMMON_ROOT = os.path.abspath('../common')
+html_favicon = setup_project_favicon('Grove', COMMON_ROOT)
 
 myst_enable_extensions = [
     "tasklist",
