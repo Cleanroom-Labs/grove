@@ -1,8 +1,0 @@
-- [ ] implement the check functionality of the git config for submodule.recurse = false. See docs/checkhealth-spec.md
-- [ ] review and plan from docs/future_work
-- [ ] merge the worktrees from the worktrunk integration
-- [ ] cleanup the worktrees from the worktrunk integration
-- [ ] create grove skills for codex
-- [ ] expand skill installation command to include codex, and add optional commands to specify more precisely which tool the skills are installed for
-- [ ] update, cleanup and organize the documentation. make it more consistent and improve its flow and connectivity.
-- [ ] improve the readm. add badges. incorporate the logo.
