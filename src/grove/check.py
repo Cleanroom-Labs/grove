@@ -190,9 +190,7 @@ def check_git_config(repo_root: Path, verbose: bool = False) -> bool:
             origin = f"  [{parts[0]}]"
 
     print(f"  {Colors.red('✗')} submodule.recurse = true{origin}")
-    print(
-        "    Grove manages submodule state explicitly. This setting causes git to"
-    )
+    print("    Grove manages submodule state explicitly. This setting causes git to")
     print("    silently advance submodule pointers on checkout/pull.")
     print("    Fix: git config --local submodule.recurse false")
     if verbose:
