@@ -15,7 +15,7 @@ For well-defined workflows, delegate to the specific skill listed below rather t
 
 | Command | Purpose | Key flags |
 |---------|---------|-----------|
-| `grove init` | Generate template `.grove.toml` | `--force` |
+| `grove init` | Generate template `.config/grove.toml` (`--legacy` for `.grove.toml`) | `--force`, `--legacy` |
 | `grove check` | Verify submodule health and sync-group consistency | `-v` for details |
 | `grove push` | Push committed changes bottom-up through submodules | `-n`/`--dry-run`, `-f`/`--skip-checks`, `--sync-group`, `--cascade`, paths |
 | `grove sync` | Synchronize sync-group instances to same commit | `--commit SHA`, `--remote`, `-n`/`--dry-run`, `-f`/`--skip-checks`, `--no-push`, `--continue/--abort` |
@@ -24,7 +24,11 @@ For well-defined workflows, delegate to the specific skill listed below rather t
 | `grove worktree add` | Create feature worktree with submodule init | `-b` (create new branch), `--no-local-remotes`, `--copy-venv` |
 | `grove worktree remove` | Remove a worktree and prune stale entries | `--force` |
 | `grove worktree merge` | Merge feature branch bottom-up across submodules | `-n`/`--dry-run`, `--no-test`, `--continue/--abort` |
+| `grove worktree switch` | Switch to an existing worktree or create one | `-c` (create), `^` (parent), `-` (previous) |
+| `grove worktree list` | Table or JSON inventory with branch metadata | `--format json`, `--branches`, `--remotes`, `--full` |
+| `grove worktree step` | Iterative lifecycle steps (diff/commit/squash/push/rebase/prune) | `step diff`, `step commit`, `step squash`, `step push`, `step prune --dry-run` |
 | `grove worktree checkout-branches` | Put submodules onto named branches (fix detached HEAD) | `--branch` |
+| `grove config import-wt` | Migrate WorkTrunk config into grove config | `--dry-run`, `--force` |
 | `grove claude install` | Install/update Claude Code skills | `--user`, `--check` |
 | `grove visualize` | Open interactive submodule visualizer GUI | |
 | `grove completion install` | Install shell tab completion | `--shell`, `--check` |
@@ -53,6 +57,9 @@ For these common workflows, delegate to the dedicated skill instead of handling 
 - **Update a submodule to a different ref** → `/grove-checkout`
 - **Propagate a submodule change upward** → `/grove-cascade`
 - **Sync a shared dependency** → `/grove-sync`
+- **Switch to another worktree** → `grove worktree switch <branch>` (create with `-c`)
+- **See what worktrees exist** → `grove worktree list` (or `--format json` for scripting)
+- **Review changes / commit / push in a worktree** → `grove worktree step diff`, `step commit`, `step push`
 - **Check if something is wrong** → `grove check -v`
 - **Set up grove for the first time** → See "First-Time Setup" below
 - **Configure cascade testing** → See "Configuration" below
@@ -153,8 +160,8 @@ Example: `grove wm --status` expands to `grove worktree merge --status`.
 
 ## First-Time Setup
 
-1. **Initialize config**: `grove init` creates a template `.grove.toml`
-2. **Edit `.grove.toml`**: Configure sync groups if you have shared submodules, add test commands
+1. **Initialize config**: `grove init` creates a template `.config/grove.toml` (use `--legacy` for `.grove.toml`)
+2. **Edit `.config/grove.toml`**: Configure sync groups if you have shared submodules, add test commands
 3. **Install skills**: `grove claude install` installs workflow skills to `.claude/skills/`
 4. **Install completion**: `grove completion install` adds tab completion to your shell
 5. **Verify**: `grove check -v` to confirm grove sees your submodule tree
@@ -210,6 +217,41 @@ All development happens in worktrees (created with `grove worktree add`), not th
 ### Cascade
 
 Bottom-up integration testing. When you change a leaf submodule, `grove cascade` walks up the tree, running progressively broader tests at each level (local → contract → integration → system). If a test fails, auto-diagnosis helps locate whether the problem is inside the dependency or at the interface.
+
+## Worktree Lifecycle
+
+### Switching worktrees
+
+```bash
+grove worktree switch <branch>         # Switch to existing worktree
+grove worktree switch -c <branch>      # Create new worktree and switch
+grove worktree switch ^                # Switch to parent worktree
+grove worktree switch -                # Switch to previous worktree
+```
+
+Notes: `pr:N` / `mr:N` shortcuts require the WorkTrunk backend. Use `--no-cd` for script contexts.
+
+### Listing worktrees
+
+```bash
+grove worktree list                    # Table view
+grove worktree list --format json      # Machine-readable
+grove worktree list --branches --remotes  # Include branch inventory
+grove worktree list --full             # All available metadata
+```
+
+### Iterative development steps
+
+```bash
+grove worktree step diff [target]      # Review branch delta
+grove worktree step commit             # Commit with message generation
+grove worktree step squash [target]    # Squash commits with message generation
+grove worktree step push [target]      # Push to remote
+grove worktree step rebase [target]    # Rebase onto target
+grove worktree step prune --dry-run    # Preview cleanup of stale branches
+```
+
+Notes: `for-each`, `promote`, `relocate` require WorkTrunk backend. `--no-verify` skips pre-commit hooks (recovery only). `copy-ignored` honors `.worktreeinclude`.
 
 ## Cleanup & Maintenance
 

@@ -61,16 +61,14 @@ grove ship                           # Health check + push (from main checkout)
 
 | Skill | Purpose |
 |-------|---------|
-| `/grove` | General assistant — decision tree for choosing the right command |
+| `/grove` | General assistant — decision tree, command reference, worktree lifecycle (switch/list/step) |
 | `/grove-add` | Create feature worktree with submodule initialization |
 | `/grove-merge` | Bottom-up merge of feature branches with conflict handling |
+| `/grove-checkout` | Checkout a ref on a submodule with recursive submodule update |
 | `/grove-cascade` | Propagate submodule changes upward through dependency tree |
 | `/grove-sync` | Synchronize sync-group instances with dry-run preview |
 | `/grove-push` | Push with path, sync-group, or cascade filtering |
-| `/grove-ship` | Health check then push (safest push path) |
-| `/grove-switch` | Switch/create worktrees via lifecycle flow |
-| `/grove-list` | Inspect worktree inventory and branch coverage |
-| `/grove-step` | Run iterative step commands (diff/commit/squash/rebase/push/prune) |
+| `/grove-ship` | Health check then push (Claude skill workflow, not a CLI command) |
 
 ## Common Issues
 

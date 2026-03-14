@@ -5,7 +5,7 @@ description: Health check all submodules then push changes bottom-up
 
 # grove-ship: Health Check + Push
 
-Run a health check on all submodules, report any issues, and push committed changes if everything is clean.
+This is a Claude Code skill workflow (not a standalone CLI command). It orchestrates `grove check` + `grove push` as a guided multi-step process.
 
 ## Workflow
 
