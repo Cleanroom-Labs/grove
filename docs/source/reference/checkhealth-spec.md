@@ -52,6 +52,13 @@ detached HEAD is expected for them.
 verifies all instances are at the same commit. Highlights divergent instances
 and the majority commit. Skipped with a warning if no `.grove.toml` is found.
 
+**Git config: `submodule.recurse`** — verifies that `submodule.recurse` is not
+set to `true`. This setting causes git to silently advance submodule pointers on
+`checkout` and `pull`, conflicting with grove's sync and merge operations. Values
+of `false` or unset are safe. When the check fails, it shows the config file
+origin and suggests `git config --local submodule.recurse false`. Verbose mode
+additionally shows how to unset from global config.
+
 ## Integration with CI
 
 `grove check` is designed to be usable as a pre-merge or post-checkout gate:

@@ -12,6 +12,7 @@ Usage (via entry point):
 """
 
 from __future__ import annotations
+import subprocess
 from collections import Counter
 from pathlib import Path
 
@@ -157,6 +158,51 @@ def check_sync_groups(repo_root: Path, verbose: bool = False) -> bool:
     return all_ok
 
 
+def check_git_config(repo_root: Path, verbose: bool = False) -> bool:
+    """Check that submodule.recurse is not set to true."""
+    result = subprocess.run(
+        ["git", "config", "--get", "submodule.recurse"],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        print(f"  {Colors.green('✓')} submodule.recurse is not set (safe)")
+        return True
+
+    value = result.stdout.strip().lower()
+    if value != "true":
+        print(f"  {Colors.green('✓')} submodule.recurse = {value} (safe)")
+        return True
+
+    origin = ""
+    origin_result = subprocess.run(
+        ["git", "config", "--show-origin", "--get", "submodule.recurse"],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if origin_result.returncode == 0:
+        parts = origin_result.stdout.strip().split("\t", 1)
+        if parts:
+            origin = f"  [{parts[0]}]"
+
+    print(f"  {Colors.red('✗')} submodule.recurse = true{origin}")
+    print(
+        "    Grove manages submodule state explicitly. This setting causes git to"
+    )
+    print("    silently advance submodule pointers on checkout/pull.")
+    print("    Fix: git config --local submodule.recurse false")
+    if verbose:
+        print(
+            "    Or remove from global config:"
+            " git config --global --unset submodule.recurse"
+        )
+    return False
+
+
 def run(args) -> int:
     try:
         repo_root = find_repo_root()
@@ -174,7 +220,15 @@ def run(args) -> int:
     # (sync-group submodules are expected to be on detached HEAD)
     sync_submodule_paths = get_sync_group_exclude_paths(repo_root, config)
 
-    # Section 1: Check project submodules are on branches
+    # Section 1: Check git config
+    print(Colors.blue("Checking git config..."))
+    if not check_git_config(repo_root, args.verbose):
+        all_healthy = False
+        issues.append("submodule-recurse")
+
+    print()
+
+    # Section 2: Check project submodules are on branches
     print(Colors.blue("Checking submodule branches..."))
 
     branch_repos = _discover_branch_check_repos(repo_root, sync_submodule_paths)
@@ -189,7 +243,7 @@ def run(args) -> int:
 
     print()
 
-    # Section 2: Check sync group sync
+    # Section 3: Check sync group sync
     print(Colors.blue("Checking sync group consistency..."))
 
     if not has_sync_groups:
@@ -202,11 +256,16 @@ def run(args) -> int:
 
     print()
 
-    # Section 3: Summary and remediation
+    # Section 4: Summary and remediation
     if all_healthy:
         print(Colors.green("All checks passed."))
     else:
         print(Colors.red("Issues found:"))
+
+        if "submodule-recurse" in issues:
+            print()
+            print(f"  {Colors.yellow('Git config fix:')}")
+            print("    git config --local submodule.recurse false")
 
         if "detached-head" in issues:
             print()

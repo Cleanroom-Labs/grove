@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from grove.check import (
     _discover_branch_check_repos,
+    check_git_config,
     check_repo_state,
     check_sync_groups,
     get_tag_or_branch,
@@ -105,6 +106,54 @@ class TestCheckSyncGroups:
         assert result is True
         captured = capsys.readouterr()
         assert "allow-drift" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# check_git_config
+# ---------------------------------------------------------------------------
+
+
+class TestCheckGitConfig:
+    def test_not_set_passes(self, tmp_git_repo: Path, capsys):
+        """When submodule.recurse is not set, check passes."""
+        assert check_git_config(tmp_git_repo) is True
+        out = capsys.readouterr().out
+        assert "✓" in out
+        assert "not set" in out
+
+    def test_false_passes(self, tmp_git_repo: Path, capsys):
+        """When submodule.recurse is explicitly false, check passes."""
+        subprocess.run(
+            ["git", "config", "--local", "submodule.recurse", "false"],
+            cwd=str(tmp_git_repo),
+            check=True,
+        )
+        assert check_git_config(tmp_git_repo) is True
+        out = capsys.readouterr().out
+        assert "✓" in out
+
+    def test_true_fails(self, tmp_git_repo: Path, capsys):
+        """When submodule.recurse is true, check fails."""
+        subprocess.run(
+            ["git", "config", "--local", "submodule.recurse", "true"],
+            cwd=str(tmp_git_repo),
+            check=True,
+        )
+        assert check_git_config(tmp_git_repo) is False
+        out = capsys.readouterr().out
+        assert "✗" in out
+        assert "submodule.recurse = true" in out
+
+    def test_verbose_shows_unset_hint(self, tmp_git_repo: Path, capsys):
+        """Verbose mode shows global unset command."""
+        subprocess.run(
+            ["git", "config", "--local", "submodule.recurse", "true"],
+            cwd=str(tmp_git_repo),
+            check=True,
+        )
+        check_git_config(tmp_git_repo, verbose=True)
+        out = capsys.readouterr().out
+        assert "--global --unset" in out
 
 
 # ---------------------------------------------------------------------------
