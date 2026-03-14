@@ -1,8 +1,7 @@
 # `grove check` Health Check — Spec
 
-This document defines the intended complete scope of `grove check` as a
-single entry point for grove repo health verification. It covers both checks
-already implemented and checks planned for future implementation.
+This document defines the scope of `grove check` as a single entry point
+for grove repo health verification.
 
 ## Philosophy
 
@@ -52,68 +51,6 @@ detached HEAD is expected for them.
 **Sync-group consistency** — for each sync group defined in `.grove.toml`,
 verifies all instances are at the same commit. Highlights divergent instances
 and the majority commit. Skipped with a warning if no `.grove.toml` is found.
-
-### Planned: Git Config Validation
-
-**`submodule.recurse` check** — verifies that `submodule.recurse` does not
-resolve to `true` in the effective git configuration.
-
-Implementation notes:
-- Run `git config --get submodule.recurse`; non-zero exit means unset (safe)
-- Run `git config --show-origin --get submodule.recurse` to obtain the origin
-  file path for display; parse the first tab-delimited field
-- Add a `check_git_config()` function in `check.py` following the pattern of
-  `check_sync_groups()`
-- Add a row to the validation matrix in `docs/validation-design.md`
-
-Failure output:
-```
-Git config
-  ✗ submodule.recurse = true  [~/.config/git/config]
-    Grove manages submodule state explicitly. This setting causes git to
-    silently advance submodule pointers on checkout/pull, conflicting with
-    grove's sync and merge commands.
-    Fix: remove [submodule] recurse = true from the config file above, or:
-      git config --global submodule.recurse false
-    See: grove check -v
-```
-
-Pass output:
-```
-Git config
-  ✓ submodule.recurse is not set (default: false)
-```
-
-**Secondary: non-fatal warnings in mutating commands**
-
-In `sync.py`, `worktree_merge.py`, and `cascade.py`, emit a yellow `⚠`
-warning at the start of `run()` if `submodule.recurse = true` is detected:
-
-```
-⚠ submodule.recurse = true detected. This may interfere with this operation.
-  Run `grove check` for details and remediation steps.
-```
-
-This is non-blocking. The user may be mid-operation or unable to change
-global config immediately. The warning ensures visibility without requiring
-a `--skip-checks` flag.
-
-### Deferred: Worktree Hygiene
-
-Check for stale worktree entries that `git worktree prune` would remove. Stale
-entries don't cause errors but can produce confusing output in `git worktree list`.
-
-Implementation sketch: run `git worktree list --porcelain`, identify entries
-where the worktree path no longer exists on disk, report as advisory (`⚠`).
-
-### Deferred: Config Validity
-
-Verify that `.grove.toml` parses without error and that referenced sync-group
-URL patterns are non-empty. Useful as an early-failure check before running
-sync or cascade.
-
-Implementation sketch: call `load_config()` and catch `ValueError`; check
-that each `SyncGroup.url_match` is a non-empty string.
 
 ## Integration with CI
 

@@ -1,6 +1,6 @@
 # WorkTrunk Integration
 
-Grove provides a complete native worktree lifecycle and can optionally delegate lifecycle commands to [WorkTrunk](https://worktrunk.dev/) (`wt`).
+[WorkTrunk](https://worktrunk.dev/) (`wt`) is a standalone worktree lifecycle tool that provides enhanced features like PR/MR shortcuts, richer metadata, and advanced commit message generation. Grove provides a complete native worktree lifecycle but can optionally delegate lifecycle commands to WorkTrunk when it's installed.
 
 ## Backend Modes
 

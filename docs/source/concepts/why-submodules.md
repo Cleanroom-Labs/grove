@@ -132,3 +132,8 @@ They're less suited when:
 - **You need zero tooling overhead.** Vanilla git submodule commands are clumsy. Grove mitigates this, but there's still a learning curve.
 
 For practical advice on configuring git to reduce submodule friction — and where grove's tooling picks up where git configs leave off — see [Taming Git Submodules](taming-submodules.md).
+
+## Further Reading
+
+- [Monorepo vs. Polyrepo](monorepo-tradeoffs.md) — Where submodules fit in the monorepo-polyrepo spectrum
+- [Object Store Deduplication](../future/object-store-deduplication.md) — Investigation into deduplication tradeoffs

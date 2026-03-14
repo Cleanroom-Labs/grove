@@ -198,3 +198,8 @@ Prefer these defaults for day-to-day development:
 - Use `grove worktree step diff` and `grove worktree step prune --dry-run` as regular hygiene checks.
 - Keep hooks under versioned project config (`.config/grove.toml`), and use `--no-verify` only for recovery scenarios.
 - Use `grove config import-wt --dry-run` before `--force` when migrating existing WorkTrunk config.
+
+## Related Guides
+
+- [Cascade Guide](cascade-guide.md) — Concrete examples of cascade workflows
+- [Sync-Group Cascade Workflow](sync-group-cascade-workflow.md) — Full sync + cascade walkthrough

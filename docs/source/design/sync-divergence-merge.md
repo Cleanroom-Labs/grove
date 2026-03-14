@@ -77,3 +77,7 @@ When `grove sync --dry-run` encounters diverged instances, it reports what would
 ```
 (dry-run) Would attempt merge in workspace.
 ```
+
+## See Also
+
+- [Sync-Group Cascade Workflow](../guides/sync-group-cascade-workflow.md) — The workflow where divergence typically occurs

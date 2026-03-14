@@ -298,3 +298,6 @@ For concrete lifecycle command examples, see:
 
 - [worktree-lifecycle.md](worktree-lifecycle.md) for `switch`, `list`, `remove`, `step`, `hook`
 - [worktrunk-integration.md](../design/worktrunk-integration.md) for backend delegation behavior and `config import-wt`
+- [Cascade Guide](cascade-guide.md) — Propagating changes upward with testing
+- [Sync-Group Cascade Workflow](sync-group-cascade-workflow.md) — Sync + cascade for shared dependencies
+- [Best Practices](best-practices.md) — Testing strategy and team patterns

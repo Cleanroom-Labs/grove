@@ -17,10 +17,11 @@ concepts/monorepo-tradeoffs
 :caption: Guides
 :hidden:
 
-guides/submodule-workflow
+guides/overview
+guides/worktree-lifecycle
 guides/cascade-guide
 guides/sync-group-cascade-workflow
-guides/worktree-lifecycle
+guides/submodule-workflow
 guides/best-practices
 ```
 

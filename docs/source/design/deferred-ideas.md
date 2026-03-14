@@ -17,3 +17,13 @@ Instead of merging the entire branch at once, merge one commit at a time across 
 ## Hierarchical bisection
 
 Bisect across nested repos: when a bug is introduced somewhere in the tree, bisect the root repo first to find the breaking commit, then drill into the specific submodule that changed and bisect within it.
+
+## `grove check` — planned checks
+
+These health checks were designed but not yet implemented in `grove check`:
+
+**Git config validation** — verify `submodule.recurse` is not set to `true`. Would also emit non-fatal warnings in mutating commands (sync, merge, cascade) when detected.
+
+**Worktree hygiene** — detect stale worktree entries that `git worktree prune` would remove. Report as advisory (`⚠`), not blocking.
+
+**Config validity** — verify `.grove.toml` parses without error and sync-group URL patterns are non-empty. Early-failure check before sync or cascade.

@@ -154,3 +154,8 @@ Worktrees are most valuable when:
 - **You use AI agents.** Worktrees are the natural isolation mechanism for parallel agents.
 - **You need fast context switching.** `cd` is faster than `git stash && git checkout && git submodule update --recursive`.
 - **You need reproducibility.** Each worktree is a complete, independent snapshot. No shared mutable state.
+
+## See Also
+
+- [Worktree Lifecycle](../guides/worktree-lifecycle.md) — Command reference for worktree operations
+- [Submodule Workflow](../guides/submodule-workflow.md) — Concrete workflow examples with worktrees

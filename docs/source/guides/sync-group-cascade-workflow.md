@@ -160,3 +160,7 @@ If intermediate sync-group instances have diverged (different developers committ
 - **Clean divergence**: auto-merged before cascade starts
 - **Merge conflict**: cascade pauses; resolve, then `grove cascade --continue`
 - **Force**: `--skip-checks` skips divergence resolution (for prototyping)
+
+## See Also
+
+- [Best Practices](best-practices.md) — Sync group discipline and team patterns

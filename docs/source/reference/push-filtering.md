@@ -74,3 +74,7 @@ Reports how many repos are discovered, how many are targeted by filters, and whi
 | Health check | No | Yes (`grove check` first) |
 | Filtering | Yes (paths, sync-group, cascade) | No (always pushes all) |
 | Use case | Targeted push after specific workflow | Ship everything after full verification |
+
+## See Also
+
+- [Cascade Guide](../guides/cascade-guide.md) — The workflow that creates filtered push scenarios

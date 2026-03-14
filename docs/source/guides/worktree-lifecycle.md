@@ -1,6 +1,6 @@
 # Worktree Lifecycle
 
-This document covers Grove's lifecycle commands for day-to-day worktree development.
+This is the command reference for grove's worktree lifecycle operations. For the conceptual motivation behind worktrees, see [Why Worktrees?](../concepts/why-worktrees.md). For a full development workflow example, see [Submodule Workflow](submodule-workflow.md).
 
 ## Core Commands
 

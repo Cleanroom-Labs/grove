@@ -206,3 +206,7 @@ No mocking. Full end-to-end verification. These are inherently slower and more s
 ### Practical guidance
 
 Tier boundaries are practical, not rigid. The goal is a test suite that supports the cascade workflow — don't let categorization overhead slow you down. Three similar lines of code in two tiers is better than a premature test abstraction.
+
+## See Also
+
+- [Best Practices](best-practices.md) — Testing strategy and cascade discipline
