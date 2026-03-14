@@ -54,7 +54,7 @@ The root `.grove.toml` defines:
 grove worktree add <path> <branch>   # Create isolated worktree
 # ... develop in worktree ...
 grove worktree merge <branch>        # Merge back (run from main checkout)
-grove ship                           # Health check + push (from main checkout)
+grove check -v && grove push         # Health check + push (or use /grove-ship skill)
 ```
 
 ## Skills

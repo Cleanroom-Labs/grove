@@ -84,8 +84,6 @@ For optional LLM-backed commit/squash generation:
 pip install -e ".[llm]"
 ```
 
-**Requirements:** Python 3.11+
-
 ## Usage
 
 ### `grove init`

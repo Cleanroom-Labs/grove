@@ -17,14 +17,16 @@ author = 'Cleanroom Labs'
 version = get_docs_version()
 release = get_docs_version()
 
-# Grove doesn't use requirements traceability
+# Grove doesn't use requirements traceability — strip sphinx-needs and its JS fix
 extensions = [ext for ext in extensions if ext != 'sphinx_needs']
+html_js_files = [f for f in html_js_files if f != 'needflow-fix.js']
 
 # Paths: docs/source/ -> sibling docs/common/
 html_static_path = ['../common/sphinx/_static', '_static']
 templates_path = ['../common/sphinx/_templates']
-COMMON_ROOT = os.path.abspath('../common')
-html_favicon = setup_project_favicon('Grove', COMMON_ROOT)
+html_favicon = setup_project_favicon('Grove', os.path.abspath('../common'))
+
+exclude_patterns = [*exclude_patterns, 'design/worktrunk-integration-design.md']
 
 myst_enable_extensions = [
     "tasklist",

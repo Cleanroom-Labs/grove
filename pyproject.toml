@@ -14,16 +14,15 @@ classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
   "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
-  "Programming Language :: Python :: 3.14",
   "Topic :: Software Development :: Version Control :: Git",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
-docs = ["sphinx>=7.0.0", "sphinx-rtd-theme>=3.0.0", "myst-parser>=3.0.0"]
 llm = ["strands-agents[ollama]", "strands-agents-tools", "claude-agent-sdk"]
 
 [project.scripts]

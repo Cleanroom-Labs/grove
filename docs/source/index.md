@@ -43,7 +43,6 @@ reference/alternatives
 design/cascade-design
 design/sync-divergence-merge
 design/worktrunk-integration
-design/worktrunk-integration-design
 design/deferred-ideas
 ```
 
